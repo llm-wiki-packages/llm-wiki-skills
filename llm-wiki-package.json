@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "name": "llm-wiki-skills",
-  "repository": "simple10/llm-wiki-skills",
+  "repository": "llm-wiki-packages/llm-wiki-skills",
   "version": "0.1.0",
   "description": "Skills for llm-wiki wikis: the channel skills the ops CLI installs.",
   "license": "MIT",

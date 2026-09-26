@@ -18,11 +18,11 @@ them onto every page the job lands.
 ## Sandbox
 
 `stages.harvest.sandbox_ref` is
-`simple10/llm-wiki-skills:frameio/frameio.harvest`. What the stage reaches,
+`llm-wiki-packages/llm-wiki-skills:frameio/frameio.harvest`. What the stage reaches,
 and why:
 
 ```sh
-llm-wiki-ops packages reference simple10/llm-wiki-skills references/sandboxes/frameio/frameio.harvest.md
+llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/frameio/frameio.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-frameio` reviews it into a wiki sandbox, and
