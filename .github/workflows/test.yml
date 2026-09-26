@@ -32,6 +32,11 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # No lockfile here: the deps are the scripts' PEP 723 headers and the
+          # `--with` flags below, so those files key the cache.
+          cache-dependency-glob: |
+            skills/*/scripts/*.py
+            .github/workflows/test.yml
       # The install tests `init` real git repos and commit in them; a bare
       # runner has no git identity and every one of those commits would die
       # on "Please tell me who you are".
