@@ -18,11 +18,11 @@ it with `skills install --force`.
 ## Sandbox
 
 `stages.harvest.sandbox_ref` is
-`simple10/llm-wiki-skills:gmail/gmail.harvest`. What the stage reaches, and
+`llm-wiki-packages/llm-wiki-skills:gmail/gmail.harvest`. What the stage reaches, and
 why:
 
 ```sh
-llm-wiki-ops packages reference simple10/llm-wiki-skills references/sandboxes/gmail/gmail.harvest.md
+llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/gmail/gmail.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-gmail` reviews it into a wiki sandbox, and
