@@ -17,6 +17,7 @@ the network: the rendered page is a fixture.
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import importlib.util
 import json
@@ -712,7 +713,7 @@ def test_past_the_deadline_the_worker_is_told_to_stop_and_the_report_says_how_to
     root, cap, rel, t = _documented_section(tmp_path)
     assert _cli("plan", rel, "--urls", f"{rel}/sitemap.xml", "--sites", f"{rel}/sites.json", tmp_path=tmp_path, ticket_dict=t, cwd=root).returncode == 0
     plan = json.loads((cap / "plan.json").read_text(encoding="utf-8"))
-    spawned = time.mktime(time.strptime(plan["spawned_at"], "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+    spawned = calendar.timegm(time.strptime(plan["spawned_at"], "%Y-%m-%dT%H:%M:%SZ"))
     assert plan["deadline_epoch"] == pytest.approx(spawned + 20 * 60, abs=2)
     assert plan["hard_stop_epoch"] < spawned + 30 * 60
     _fill(root / plan["leaves"][0]["dir"])
