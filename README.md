@@ -14,5 +14,6 @@ version = "latest"
 - `tests/` — the package's: the harness (every unit installed and enabled through the real CLI, `test_<venue>_harness.py`), the manifests, the docs gate, and what has to hold across every unit
 - `references/sandboxes/<venue>/<venue>.harvest.md` — the sandbox a unit's `stages.harvest.sandbox_ref` names: its hosts, bins, credential and profile snippet
 - `scripts/check-manifest.py` — the manifest agrees with the tree
+- `scripts/release.py` — cut a release: `bump patch|minor|major` in a PR, then `tag` on a synced main pushes `v<version>`. Wikis pin these tags; never cut one by hand
 
 Authoring a unit: `llm-wiki-ops reference skill-authoring` prints the contract inside any wiki.
