@@ -32,6 +32,11 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # No lockfile here: the deps are the scripts' PEP 723 headers and the
+          # `--with` flags below, so those files key the cache.
+          cache-dependency-glob: |
+            skills/*/scripts/*.py
+            .github/workflows/test.yml
       # The install tests `init` real git repos and commit in them; a bare
       # runner has no git identity and every one of those commits would die
       # on "Please tell me who you are".
@@ -96,4 +101,4 @@ jobs:
       # `-rs`: every skip prints its reason, so a harness that skipped its
       # install tier is visible in the log, never a quiet green.
       - name: Run the harness
-        run: uv run --with pytest --python 3.12 pytest -q -rs
+        run: uv run --with pytest --with pytest-xdist --python 3.14 pytest -q -rs -n auto
