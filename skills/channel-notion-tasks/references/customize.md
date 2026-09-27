@@ -1,9 +1,9 @@
 # channel-notion-tasks — customizing this skill
 
 Ask which Notion databases hold the operator's tasks and record their
-ids/names in the installed SKILL.md's `### harvest` "Mechanical filters",
-along
-with the lookback window for the FIRST pull (default 14d) and any
+database ids in the installed SKILL.md's `### harvest` "Mechanical filters":
+harvest queries only these, so a first pull needs at least one. Record them
+along with the lookback window for the FIRST pull (default 14d) and any
 statuses to exclude (e.g. Archived). These belong in the skill, not the
 watch entry.
 
@@ -26,5 +26,8 @@ llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/no
 ```
 
 `/llm-wiki:sandbox channel-notion-tasks` reviews it into a wiki sandbox, and
-`/llm-wiki:enable channel-notion-tasks` binds the stage. `process` names no
-sandbox and runs with no network.
+`/llm-wiki:enable channel-notion-tasks` binds the stage. The wiki sandbox
+holds only the `## Profile` block. A harvest also needs this machine's allow
+fragment for the `notion` credential route (`## Machine`), applied when the
+operator enables the sandbox. `process` names no sandbox and runs with no
+network.

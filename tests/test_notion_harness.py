@@ -7,9 +7,11 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
+import re
+
 import pytest
 
-from harness import declared_job, landed, live_ticket, rooted, run, unit_tests
+from harness import ROOT, declared_job, jsonc, landed, live_ticket, rooted, run, snippet, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-notion-tasks", "test_notion"))
@@ -33,6 +35,23 @@ def _closing_the_process_ticket_discards_the_scripts_own_ledger():
     process step's judged `lines.json`, just wrote through `page create`.
     Reported to the coordinator, not a harness gap to paper over."""
     pytest.skip("plugins main c284c4839: tickets_close.py's extract_ledger overwrites a ledger job's page on close, discarding write_items.py ledger's own lines.json curation — reported, not a harness gap")
+
+
+def test_the_reference_routes_the_token_and_the_profile_reaches_only_the_api():
+    text = (ROOT / "references" / "sandboxes" / "notion" / "notion.harvest.md").read_text(encoding="utf-8")
+    profile = jsonc(snippet(text))["profile"]
+    assert "api.notion.com" in profile["network"]["allow_domain"]
+    assert not any("notion" in h and h != "api.notion.com" for h in profile["network"]["allow_domain"])
+    assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
+    machine = json.loads(re.search(r"^## Machine\n.*?^```json\n(.*?)^```$", text, re.M | re.S).group(1))
+    assert machine["network"]["credentials"] == ["notion"]
+    assert machine["network"]["custom_credentials"]["notion"] == {
+        "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
+        "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
+    }
+    assert machine["credential_capture"]["notion"]["command"] == ["{bin:ntn}", "auth", "token"]
+    probe = json.loads(re.search(r"^## Probe\n.*?^```json\n(.*?)^```$", text, re.M | re.S).group(1))
+    assert probe == ["{bin:ntn}", "whoami"]
 
 
 @pytest.fixture

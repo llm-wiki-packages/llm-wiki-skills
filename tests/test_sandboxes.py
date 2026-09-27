@@ -5,6 +5,7 @@ keys are admitted is `sandboxes enable`'s to say, in test_install.py."""
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -57,6 +58,44 @@ def test_a_credentialed_unit_claims_an_exact_host_its_snippet_reaches(name):
     _, doc = _reference(name)
     claims = [h for h in _hosts(name) if not h.startswith("*")]
     assert set(claims) & set(doc["profile"]["network"]["allow_domain"]), f"{name}: no exact host: claim is reached, so dispatch refuses a job with no host"
+
+
+def _section_json(text: str, heading: str):
+    """The one fenced `json` block under `## <heading>`, parsed, or None when there is no such section."""
+    match = re.search(rf"^## {heading}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not match:
+        return None
+    fences = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
+    assert len(fences) == 1, f"## {heading} carries {len(fences)} json blocks, not one"
+    return json.loads(fences[0])
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for one in value.values():
+            yield from _strings(one)
+    elif isinstance(value, list):
+        for one in value:
+            yield from _strings(one)
+
+
+@pytest.mark.parametrize("name", SANDBOXED)
+def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name):
+    rel, _ = _reference(name)
+    text = (REFERENCES / f"{rel}.md").read_text(encoding="utf-8")
+    machine, probe = _section_json(text, "Machine"), _section_json(text, "Probe")
+    if machine is None and probe is None:
+        return
+    assert machine is not None and probe is not None, f"{name}: a machine block and its probe come together"
+    bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
+    assert isinstance(probe, list) and probe and all(isinstance(a, str) for a in probe), probe
+    for value in [*_strings(machine), *probe]:
+        assert not value.startswith(("/", "~")), f"{name}: {value!r} is a machine path"
+        for placeholder in re.findall(r"\{bin:([^}]*)\}", value):
+            assert placeholder in bins, f"{name}: {{bin:{placeholder}}} is not in requires.bins"
+    assert probe[0].startswith("{bin:"), probe
 
 
 def test_every_reference_is_one_a_unit_names():

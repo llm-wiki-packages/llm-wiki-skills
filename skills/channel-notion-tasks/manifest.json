@@ -9,6 +9,15 @@
   "kind": "channel",
   "name": "channel-notion-tasks",
   "requires": {
+    "bins": [
+      {
+        "bin": "ntn",
+        "source": "https://www.notion.com/product/dev",
+        "installers": {
+          "brew": "notion-cli"
+        }
+      }
+    ],
     "credential": false,
     "ops": ">=0.1.0"
   },
@@ -33,6 +42,6 @@
         "required": true
       }
     },
-    "note": "The connector is session-level on the pulling machine and is named nowhere in this unit \u2014 it is an MCP tool whose name depends on which client the machine runs. One watch per workspace."
+    "note": "One watch per workspace: the machine's `notion` credential route decides which workspace `ntn` reaches, and the harvest refuses a workspace that is not `options.workspace`."
   }
 }

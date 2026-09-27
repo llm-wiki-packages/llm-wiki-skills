@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -216,6 +217,35 @@ def test_times_are_iso_in_and_iso_out():
     assert W.when_of({"last_edited": "2026-09-18"}) == W.from_day("2026-09-18")
 
 
+# ------------------------------------------------------------------ the pull's commands
+
+
+# Every `ntn` call harvest may make. `auth token` prints the raw token, and the
+# rest write to the venue.
+NTN_READS = {("whoami",), ("datasources", "resolve"), ("api",), ("pages", "get")}
+
+
+def ntn_calls() -> list[str]:
+    """Each `ntn` command in SKILL.md's shell blocks, joined across `\\` continuations."""
+    text = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"^```sh\n(.*?)^```$", text, re.M | re.S)
+    lines = [line for block in blocks for line in block.replace("\\\n", " ").splitlines()]
+    return [line for line in lines if re.search(r"(^|\|)\s*ntn\s", line)]
+
+
+def test_every_ntn_call_is_a_read_and_is_given_stdin():
+    calls = ntn_calls()
+    assert len(calls) == 4, calls
+    for line in calls:
+        words = shlex.split(line.split("|")[-1])
+        assert words[0] == "ntn", line
+        assert any(tuple(words[1 : 1 + len(read)]) == read for read in NTN_READS), line
+        # With no stdin `ntn` waits on it until the slice dies.
+        assert "< /dev/null" in line or "|" in line, line
+    (query,) = [line for line in calls if " api " in line]
+    assert "/query" in query and '"direction": "ascending"' in query and '"on_or_after": "<since>"' in query
+
+
 # ------------------------------------------------------------------ the writer
 
 
@@ -272,7 +302,7 @@ def test_a_tie_with_the_watermark_is_kept_but_never_becomes_a_second_days_bullet
 
 def test_a_failed_pull_writes_the_report_alone(tmp_path):
     directory, ticket = day_dir(tmp_path)
-    r = write(directory, ticket, [], "--failed", "connector unreachable")
+    r = write(directory, ticket, [], "--failed", "api.notion.com unreachable")
     assert r.returncode == 1
     rep = report(directory)
     assert rep["status"] == "failed" and rep["captured"] == []
@@ -395,8 +425,8 @@ def test_write_the_documented_way_finds_a_bare_from_inside_the_capture_dir(tmp_p
 
 def test_write_failed_the_documented_way_and_the_refusals(tmp_path):
     directory, ticket = day_dir(tmp_path)
-    r = script("write", directory, ticket, "--failed", "no connector in this slice", "--missing", "notion-connector", "mcp:notion", "denied")
-    assert r.returncode == 1 and report(directory)["missing"] == [{"host": "notion-connector", "url": "mcp:notion", "why": "denied"}]
+    r = script("write", directory, ticket, "--failed", "no notion route in this slice", "--missing", "api.notion.com", "https://api.notion.com/v1/users/me", "auth")
+    assert r.returncode == 1 and report(directory)["missing"] == [{"host": "api.notion.com", "url": "https://api.notion.com/v1/users/me", "why": "auth"}]
     assert script("write", directory, ticket, "--cap", "-1").returncode == 2 and script("write", directory, ticket, "--cap", "0").returncode == 2
     for verb in ("since", "write", "ledger"):
         dot = subprocess.run([sys.executable, str(SCRIPT), verb, ".", "--workspace", "harness"],

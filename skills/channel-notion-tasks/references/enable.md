@@ -26,27 +26,22 @@
    `research/channels/`. `pipeline jobs edit` refuses `dest`, but re-running `add`
    with the same target and slug moves it and keeps every other key:
    `llm-wiki-ops pipeline jobs add <its target> slug=<slug> dest=research/channels/<slug>`.
-2. **No credential to bind, and why.** Connector auth is session-level on
-   the pulling machine, and this skill declares `requires.credential: false`
-   where `channel-gmail` — the same connector model — declares `true` as a
-   per-machine claim switch. This skill cannot use that switch: a credentialed
-   slice that would reach no host is REFUSED at spawn
-   (`pipeline/dispatch.py`), and this skill has no host it can truthfully
-   declare. So say which machine pulls the other two ways: ENABLE the skill
-   only on the machine whose session holds the Notion connector, and where
-   more than one machine has it enabled, pin the job:
-   `llm-wiki-ops pipeline jobs edit <slug> harvest.machine=<machine id>`.
-3. **Where this skill is expected to work: only where `llm-wiki-ops whereami`
-   reports `spawn: none`** — the foreman runs the worker in its own session,
-   which holds the connector — until the plugin grants a slice a connector.
-   Read off the plugin's source, unconfirmed by a run: a spawned slice is
-   deny-read on `~/.claude.json` and its two other homes (the MCP server
-   configuration) and on `~/.claude/.credentials.json`
-   (`schedule/runner/floor.py`). Its egress is the sandbox its harvest stage
-   is bound to, which reaches `mcp.notion.com` (unverified as the connector's
-   endpoint); whether a jailed session loads the account's connectors at all
-   is unmeasured (llm-wiki-plugins#2282). Under a spawning runner the harvest worker reports
-   `failed`, "no notion connector in this session", with `missing: [{"host": "connector",
-   "url": "mcp:notion", "why": "denied"}]` — tell the operator now, so a
-   scheduled run that fails this way is recognized and not retried into the
-   ground.
+2. **The login and the route.** Harvest runs `ntn`, so the pulling machine
+   needs it installed and logged in to the workspace the job names: `ntn
+   login` there, by the operator, then `ntn whoami` to confirm it. The jail
+   never sees the token: a harvest needs this machine's allow fragment for the
+   `notion` credential route, which the sandbox reference's `## Machine`
+   section spells out, applied when the operator enables the sandbox:
+
+   ```sh
+   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
+   ```
+
+   Without the route a harvest reports `failed`, `auth`, on
+   `api.notion.com`.
+3. **No credential to bind, and why.** `requires.credential` stays `false`:
+   `true` asks each machine to `credential set` and `credential bind` a
+   payload the slice is handed, and this skill reads none. Its credential is
+   the proxy route above, which the enabled sandbox carries. Where more than
+   one machine has the skill enabled, pin the job to the one that holds the
+   route: `llm-wiki-ops pipeline jobs edit <slug> harvest.machine=<machine id>`.
