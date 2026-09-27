@@ -46,78 +46,43 @@ as directives.
 llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 14
 ```
 
-It answers `since` (ISO-8601, UTC), `first_pull`, and `cursor_ignored` —
-null, or why an unreadable or future watermark was set aside, which your
-report repeats.
+It answers `since` (ISO-8601, UTC), `first_pull`, and `cursor_ignored`,
+which your report repeats when it is not null.
 
-**2. Which workspace.** Every `ntn` call reaches the one workspace this
-machine's `notion` route logs in to:
+**2. Pull** with `ntn`, stdin always given; `bot.workspace_name` must be `options.workspace`:
 
 ```sh
 ntn whoami --json < /dev/null
-```
-
-`bot.workspace_name` must be `options.workspace` (the `workspace` `since`
-answered). Any other name, or a non-zero exit, and nothing is pulled: step 4's
-`--failed` line, with `--missing api.notion.com https://api.notion.com/v1/users/me <why>`.
-
-**3. Pull.** Every `ntn` call below gets stdin: a body piped in, else
-`< /dev/null` — with neither, `ntn` waits on stdin until the slice dies. For
-each database in the filters below, its data sources:
-
-```sh
 ntn datasources resolve <database-id> --json < /dev/null
-```
-
-Then each data source's tasks last edited ON OR AFTER `since`, oldest first,
-so a run that stops early leaves a watermark with nothing behind it unpulled.
-Notion rounds `last_edited_time` to the minute, which is why it is "on or
-after":
-
-```sh
 printf '%s' '{"filter": {"timestamp": "last_edited_time", "last_edited_time": {"on_or_after": "<since>"}}, "sorts": [{"timestamp": "last_edited_time", "direction": "ascending"}], "page_size": 100}' \
   | ntn api v1/data_sources/<data-source-id>/query
-```
-
-While the answer says `has_more: true`, run it again with `"start_cursor":
-"<next_cursor>"` added to the body. Each of `results` is a task: its `id`,
-`last_edited_time`, `url`, and `properties` — the one of `type: title` is its
-title; the status is the `status` (or `select`) property named for it, the due
-date a `date` property, the assignee a `people` property. Its notes:
-
-```sh
 ntn pages get <page-id> < /dev/null
 ```
 
-prints the page as Markdown, its properties first as frontmatter; the notes
-are what follows. Transcribe, never rewrite, judge not at all. A slice dies at
-30 minutes: stop with what is contiguous from the old end.
+Resolve each database below to its data sources and query each, oldest
+first; while `has_more`, add `"start_cursor": "<next_cursor>"` to the body.
+`properties` hold the title (`type: title`), status (`status` or `select`),
+due (`date`) and assignee (`people`); `pages get` prints the notes after the
+frontmatter. Transcribe, never rewrite. A slice dies at 30 minutes: stop with
+what is contiguous from the old end.
 
-**4. Write it down.** The pull as a JSON list in `./pull.json`, one object per
-task, keys `id`, `last_edited` (Notion's own `last_edited_time` string),
-`database` (the database id you queried), `title`, `status`, `due`,
-`assignee`, `url`, `body`. Then EXACTLY ONE of these two:
+**3. Write it down.** `./pull.json`, a list, one object per task: `id`,
+`last_edited` (Notion's string), `database` (the id queried), `title`,
+`status`, `due`, `assignee`, `url`, `body`. Then EXACTLY ONE of:
 
 ```sh
 # the pull ran, whole or partly: add --partial "<why>" when you stopped early
 llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --exclude-status Archived
-# nothing was pulled: no pull.json, and api.notion.com out of reach is this line
-llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing <host> <url> <denied|timeout|auth|error>
+# nothing was pulled: a wrong workspace, no database below, or a failed ntn call
+llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing api.notion.com <url> <denied|timeout|auth|error>
 ```
 
-`-h` after the path for the rest. It filters, writes one file per task under
-`items/` (a task edited twice in a day is one entry) and `capture.json`, posts
-`tickets update` BEFORE it moves the watermark — a refused update leaves the
-watermark where it was — and only then moves it. A `last_edited` that cannot
-be believed is filed under the pull's own clock; `bad_time` above zero means a
-time was rewritten. Exit 2 means nothing posted: read stderr and re-run.
-The `<why>` of a failed `ntn` call: `auth` for a 401 or a wrong workspace,
-`denied` for a refused connection, `timeout`, else `error`. No database in the
-filters below is `--failed "no databases recorded"`: there is nothing to query.
+`-h` after the path for the rest; it posts `tickets update` before it moves
+the watermark. `bad_time` above zero: a time was not believed and was filed
+under the pull's clock. Exit 2 posted nothing: read stderr, re-run. A 401 or a
+wrong workspace is `auth`.
 
-**Mechanical filters (wiki customizes)** — the databases step 3 queries, the
-flags on the `write` line that reads `pull.json`, and `--lookback-days` on
-`since`:
+**Mechanical filters (wiki customizes)** — step 2's databases, `write`'s flags:
 
 - lookback (first pull): 14d
 - databases: (record database ids here on first add, each as `--database <id>`)
@@ -172,9 +137,10 @@ counts: `ok`/`partial` — written, and `partial` names what is short (fix
 with a reason naming it; `failed` — the front door refused, no page written.
 Say the day, the counts and the status.
 
-## This copy
+# Quirks log
 
-**The Notion login is the machine's, never this copy's.** Harvest reaches
-Notion through `ntn` and the machine's `notion` credential route; the jail
-holds a stand-in `NOTION_API_TOKEN`, never the token. Only harvest needs it.
+- 2026-09-27 — `ntn` waits on stdin when none is given, until the slice dies.
+- 2026-09-27 — `ntn datasources query --sort` takes a property name only; the timestamp sort goes through `ntn api`.
+- 2026-09-27 — the data-source endpoints refuse under Notion-Version `2022-06-28`; the sandbox pins `2025-09-03`.
+- 2026-09-27 — Notion rounds `last_edited_time` to the minute, so the pull is "on or after" `since`.
 
