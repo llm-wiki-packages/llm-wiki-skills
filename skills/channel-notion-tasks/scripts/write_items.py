@@ -30,7 +30,7 @@ harvest, `ledger` is process.
 never earlier than the ticket's `min_date`.
 
 `write` is HARVEST's last step. It takes the tasks the worker read off the
-connector AS THEY ARRIVED — a JSON list on stdin or in `--from` — and writes
+API through `ntn` AS THEY ARRIVED — a JSON list on stdin or in `--from` — and writes
 them down with no judgment of its own. No summary and no junk rule: both are
 judgment, and judgment is the process step's.
 
@@ -236,7 +236,7 @@ def when_of(item):
 
 
 def show(when):
-    """A time as this venue's connector is asked for it: ISO-8601, UTC."""
+    """A time as a Notion query filter is given it: ISO-8601, UTC."""
     return datetime.fromtimestamp(when / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + f"{when % 1000:03d}Z"
 
 

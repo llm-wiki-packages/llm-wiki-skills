@@ -93,9 +93,16 @@ jobs:
           done
       # `skills enable` refuses a skill whose `requires.bins` are not on PATH
       # and installs nothing itself, so the runner supplies what the manifests
-      # declare. `uv tool` puts the binary where setup-uv already put PATH.
+      # declare. `uv tool` puts the binary where setup-uv already put PATH;
+      # brew is on the runner but not on PATH, so only `ntn`'s own directory
+      # joins it. No test runs `ntn`: `skills enable` resolves it and reads
+      # its version.
       - name: Install the binaries the manifests declare
-        run: uv tool install yt-dlp
+        run: |
+          uv tool install yt-dlp
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install notion-cli
+          dirname "$(readlink -f "$(brew --prefix)/bin/ntn")" >> "$GITHUB_PATH"
       - name: Check the manifest
         run: python3 scripts/check-manifest.py
       # `-rs`: every skip prints its reason, so a harness that skipped its
