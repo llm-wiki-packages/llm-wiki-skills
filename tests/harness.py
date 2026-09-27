@@ -181,7 +181,7 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
         if not ref:
             continue
         package, rel = ref.rsplit(":", 1)
-        r = run(ops, rooted(env, wiki), "--json", "packages", "reference", package, f"references/sandboxes/{rel}.md")
+        r = run(ops, rooted(env, wiki), "--json", "reference", f"{package}:references/sandboxes/{rel}.md")
         assert r.returncode == 0, r.stdout + r.stderr
         sandbox = f"{name}-{stage}"
         template = wiki / ops_dir / "sandboxes" / f"{sandbox}.jsonc"

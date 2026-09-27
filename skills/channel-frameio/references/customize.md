@@ -22,7 +22,7 @@ them onto every page the job lands.
 and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/frameio/frameio.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/frameio/frameio.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-frameio` reviews it into a wiki sandbox, and

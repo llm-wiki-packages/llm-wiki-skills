@@ -12,7 +12,7 @@ the source rarely rots and video files are heavy).
 and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/youtube/youtube.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/youtube/youtube.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-youtube` reviews it into a wiki sandbox, and

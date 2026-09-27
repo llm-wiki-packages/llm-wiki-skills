@@ -28,7 +28,7 @@ you customize it.
 reaches, and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/hubspot-cms/hubspot-cms.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/hubspot-cms/hubspot-cms.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-hubspot-video` reviews it into a wiki sandbox,

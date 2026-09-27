@@ -14,13 +14,13 @@
   },
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:notion-tasks/notion-tasks.harvest"
+      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:notion/notion.harvest"
     },
     "process": {}
   },
   "usage": "/channel-notion-tasks ticket=<id>",
   "v": 1,
-  "venue": "notion-tasks",
+  "venue": "notion",
   "version": "0.1.0",
   "watch": {
     "defaults": {

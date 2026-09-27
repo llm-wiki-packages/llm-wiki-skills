@@ -1,6 +1,6 @@
-# notion-tasks.harvest
+# notion.harvest
 
-The sandbox for `channel-notion-tasks`'s `harvest` stage. One Notion
+The sandbox for the Notion venue's `harvest` stage. One Notion
 workspace's task pull through the account's Notion connector.
 
 ## Bins
@@ -33,13 +33,13 @@ fetch is improvising another.
 ## Profile
 
 ```jsonc
-// notion-tasks.harvest: the jail of channel-notion-tasks's harvest stage.
+// notion.harvest: the jail of a Notion harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-notion-tasks-harvest",
-      "description": "channel-notion-tasks's harvest slice: the model endpoints and this venue's hosts."
+      "name": "notion-harvest",
+      "description": "the Notion harvest slice: the model endpoints and this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
