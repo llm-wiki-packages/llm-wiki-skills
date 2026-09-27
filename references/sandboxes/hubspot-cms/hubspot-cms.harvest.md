@@ -1,6 +1,6 @@
 # hubspot-cms.harvest
 
-The sandbox for `channel-hubspot-video`'s `harvest` stage. A HubSpot CMS
+The sandbox for the HubSpot CMS venue's `harvest` stage. A HubSpot CMS
 page whose content is a HubSpot Video: the page renders in Chromium through
 Playwright, and the Mux stream behind the player is fetched.
 
@@ -44,13 +44,13 @@ customer, and a site is the ticket's.
 ## Profile
 
 ```jsonc
-// hubspot-cms.harvest: the jail of channel-hubspot-video's harvest stage.
+// hubspot-cms.harvest: the jail of a HubSpot CMS harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-hubspot-video-harvest",
-      "description": "channel-hubspot-video's harvest slice: the model endpoints and this venue's hosts."
+      "name": "hubspot-cms-harvest",
+      "description": "the HubSpot CMS harvest slice: the model endpoints and this venue's hosts."
     },
     "filesystem": {
       // Playwright's browser build: Linux, then macOS. A path absent on

@@ -1,6 +1,6 @@
 # gmail.harvest
 
-The sandbox for `channel-gmail`'s `harvest` stage. One mailbox's pull
+The sandbox for the Gmail venue's `harvest` stage. One mailbox's pull
 through the account's Gmail connector. The slice fetches nothing else.
 
 ## Bins
@@ -34,13 +34,13 @@ no step.
 ## Profile
 
 ```jsonc
-// gmail.harvest: the jail of channel-gmail's harvest stage.
+// gmail.harvest: the jail of a Gmail harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-gmail-harvest",
-      "description": "channel-gmail's harvest slice: the model endpoints and this venue's hosts."
+      "name": "gmail-harvest",
+      "description": "the Gmail harvest slice: the model endpoints and this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.

@@ -1,6 +1,6 @@
 # frameio.harvest
 
-The sandbox for `channel-frameio`'s `harvest` stage. A Frame.io share's
+The sandbox for the Frame.io venue's `harvest` stage. A Frame.io share's
 harvest: the share page, its HLS and document-proxy streams, and yt-dlp's
 media pull.
 
@@ -39,13 +39,13 @@ back as `denied` and is the foreman's call.
 ## Profile
 
 ```jsonc
-// frameio.harvest: the jail of channel-frameio's harvest stage.
+// frameio.harvest: the jail of a Frame.io harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-frameio-harvest",
-      "description": "channel-frameio's harvest slice: the model endpoints and this venue's hosts."
+      "name": "frameio-harvest",
+      "description": "the Frame.io harvest slice: the model endpoints and this venue's hosts."
     },
     "filesystem": {
       // Playwright's browser build: Linux, then macOS. A path absent on

@@ -23,7 +23,7 @@ here.
 and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/circle/circle.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/circle/circle.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-circle` reviews it into a wiki sandbox, and

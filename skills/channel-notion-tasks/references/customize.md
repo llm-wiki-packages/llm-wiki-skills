@@ -18,11 +18,11 @@ so nobody "fixes" it with `skills install --force`.
 ## Sandbox
 
 `stages.harvest.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:notion-tasks/notion-tasks.harvest`. What the stage
+`llm-wiki-packages/llm-wiki-skills:notion/notion.harvest`. What the stage
 reaches, and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/notion-tasks/notion-tasks.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-notion-tasks` reviews it into a wiki sandbox, and

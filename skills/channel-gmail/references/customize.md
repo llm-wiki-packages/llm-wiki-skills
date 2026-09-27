@@ -22,7 +22,7 @@ it with `skills install --force`.
 why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/gmail/gmail.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/gmail/gmail.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-gmail` reviews it into a wiki sandbox, and

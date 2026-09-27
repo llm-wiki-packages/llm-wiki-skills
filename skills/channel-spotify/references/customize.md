@@ -7,7 +7,7 @@
 and why:
 
 ```sh
-llm-wiki-ops packages reference llm-wiki-packages/llm-wiki-skills references/sandboxes/spotify/spotify.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/spotify/spotify.harvest.md
 ```
 
 `/llm-wiki:sandbox channel-spotify` reviews it into a wiki sandbox, and

@@ -1,6 +1,6 @@
 # youtube.harvest
 
-The sandbox for `channel-youtube`'s `harvest` stage. A YouTube video's
+The sandbox for the YouTube venue's `harvest` stage. A YouTube video's
 metadata, captions and media, fetched by yt-dlp.
 
 ## Bins
@@ -36,13 +36,13 @@ Do not widen to `*.google.com` or `*`: yt-dlp's reach is these hosts.
 ## Profile
 
 ```jsonc
-// youtube.harvest: the jail of channel-youtube's harvest stage.
+// youtube.harvest: the jail of a YouTube harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-youtube-harvest",
-      "description": "channel-youtube's harvest slice: the model endpoints and this venue's hosts."
+      "name": "youtube-harvest",
+      "description": "the YouTube harvest slice: the model endpoints and this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.

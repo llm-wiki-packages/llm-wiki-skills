@@ -1,6 +1,6 @@
 # circle.harvest
 
-The sandbox for `channel-circle`'s `harvest` stage. A Circle.so community's
+The sandbox for the Circle venue's `harvest` stage. A Circle.so community's
 harvest: the SPA's pages, its signed HLS media and its asset CDN, rendered
 in a persistent-profile Chrome.
 
@@ -47,13 +47,13 @@ a report's `missing[]`.
 ## Profile
 
 ```jsonc
-// circle.harvest: the jail of channel-circle's harvest stage.
+// circle.harvest: the jail of a Circle harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-circle-harvest",
-      "description": "channel-circle's harvest slice: the model endpoints and this venue's hosts."
+      "name": "circle-harvest",
+      "description": "the Circle harvest slice: the model endpoints and this venue's hosts."
     },
     "filesystem": {
       // Playwright's browser build: Linux, then macOS. A path absent on

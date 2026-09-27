@@ -1,6 +1,6 @@
 # spotify.harvest
 
-The sandbox for `channel-spotify`'s `harvest` stage. A Spotify show, episode
+The sandbox for the Spotify venue's `harvest` stage. A Spotify show, episode
 or playlist's metadata, its cover art, and the keyless iTunes lookup that
 finds a show's open RSS feed.
 
@@ -40,13 +40,13 @@ as references and never ripped.
 ## Profile
 
 ```jsonc
-// spotify.harvest: the jail of channel-spotify's harvest stage.
+// spotify.harvest: the jail of a Spotify harvest stage.
 {
   "v": 1,
   "profile": {
     "meta": {
-      "name": "channel-spotify-harvest",
-      "description": "channel-spotify's harvest slice: the model endpoints and this venue's hosts."
+      "name": "spotify-harvest",
+      "description": "the Spotify harvest slice: the model endpoints and this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.

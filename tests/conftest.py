@@ -64,6 +64,17 @@ def wiki(tmp_path_factory, ops, env) -> Path:
     uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
     r = run(ops, {**env, "HOME": str(home), "UV_CACHE_DIR": uv_cache}, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
+    # A wiki must declare its packages with a pinned version, and `@latest`
+    # names a release tag a shallow CI checkout does not carry: pin this
+    # checkout's own commit, which the marketplace link above serves.
+    sha = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    r = run(ops, rooted(env, w), "packages", "install", f"{SOURCE}@{sha}", cwd=w)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = run(ops, rooted(env, w), "git", "commit", ".llm-wiki.toml",
+            "message=harness: declare this checkout's package", cwd=w)
+    assert r.returncode == 0, r.stdout + r.stderr
     # `[pipeline] model` is the committed fallback ADR-0014 falls to where a
     # unit declares no `stages.<stage>.model` (plugins main, post-#2487) — a
     # `config set` writes the LOCAL manifest only, and this key is read from
