@@ -130,62 +130,69 @@ def _project_dir(door: list) -> str | None:
     return None
 
 
-# uv's and pip's console-script trampoline: `#!/bin/sh`, then this line.
-TRAMPOLINE = re.compile(r"^'''exec' '([^']+)' ")
+# A console script's `#!/bin/sh` trampoline: its second line execs the python,
+# quoted by uv, bare (or double-quoted around a space) by pip.
+TRAMPOLINE = re.compile(r"""^'''exec' (?:'([^']+)'|"([^"]+)"|(\S+)) "\$0" "\$@"$""")
+PYTHON_NAME = re.compile(r"python(\d+(\.\d+)*)?")
 
 
-def _front_door_interpreter(door: list) -> str | None:
-    """The python a `uv tool install`ed `llm-wiki-ops` runs under, read off
-    its own shebang, or None where there is no front door to read.
+def _no_interpreter(door, why: str):
+    sys.exit(
+        f"youtube_note: the front door {shlex.join(door) or '(none)'} {why} — the "
+        "transcript formatter needs the python the front door runs under"
+    )
 
-    `LLM_WIKI_OPS` always ends up naming that bare console script — every
+
+def _front_door_interpreter(door: list) -> str:
+    """The python the front door execs, or an exit naming why it cannot be read.
+
+    `LLM_WIKI_OPS` always ends up naming the bare console script — every
     `llm-wiki-ops`/`llm-wiki-cli` entry rewrites it to the durable path at
     its own start (`llm_wiki_cli.dispatch`), overwriting whatever a caller
     exported first, WHERE a durable one is found — so a `--project`-shaped
     line is the one thing a dev checkout with no installed console script
-    ever exports. The shebang IS the project's own venv python: the one
-    `format_transcript.py`'s imports (`llm_wiki_ops`, pyyaml, …) resolve
-    in, and the one `llm-wiki-ops run` would hand a script if not for a
-    PEP 723 script's own ephemeral venv (G2) — which is exactly why a
-    direct run of the formatter, bypassing `run`, still needs it.
+    ever exports. That python is the one `format_transcript.py`'s imports
+    (`llm_wiki_ops`, pyyaml, …) resolve in, and the one `llm-wiki-ops run`
+    would hand a script if not for a PEP 723 script's own ephemeral venv
+    (G2) — which is exactly why a direct run of the formatter, bypassing
+    `run`, still needs it. `sys.executable` lacks those imports, so nothing
+    here falls back to it.
 
-    `door[-1]` is a bare command name (`llm-wiki-ops`), not a file, on a
-    `--project`-shaped line — in EITHER flag form (F13) — so its own venv
-    (`<project>/.venv/bin/python3`) is read directly instead.
-
-    A `#!/bin/sh` shebang is a console-script trampoline whose next line
-    execs the python (`TRAMPOLINE`). A shebang that resolves to no file
-    exits: `sys.executable` lacks the formatter's imports."""
+    Read the way exec reads it: a `--project` line (either flag form, F13)
+    runs its project's `.venv`; a longer line runs `door[0]`, which must be a
+    python; a one-element door is found on PATH and its shebang read —
+    directly, through `env`, or through a `sh` trampoline (`TRAMPOLINE`)."""
     if not door:
-        return None
-    target = door[-1]
-    # Only a one-element door is itself exec'd; in a longer line `door[-1]`
-    # is an argument its launcher reads, whose shebang nothing obeys.
-    if len(door) > 1 or not Path(target).is_file():
-        project = _project_dir(door)
-        if not project:
-            return None
+        _no_interpreter(door, "is not set and not on PATH")
+    project = _project_dir(door)
+    if project:
         candidate = Path(project) / ".venv" / "bin" / "python3"
-        return str(candidate) if candidate.is_file() else None
+        if not candidate.is_file():
+            _no_interpreter(door, f"names a project with no {candidate}")
+        return str(candidate)
+    head = shutil.which(door[0])
+    if not head:
+        _no_interpreter(door, f"runs {door[0]!r}, which is not an executable on PATH")
+    if len(door) > 1:
+        if not PYTHON_NAME.fullmatch(Path(head).name):
+            _no_interpreter(door, f"runs {door[0]!r}, which is not a python this can read through")
+        return head
     try:
-        lines = Path(target).read_text(encoding="utf-8", errors="ignore").splitlines()
+        lines = Path(head).read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError as exc:
-        sys.exit(f"youtube_note: cannot read the front door {target}: {exc}")
+        _no_interpreter(door, f"cannot be read: {exc}")
     shebang = lines[0][2:].split() if lines and lines[0].startswith("#!") else []
+    if shebang and Path(shebang[0]).name == "env":
+        shebang = shebang[1:]
     interpreter = None
-    if shebang == ["/bin/sh"] and len(lines) > 1:
-        trampoline = TRAMPOLINE.match(lines[1])
-        interpreter = trampoline.group(1) if trampoline else None
-    elif len(shebang) == 2 and Path(shebang[0]).name == "env":
-        interpreter = shutil.which(shebang[1])
-    elif len(shebang) == 1 and shebang[0] != "/bin/sh":
-        interpreter = shebang[0]
-    if interpreter and Path(interpreter).is_file():
-        return interpreter
-    sys.exit(
-        f"youtube_note: the front door {target} names no interpreter this can resolve "
-        f"({(lines[0] if lines else '')!r}) — the transcript formatter needs the python it runs under"
-    )
+    if shebang and Path(shebang[0]).name == "sh":
+        trampoline = TRAMPOLINE.match(lines[1]) if len(lines) > 1 else None
+        interpreter = next(filter(None, trampoline.groups())) if trampoline else None
+    elif shebang:
+        interpreter = shutil.which(shebang[0])
+    if not interpreter or not Path(interpreter).is_file():
+        _no_interpreter(door, f"names no interpreter this can resolve ({(lines[0] if lines else '')!r})")
+    return interpreter
 
 
 def open_ticket(ticket: str, stage: str | None = None) -> dict:
@@ -408,7 +415,7 @@ def format_transcript(captions, chapters_json, wiki, override):
         # A direct run still needs the formatter's own dependencies
         # (`llm_wiki_ops`, pyyaml, …), which `sys.executable` alone never
         # has; the front door's own interpreter does.
-        interpreter = _front_door_interpreter(front_door()) or sys.executable
+        interpreter = _front_door_interpreter(front_door())
         cmd, where = [interpreter, str(Path(override).resolve())], {}
     else:
         door = front_door()

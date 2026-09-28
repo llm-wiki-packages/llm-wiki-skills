@@ -18,6 +18,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -202,7 +203,7 @@ def _stub_ops(tmp_path, ticket=None):
         "pathlib.Path(os.getcwd(), 'page-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "print(json.dumps({'path': rel, 'status': 'draft'}))\n"
     )
-    return shlex.join(["uv", "run", "-q", str(stub)])
+    return shlex.join([sys.executable, str(stub)])
 
 
 def _record(root, cap, *argv, check=True, ticket=True, ops=None):
@@ -629,10 +630,10 @@ def test_front_door_interpreter_resolves_a_project_line_in_either_form(builder, 
         assert builder._front_door_interpreter(door) == str(venv_python), door
 
 
-def _door(tmp_path, text):
+def _door(tmp_path, text, mode=0o755):
     door = tmp_path / "llm-wiki-ops"
     door.write_text(text)
-    door.chmod(0o755)
+    door.chmod(mode)
     return [str(door)]
 
 
@@ -644,14 +645,26 @@ def _python(tmp_path, name="python"):
     return python
 
 
+def _refused(builder, door):
+    with pytest.raises(SystemExit) as exc:
+        builder._front_door_interpreter(door)
+    assert "front door" in str(exc.value)
+
+
 def test_front_door_interpreter_reads_a_direct_python_shebang(builder, tmp_path):
     python = _python(tmp_path)
     assert builder._front_door_interpreter(_door(tmp_path, f"#!{python}\nimport sys\n")) == str(python)
 
 
-def test_front_door_interpreter_follows_the_sh_trampoline_to_its_python(builder, tmp_path):
-    python = _python(tmp_path)
-    door = _door(tmp_path, f"#!/bin/sh\n'''exec' '{python}' \"$0\" \"$@\"\n' '''\nimport sys\n")
+@pytest.mark.parametrize("shebang", ["#!/bin/sh", "#!/usr/bin/sh", "#!/usr/bin/env sh"])
+@pytest.mark.parametrize("exec_line", [
+    "'''exec' '{python}' \"$0\" \"$@\"",  # uv
+    "'''exec' {python} \"$0\" \"$@\"",  # pip
+    "'''exec' \"{python}\" \"$0\" \"$@\"",  # pip, a path with a space
+])
+def test_front_door_interpreter_follows_a_sh_trampoline_to_its_python(builder, tmp_path, shebang, exec_line):
+    python = _python(tmp_path / "a dir" if '"{python}"' in exec_line else tmp_path)
+    door = _door(tmp_path, f"{shebang}\n{exec_line.format(python=python)}\n' '''\nimport sys\n")
     assert builder._front_door_interpreter(door) == str(python)
 
 
@@ -661,6 +674,19 @@ def test_front_door_interpreter_resolves_an_env_shebang_on_path(builder, tmp_pat
     assert builder._front_door_interpreter(_door(tmp_path, "#!/usr/bin/env python3\n")) == str(python)
 
 
+def test_front_door_interpreter_resolves_a_bare_door_name_on_path(builder, tmp_path, monkeypatch):
+    python = _python(tmp_path)
+    door = _door(tmp_path, f"#!{python}\n")
+    monkeypatch.setenv("PATH", str(Path(door[0]).parent))
+    assert builder._front_door_interpreter(["llm-wiki-ops"]) == str(python)
+
+
+def test_front_door_interpreter_is_the_python_a_multi_word_door_execs(builder, tmp_path):
+    python = _python(tmp_path, "python3.12")
+    script = _door(tmp_path, "#!/nowhere/python\n")[0]
+    assert builder._front_door_interpreter([str(python), script]) == str(python)
+
+
 @pytest.mark.parametrize("text", [
     "#!/bin/sh\nexec something-else \"$@\"\n",
     "#!/bin/sh\n'''exec' '/nowhere/python' \"$0\" \"$@\"\n",
@@ -668,9 +694,28 @@ def test_front_door_interpreter_resolves_an_env_shebang_on_path(builder, tmp_pat
     "no shebang at all\n",
 ])
 def test_front_door_interpreter_refuses_a_shebang_it_cannot_read(builder, tmp_path, text):
-    with pytest.raises(SystemExit) as exc:
-        builder._front_door_interpreter(_door(tmp_path, text))
-    assert "front door" in str(exc.value)
+    _refused(builder, _door(tmp_path, text))
+
+
+def test_front_door_interpreter_refuses_a_door_it_cannot_open(builder, tmp_path):
+    _refused(builder, _door(tmp_path, "#!/bin/sh\n", mode=0o111))
+
+
+def test_front_door_interpreter_refuses_a_launcher_it_cannot_see_through(builder, tmp_path):
+    _refused(builder, ["uv", "run", "-q", _door(tmp_path, "import sys\n")[0]])
+
+
+def test_front_door_interpreter_refuses_a_door_not_on_path(builder, tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    _refused(builder, ["llm-wiki-ops"])
+
+
+def test_front_door_interpreter_refuses_no_door(builder):
+    _refused(builder, [])
+
+
+def test_front_door_interpreter_refuses_a_project_with_no_venv(builder, tmp_path):
+    _refused(builder, ["uv", "run", "--project", str(tmp_path), "llm-wiki-ops"])
 
 
 def test_format_transcript_a_missing_front_door_binary_exits_cleanly(builder, monkeypatch, tmp_path):
