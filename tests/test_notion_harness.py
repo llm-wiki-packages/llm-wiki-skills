@@ -7,7 +7,6 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
-import re
 
 import pytest
 
@@ -37,21 +36,61 @@ def _closing_the_process_ticket_discards_the_scripts_own_ledger():
     pytest.skip("plugins main c284c4839: tickets_close.py's extract_ledger overwrites a ledger job's page on close, discarding write_items.py ledger's own lines.json curation — reported, not a harness gap")
 
 
-def test_the_reference_routes_the_token_and_the_profile_reaches_only_the_api():
+def _credential_keys(node) -> set:
+    """Every `credentials`/`custom_credentials`/`credential_capture` key at
+    any depth of a parsed document — the real invariant a wiki's own
+    template must never carry, not just the `## Machine`/`## Probe` headings
+    that happen to be how this reference used to spell one."""
+    found: set = set()
+    if isinstance(node, dict):
+        found |= {"credentials", "custom_credentials", "credential_capture"} & node.keys()
+        for value in node.values():
+            found |= _credential_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            found |= _credential_keys(item)
+    return found
+
+
+def test_the_reference_carries_no_notion_route_and_the_profile_reaches_only_the_api():
     text = (ROOT / "references" / "sandboxes" / "notion" / "notion.harvest.md").read_text(encoding="utf-8")
     profile = jsonc(snippet(text))["profile"]
     assert "api.notion.com" in profile["network"]["allow_domain"]
     assert not any("notion" in h and h != "api.notion.com" for h in profile["network"]["allow_domain"])
     assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
-    machine = json.loads(re.search(r"^## Machine\n.*?^```json\n(.*?)^```$", text, re.M | re.S).group(1))
-    assert machine["network"]["credentials"] == ["notion"]
-    assert machine["network"]["custom_credentials"]["notion"] == {
-        "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
-        "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
-    }
-    assert machine["credential_capture"]["notion"]["command"] == ["ntn", "auth", "token"]
-    probe = json.loads(re.search(r"^## Probe\n.*?^```json\n(.*?)^```$", text, re.M | re.S).group(1))
-    assert probe == ["{bin:ntn}", "whoami"]
+    # The wiki-writable `## Profile` block is the real invariant: it must
+    # carry no credential key at all, whatever depth or heading a route
+    # might otherwise hide behind.
+    assert not _credential_keys(profile)
+    # ntn owns its own login (spec §8): no venue route, no wiki-writable
+    # capture. A machine-owned block here would refuse at `skills install`
+    # under the compose-mints-every-capture rule (llm-wiki-plugins#2646) —
+    # `install.py` only ever reads a JSON fence under these two headings.
+    assert "## Machine" not in text and "## Probe" not in text
+    # The route lives in the harness profile, named in prose only, no path spelled.
+    assert "harness profile" in text and "~/.config/llm-wiki" not in text
+    # The admin's hand-written harness-profile route's own facts, named in
+    # prose — the profile's shape (where a route nests, what else a complete
+    # profile carries) is the harness contract's, one home per fact, so no
+    # JSON example is parsed here. Whitespace collapsed first: prose wraps
+    # mid-phrase.
+    flat = " ".join(text.split())
+    for fact in (
+        "`notion`", "`https://api.notion.com`", "`NOTION_API_TOKEN`", '`credential_format` `"Bearer {}"`',
+        "`cmd://notion`", "absolute path on this machine", "`auth`, `token`", "`timeout_secs`",
+        "llm-wiki-ops reference harness",
+    ):
+        assert fact in flat, fact
+    # #2645's reader refuses this key in a capture at its current fix-round
+    # head — never claim it here, or this reference drifts from the contract.
+    assert "cache_ttl_secs" not in text
+
+
+def test_a_captured_token_reaches_a_spawned_harvest_session():
+    pytest.skip(
+        "the composer does not yet merge a harness profile's routes into a "
+        "spawned session jail: plugins #2657 (harness profiles, part B)"
+    )
 
 
 @pytest.fixture

@@ -27,7 +27,8 @@ llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/no
 
 `/llm-wiki:sandbox channel-notion-tasks` reviews it into a wiki sandbox, and
 `/llm-wiki:enable channel-notion-tasks` binds the stage. The wiki sandbox
-holds only the `## Profile` block. A harvest also needs this machine's allow
-fragment for the `notion` credential route (`## Machine`), applied when the
-operator enables the sandbox. `process` names no sandbox and runs with no
+holds only the `## Profile` block — the wiki writes no credential route at
+all here. A harvest also needs a `notion` route in this machine's harness
+profile (see the reference's `## Credential` section); prefer the profile
+scoped to this wiki alone. `process` names no sandbox and runs with no
 network.

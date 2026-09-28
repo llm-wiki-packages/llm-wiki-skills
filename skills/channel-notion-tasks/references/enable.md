@@ -29,9 +29,10 @@
 2. **The login and the route.** Harvest runs `ntn`, so the pulling machine
    needs it installed and logged in to the workspace the job names: `ntn
    login` there, by the operator, then `ntn whoami` to confirm it. The jail
-   never sees the token: a harvest needs this machine's allow fragment for the
-   `notion` credential route, which the sandbox reference's `## Machine`
-   section spells out, applied when the operator enables the sandbox:
+   never sees the token: a harvest needs a `notion` route in this machine's
+   harness profile. The sandbox reference's `## Credential` section spells
+   out the route's fields, and how a profile scoped to this wiki alone
+   differs from the machine-wide fallback:
 
    ```sh
    llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
@@ -42,6 +43,8 @@
 3. **No credential to bind, and why.** `requires.credential` stays `false`:
    `true` asks each machine to `credential set` and `credential bind` a
    payload the slice is handed, and this skill reads none. Its credential is
-   the proxy route above, which the enabled sandbox carries. Where more than
-   one machine has the skill enabled, pin the job to the one that holds the
-   route: `llm-wiki-ops pipeline jobs edit <slug> harvest.machine=<machine id>`.
+   the harness-profile route above, held by whichever machine (or wiki-scoped
+   profile) runs the harness — never by the enabled sandbox, which carries no
+   route at all. Where more than one machine has the skill enabled, pin the
+   job to the one that holds the route: `llm-wiki-ops pipeline jobs edit
+   <slug> harvest.machine=<machine id>`.

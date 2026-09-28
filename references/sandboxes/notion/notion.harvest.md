@@ -26,55 +26,40 @@ public API.
 
 ## Credential
 
-A proxy route, never a payload file. The machine block below adds a
-`notion` credential route: the supervisor runs `ntn auth token` outside
-the jail, and the proxy adds `Authorization: Bearer <token>` to requests
-bound for `api.notion.com`. Inside the jail `NOTION_API_TOKEN` holds a
-phantom value, and the token itself never enters the jail. The jail reads
-no `~/.config/notion`.
+Not a venue route. `ntn` owns its own login — its bot token needs no
+refresh — so it is never stored in a wiki's vault, and this reference
+carries no machine-owned block, no `network.custom_credentials`, no
+`credential_capture`. This wiki writes no route for it at all.
 
-Only a machine may add a route. The block below is this machine's allow
-fragment for it, applied when the operator enables the sandbox; a wiki
-template never carries it.
+Reaching Notion is the harness profile's job instead: this machine's admin
+hand-writes a `notion` route into it — nothing mints this one, so every
+field is theirs to type. Its own facts, whatever shape the profile takes:
+named `notion`; `upstream` `https://api.notion.com`; `env_var`
+`NOTION_API_TOKEN`; `credential_format` `"Bearer {}"`; `credential_key`
+`cmd://notion`; a capture whose command begins with `ntn`'s own absolute
+path on this machine — never the bare name — then `auth`, `token`; and a
+`timeout_secs` of its own. The profile's shape — where a route nests, and
+what else a complete profile must carry — is `llm-wiki-ops reference
+harness`, not restated here.
 
-## Machine
+A route added to the harness profile that this machine falls back to
+reaches every session jail of that harness, in every wiki on this machine.
 
-`{bin:ntn}` is resolved on the machine, as `requires.bins` is. Never
-write a machine path here. `credential_capture` runs on the supervisor
-side, through nono's own PATH lookup, so its command takes the bare
-name (`"ntn"`), never a `{bin:}` placeholder.
+A profile scoped to this wiki alone is never merged with that fallback —
+it replaces it outright — so it must be a complete profile in its own
+right, per that same reference; a file holding only the `notion` route
+refuses every spawn. Once it is complete, its routes reach every session
+jail of that harness in this wiki — not harvest's alone — and none of
+another wiki's.
 
-```json
-{
-  "network": {
-    "credentials": ["notion"],
-    "custom_credentials": {
-      "notion": {
-        "upstream": "https://api.notion.com",
-        "credential_key": "cmd://notion",
-        "env_var": "NOTION_API_TOKEN",
-        "credential_format": "Bearer {}"
-      }
-    }
-  },
-  "credential_capture": {
-    "notion": {
-      "command": ["ntn", "auth", "token"],
-      "timeout_secs": 10,
-      "cache_ttl_secs": 900
-    }
-  }
-}
-```
-
-## Probe
-
-Confirms the route inside the composed jail: exit 0 names the bot and its
-workspace.
-
-```json
-["{bin:ntn}", "whoami"]
-```
+Once the route exists, a spawned harvest session's environment always
+holds a phantom `NOTION_API_TOKEN` value; the proxy adds the real token,
+as `Authorization: Bearer <token>`, only to requests bound for
+`api.notion.com` — everywhere else the phantom stands. The token itself
+never enters the jail, and the jail reads no `~/.config/notion`. Until the
+admin adds the route, this unit's harvest has no way to reach Notion under
+the proxy: the composer does not yet merge a harness profile's routes into
+a spawned jail (llm-wiki-plugins#2657).
 
 ## Customize
 
