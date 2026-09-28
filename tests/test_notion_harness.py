@@ -7,7 +7,6 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
-import re
 
 import pytest
 
@@ -70,22 +69,21 @@ def test_the_reference_carries_no_notion_route_and_the_profile_reaches_only_the_
     assert "## Machine" not in text and "## Probe" not in text
     # The route lives in the harness profile, named in prose only, no path spelled.
     assert "harness profile" in text and "~/.config/llm-wiki" not in text
-    # The admin's hand-written harness-profile route, shown as an example
-    # only — a plain fenced block, never under a `## Machine`/`## Probe`
-    # heading `skills install` would read — carries everything a route
-    # nothing mints for it needs, nested under `profile` exactly as the
-    # harness's own `harness.command` and login route are (spec §3; the
-    # seed `claude.jsonc`), never at the file's top level.
-    example = json.loads(re.search(r"```json\n(.*?)^```$", text, re.M | re.S).group(1))
-    assert example["v"] == 1
-    assert example["profile"]["network"]["credentials"] == ["notion"]
-    assert example["profile"]["network"]["custom_credentials"]["notion"] == {
-        "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
-        "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
-    }
-    assert example["profile"]["credential_capture"]["notion"] == {
-        "command": ["ntn", "auth", "token"], "timeout_secs": 30, "cache_ttl_secs": 900,
-    }
+    # The admin's hand-written harness-profile route's own facts, named in
+    # prose — the profile's shape (where a route nests, what else a complete
+    # profile carries) is the harness contract's, one home per fact, so no
+    # JSON example is parsed here. Whitespace collapsed first: prose wraps
+    # mid-phrase.
+    flat = " ".join(text.split())
+    for fact in (
+        "`notion`", "`https://api.notion.com`", "`NOTION_API_TOKEN`", '`credential_format` `"Bearer {}"`',
+        "`cmd://notion`", "absolute path on this machine", "`auth`, `token`", "`timeout_secs`",
+        "llm-wiki-ops reference harness",
+    ):
+        assert fact in flat, fact
+    # #2645's reader refuses this key in a capture at its current fix-round
+    # head — never claim it here, or this reference drifts from the contract.
+    assert "cache_ttl_secs" not in text
 
 
 def test_a_captured_token_reaches_a_spawned_harvest_session():

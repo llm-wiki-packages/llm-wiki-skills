@@ -33,48 +33,24 @@ carries no machine-owned block, no `network.custom_credentials`, no
 
 Reaching Notion is the harness profile's job instead: this machine's admin
 hand-writes a `notion` route into it — nothing mints this one, so every
-field is theirs to type. Both `network` and `credential_capture` nest
-under the profile's own `profile` key, exactly where the harness's own
-command and login route already live, never at the file's top level:
-
-```json
-{
-  "v": 1,
-  "profile": {
-    "network": {
-      "credentials": ["notion"],
-      "custom_credentials": {
-        "notion": {
-          "upstream": "https://api.notion.com",
-          "credential_key": "cmd://notion",
-          "env_var": "NOTION_API_TOKEN",
-          "credential_format": "Bearer {}"
-        }
-      }
-    },
-    "credential_capture": {
-      "notion": {
-        "command": ["ntn", "auth", "token"],
-        "timeout_secs": 30,
-        "cache_ttl_secs": 900
-      }
-    }
-  }
-}
-```
+field is theirs to type. Its own facts, whatever shape the profile takes:
+named `notion`; `upstream` `https://api.notion.com`; `env_var`
+`NOTION_API_TOKEN`; `credential_format` `"Bearer {}"`; `credential_key`
+`cmd://notion`; a capture whose command begins with `ntn`'s own absolute
+path on this machine — never the bare name — then `auth`, `token`; and a
+`timeout_secs` of its own. The profile's shape — where a route nests, and
+what else a complete profile must carry — is `llm-wiki-ops reference
+harness`, not restated here.
 
 A route added to the harness profile that this machine falls back to
 reaches every session jail of that harness, in every wiki on this machine.
 
 A profile scoped to this wiki alone is never merged with that fallback —
 it replaces it outright — so it must be a complete profile in its own
-right: `v`, the harness's own `harness.command` (`effort` and `models`
-too, wherever the fallback sets them), and the harness's own login route,
-with the `notion` route folded into the same `profile.network` and
-`profile.credential_capture`, alongside them. A file holding only the
-`notion` route refuses every spawn. Once it is complete, its routes reach
-every session jail of that harness in this wiki — not harvest's alone —
-and none of another wiki's.
+right, per that same reference; a file holding only the `notion` route
+refuses every spawn. Once it is complete, its routes reach every session
+jail of that harness in this wiki — not harvest's alone — and none of
+another wiki's.
 
 Once the route exists, a spawned harvest session's environment always
 holds a phantom `NOTION_API_TOKEN` value; the proxy adds the real token,
