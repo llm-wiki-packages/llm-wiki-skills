@@ -4,6 +4,7 @@ install-tier case runs against. The code is `harness.py`'s.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -11,6 +12,17 @@ from pathlib import Path
 import pytest
 
 from harness import ROOT, SOURCE, _cli, _ops_argv, rooted, run
+
+# The machine's default harness profile, as an admin would write it: the
+# seed's argv less its `bins` and credential routes, so a spawn needs no agent
+# binary on PATH and no login. A plugins build that reads no profile ignores it.
+HARNESS_PROFILE = {
+    "v": 1,
+    "harness": {
+        "command": ["{plugin}/scripts/run-agent", "{prompt}", "--model", "{model}"],
+        "effort": ["--effort", "{effort}"],
+    },
+}
 
 
 @pytest.fixture(scope="session")
@@ -27,6 +39,13 @@ def env(tmp_path_factory, ops) -> dict:
     mp = home / "marketplaces" / SOURCE
     mp.parent.mkdir(parents=True)
     mp.symlink_to(ROOT, target_is_directory=True)
+    # Every CLI call reads this box's config under HOME: a scratch one, so the
+    # suite never touches the real machine's, and uv keeps its real cache.
+    machine_home = tmp_path_factory.mktemp("home")
+    profile = machine_home / ".config" / "llm-wiki" / "sandbox" / "harness" / "claude.jsonc"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(json.dumps(HARNESS_PROFILE), encoding="utf-8")
+    uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
     e = dict(os.environ)
     # A suite started from inside a wiki session must not act on THAT wiki:
     # `LLM_WIKI_ROOT` binds one ahead of the `cwd=` a `run` case uses, and
@@ -35,6 +54,8 @@ def env(tmp_path_factory, ops) -> dict:
     for ambient in ("LLM_WIKI_ROOT", "CLAUDE_PROJECT_DIR"):
         e.pop(ambient, None)
     e.update(
+        HOME=str(machine_home),
+        UV_CACHE_DIR=uv_cache,
         LLM_WIKI_PACKAGES_HOME=str(home),
         LLM_WIKI_PACKAGES_OFFLINE="1",
         LLM_WIKI_MACHINE_CONFIG=str(home / "no-machine-config.toml"),
@@ -59,12 +80,10 @@ def wiki(tmp_path_factory, ops, env) -> Path:
     assert r.returncode == 0, r.stderr
     # `pipeline add` needs a joined checkout. `join` registers the wiki in the
     # throwaway machine config above and seeds this box's sandbox base under
-    # HOME, so HOME is a scratch one for this call; uv keeps its real cache.
-    home = tmp_path_factory.mktemp("home")
-    uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
-    # `join` is a protected write: nobody is at a terminal for this harness
-    # process, so it asks and refuses unless the session is marked attended.
-    join_env = {**env, "HOME": str(home), "UV_CACHE_DIR": uv_cache, "LLM_WIKI_SESSION_ATTENDED": "1"}
+    # `env`'s scratch HOME. It is a protected write: nobody is at a terminal
+    # for this harness process, so it asks and refuses unless the session is
+    # marked attended.
+    join_env = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, join_env, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
     # A wiki must declare its packages with a pinned version, and `@latest`
