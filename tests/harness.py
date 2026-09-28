@@ -222,9 +222,12 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     refuses a name not set here first. The VALUE is unread by everything, so
     any placeholder does (enable.md). Returns `name`."""
     name = name or f"{slug}-cred"
-    r = run(ops, rooted(env, wiki), "--json", "credential", "set", name, input=value)
+    # Both are protected writes: nobody is at a terminal for this harness
+    # process, so each asks and refuses unless the session is marked attended.
+    attended_env = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    r = run(ops, attended_env, "--json", "credential", "set", name, input=value)
     assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, rooted(env, wiki), "--json", "credential", "bind", slug, name)
+    r = run(ops, attended_env, "--json", "credential", "bind", slug, name)
     assert r.returncode == 0, r.stdout + r.stderr
     return name
 

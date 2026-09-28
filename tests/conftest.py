@@ -62,7 +62,10 @@ def wiki(tmp_path_factory, ops, env) -> Path:
     # HOME, so HOME is a scratch one for this call; uv keeps its real cache.
     home = tmp_path_factory.mktemp("home")
     uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
-    r = run(ops, {**env, "HOME": str(home), "UV_CACHE_DIR": uv_cache}, "join", "key=harness", cwd=w)
+    # `join` is a protected write: nobody is at a terminal for this harness
+    # process, so it asks and refuses unless the session is marked attended.
+    join_env = {**env, "HOME": str(home), "UV_CACHE_DIR": uv_cache, "LLM_WIKI_SESSION_ATTENDED": "1"}
+    r = run(ops, join_env, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
     # A wiki must declare its packages with a pinned version, and `@latest`
     # names a release tag a shallow CI checkout does not carry: pin this
