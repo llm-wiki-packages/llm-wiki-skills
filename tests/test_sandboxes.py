@@ -15,6 +15,11 @@ from harness import ROOT, SKILLS, SOURCE, jsonc, snippet, unit_manifest
 MODEL = {"api.anthropic.com", "api.openai.com", "chatgpt.com"}
 REFERENCES = ROOT / "references" / "sandboxes"
 
+# Cookie venues, parked pending the cookie-venue measurement
+# (llm-wiki-plugins#2636) and not yet moved off model hosts in their own
+# snippet.
+PARKED = {"circle", "substack", "teachable"}
+
 # A unit's harvest stage MAY carry no `sandbox_ref` at all — the ninth unit's
 # `script` stage runs the seeded `harvest` sandbox instead (A-5) — so only a
 # unit that DOES name one has a reference to check here.
@@ -50,7 +55,10 @@ def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name):
     assert rel == f"{venue}/{venue}.harvest", rel
     assert set(doc) == {"v", "profile"} and doc["v"] == 1, doc
     allow = doc["profile"]["network"]["allow_domain"]
-    assert MODEL <= set(allow), f"{name}: the snippet lacks a model endpoint"
+    if venue in PARKED:
+        assert MODEL <= set(allow), f"{name}: the snippet lacks a model endpoint"
+    else:
+        assert not MODEL & set(allow), f"{name}: the snippet still names a model endpoint; the harness profile supplies it"
 
 
 @pytest.mark.parametrize("name", [n for n in SKILLS if unit_manifest(n)["requires"].get("credential")])

@@ -11,11 +11,12 @@ bin dir.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `frame.io`: the apex.
 - `*.frame.io`: the share app (`next.frame.io`), the HLS host
   (`sahls.frame.io`) and the proxy host (`assets.frame.io`).
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Filesystem
 
@@ -45,7 +46,7 @@ back as `denied` and is the foreman's call.
   "profile": {
     "meta": {
       "name": "frameio-harvest",
-      "description": "the Frame.io harvest slice: the model endpoints and this venue's hosts."
+      "description": "the Frame.io harvest slice: this venue's hosts."
     },
     "filesystem": {
       // Playwright's browser build: Linux, then macOS. A path absent on
@@ -58,10 +59,6 @@ back as `denied` and is the foreman's call.
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue.
         "frame.io",
         "*.frame.io"

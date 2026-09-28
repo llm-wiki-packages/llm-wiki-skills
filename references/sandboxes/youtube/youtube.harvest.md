@@ -10,13 +10,14 @@ bin dir.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `youtube.com`: the apex.
 - `*.youtube.com`: `www.youtube.com`, the watch page and the player.
 - `youtu.be`: short links.
 - `*.googlevideo.com`: the media streams.
 - `*.ytimg.com`: thumbnails.
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Credential
 
@@ -42,15 +43,11 @@ Do not widen to `*.google.com` or `*`: yt-dlp's reach is these hosts.
   "profile": {
     "meta": {
       "name": "youtube-harvest",
-      "description": "the YouTube harvest slice: the model endpoints and this venue's hosts."
+      "description": "the YouTube harvest slice: this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue.
         "youtube.com",
         "*.youtube.com",

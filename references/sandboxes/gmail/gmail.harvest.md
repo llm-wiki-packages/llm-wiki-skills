@@ -9,10 +9,11 @@ None.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `gmailmcp.googleapis.com`: the Gmail connector's MCP endpoint (`claude mcp
   list`), and the host this unit's credential is spent at.
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Credential
 
@@ -40,15 +41,11 @@ no step.
   "profile": {
     "meta": {
       "name": "gmail-harvest",
-      "description": "the Gmail harvest slice: the model endpoints and this venue's hosts."
+      "description": "the Gmail harvest slice: this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue.
         "gmailmcp.googleapis.com"
       ]

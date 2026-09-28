@@ -11,12 +11,13 @@ public API.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `api.notion.com`: Notion's public API, the only host `ntn` needs here.
   Without `NOTION_API_VERSION` set, `ntn` first dials
   `developers.notion.com` to learn the latest version; that host is left
   out, so the profile sets the version instead.
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Environment
 
@@ -58,8 +59,7 @@ as `Authorization: Bearer <token>`, only to requests bound for
 `api.notion.com` — everywhere else the phantom stands. The token itself
 never enters the jail, and the jail reads no `~/.config/notion`. Until the
 admin adds the route, this unit's harvest has no way to reach Notion under
-the proxy: the composer does not yet merge a harness profile's routes into
-a spawned jail (llm-wiki-plugins#2657).
+the proxy.
 
 ## Customize
 
@@ -83,15 +83,11 @@ a spawned jail (llm-wiki-plugins#2657).
   "profile": {
     "meta": {
       "name": "notion-harvest",
-      "description": "the Notion harvest slice: the model endpoints and this venue's API host."
+      "description": "the Notion harvest slice: this venue's API host."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue: Notion's public API, the one host `ntn` calls.
         "api.notion.com"
       ]

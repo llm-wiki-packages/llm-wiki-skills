@@ -11,13 +11,14 @@ machine first (`references/enable.md` step 1).
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `play.hubspotvideo.com`: the lazy player iframe.
 - `image.mux.com`: the storyboard that names the playback id.
 - `stream.mux.com`: the unsigned master playlist.
 - `*.mux.com`: the rendition hosts behind the master
   (`manifest-*.edgemv.mux.com`); the exact set is unverified.
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Filesystem
 
@@ -50,7 +51,7 @@ customer, and a site is the ticket's.
   "profile": {
     "meta": {
       "name": "hubspot-cms-harvest",
-      "description": "the HubSpot CMS harvest slice: the model endpoints and this venue's hosts."
+      "description": "the HubSpot CMS harvest slice: this venue's hosts."
     },
     "filesystem": {
       // Playwright's browser build: Linux, then macOS. A path absent on
@@ -63,10 +64,6 @@ customer, and a site is the ticket's.
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue.
         "play.hubspotvideo.com",
         "image.mux.com",

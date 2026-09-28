@@ -10,13 +10,14 @@ None.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `spotify.com`: the apex.
 - `*.spotify.com`: the Web API, the token endpoint and the embed page.
 - `*.scdn.co`: cover art (`mosaic.scdn.co`, `i.scdn.co`).
 - `*.spotifycdn.com`: cover art (`image-cdn-*.spotifycdn.com`).
 - `itunes.apple.com`: the keyless feed lookup.
+
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
 
 ## Credential
 
@@ -46,15 +47,11 @@ as references and never ripped.
   "profile": {
     "meta": {
       "name": "spotify-harvest",
-      "description": "the Spotify harvest slice: the model endpoints and this venue's hosts."
+      "description": "the Spotify harvest slice: this venue's hosts."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
         // The venue.
         "spotify.com",
         "*.spotify.com",
