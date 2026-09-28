@@ -7,6 +7,7 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -36,12 +37,32 @@ def _closing_the_process_ticket_discards_the_scripts_own_ledger():
     pytest.skip("plugins main c284c4839: tickets_close.py's extract_ledger overwrites a ledger job's page on close, discarding write_items.py ledger's own lines.json curation — reported, not a harness gap")
 
 
+def _credential_keys(node) -> set:
+    """Every `credentials`/`custom_credentials`/`credential_capture` key at
+    any depth of a parsed document — the real invariant a wiki's own
+    template must never carry, not just the `## Machine`/`## Probe` headings
+    that happen to be how this reference used to spell one."""
+    found: set = set()
+    if isinstance(node, dict):
+        found |= {"credentials", "custom_credentials", "credential_capture"} & node.keys()
+        for value in node.values():
+            found |= _credential_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            found |= _credential_keys(item)
+    return found
+
+
 def test_the_reference_carries_no_notion_route_and_the_profile_reaches_only_the_api():
     text = (ROOT / "references" / "sandboxes" / "notion" / "notion.harvest.md").read_text(encoding="utf-8")
     profile = jsonc(snippet(text))["profile"]
     assert "api.notion.com" in profile["network"]["allow_domain"]
     assert not any("notion" in h and h != "api.notion.com" for h in profile["network"]["allow_domain"])
     assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
+    # The wiki-writable `## Profile` block is the real invariant: it must
+    # carry no credential key at all, whatever depth or heading a route
+    # might otherwise hide behind.
+    assert not _credential_keys(profile)
     # ntn owns its own login (spec §8): no venue route, no wiki-writable
     # capture. A machine-owned block here would refuse at `skills install`
     # under the compose-mints-every-capture rule (llm-wiki-plugins#2646) —
@@ -49,14 +70,23 @@ def test_the_reference_carries_no_notion_route_and_the_profile_reaches_only_the_
     assert "## Machine" not in text and "## Probe" not in text
     # The route lives in the harness profile, named in prose only, no path spelled.
     assert "harness profile" in text and "~/.config/llm-wiki" not in text
-    for field in ("https://api.notion.com", "NOTION_API_TOKEN", "Bearer {}", "ntn auth token"):
-        assert field in text
+    # The admin's hand-written harness-profile route, shown as an example
+    # only — a plain fenced block, never under a `## Machine`/`## Probe`
+    # heading `skills install` would read — carries everything a route
+    # nothing mints for it needs.
+    example = json.loads(re.search(r"```json\n(.*?)^```$", text, re.M | re.S).group(1))
+    assert example["network"]["credentials"] == ["notion"]
+    assert example["network"]["custom_credentials"]["notion"] == {
+        "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
+        "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
+    }
+    assert example["credential_capture"]["notion"]["command"] == ["ntn", "auth", "token"]
 
 
 def test_a_captured_token_reaches_a_spawned_harvest_session():
     pytest.skip(
-        "the notion credential now lives in the harness profile, which no verb "
-        "can yet write or resolve: plugins #2645 (part B)"
+        "the composer does not yet merge a harness profile's routes into a "
+        "spawned session jail: plugins #2657 (harness profiles, part B)"
     )
 
 

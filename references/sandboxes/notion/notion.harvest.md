@@ -32,14 +32,43 @@ carries no machine-owned block, no `network.custom_credentials`, no
 `credential_capture`. This wiki writes no route for it at all.
 
 Reaching Notion is the harness profile's job instead: this machine's admin
-adds a `notion` route to the harness profile, with `upstream`
-`https://api.notion.com`, `env_var` `NOTION_API_TOKEN`, `credential_format`
-`"Bearer {}"`, and a capture that runs `ntn auth token` outside the jail.
-Once the harness profile carries that route, a spawned harvest session sees
-`NOTION_API_TOKEN` hold a phantom value on requests bound for
-`api.notion.com`; the token itself never enters the jail, and the jail
-reads no `~/.config/notion`. Until the admin adds it, this unit's harvest
-has no way to reach Notion under the proxy (llm-wiki-plugins#2645).
+hand-writes a `notion` route into it — nothing mints this one, so every
+field is theirs to type:
+
+```json
+{
+  "network": {
+    "credentials": ["notion"],
+    "custom_credentials": {
+      "notion": {
+        "upstream": "https://api.notion.com",
+        "credential_key": "cmd://notion",
+        "env_var": "NOTION_API_TOKEN",
+        "credential_format": "Bearer {}"
+      }
+    }
+  },
+  "credential_capture": {
+    "notion": {
+      "command": ["ntn", "auth", "token"]
+    }
+  }
+}
+```
+
+A route added to the harness profile that this machine falls back to
+reaches every session jail of that harness, in every wiki on this machine.
+Prefer the harness profile scoped to this wiki alone, so only this wiki's
+harvest sessions get it.
+
+Once the route exists, a spawned harvest session's environment always
+holds a phantom `NOTION_API_TOKEN` value; the proxy adds the real token,
+as `Authorization: Bearer <token>`, only to requests bound for
+`api.notion.com` — everywhere else the phantom stands. The token itself
+never enters the jail, and the jail reads no `~/.config/notion`. Until the
+admin adds the route, this unit's harvest has no way to reach Notion under
+the proxy: the composer does not yet merge a harness profile's routes into
+a spawned jail (llm-wiki-plugins#2657).
 
 ## Customize
 
