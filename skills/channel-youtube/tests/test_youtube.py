@@ -629,6 +629,50 @@ def test_front_door_interpreter_resolves_a_project_line_in_either_form(builder, 
         assert builder._front_door_interpreter(door) == str(venv_python), door
 
 
+def _door(tmp_path, text):
+    door = tmp_path / "llm-wiki-ops"
+    door.write_text(text)
+    door.chmod(0o755)
+    return [str(door)]
+
+
+def _python(tmp_path, name="python"):
+    python = tmp_path / "venv" / "bin" / name
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("")
+    python.chmod(0o755)
+    return python
+
+
+def test_front_door_interpreter_reads_a_direct_python_shebang(builder, tmp_path):
+    python = _python(tmp_path)
+    assert builder._front_door_interpreter(_door(tmp_path, f"#!{python}\nimport sys\n")) == str(python)
+
+
+def test_front_door_interpreter_follows_the_sh_trampoline_to_its_python(builder, tmp_path):
+    python = _python(tmp_path)
+    door = _door(tmp_path, f"#!/bin/sh\n'''exec' '{python}' \"$0\" \"$@\"\n' '''\nimport sys\n")
+    assert builder._front_door_interpreter(door) == str(python)
+
+
+def test_front_door_interpreter_resolves_an_env_shebang_on_path(builder, tmp_path, monkeypatch):
+    python = _python(tmp_path, "python3")
+    monkeypatch.setenv("PATH", str(python.parent))
+    assert builder._front_door_interpreter(_door(tmp_path, "#!/usr/bin/env python3\n")) == str(python)
+
+
+@pytest.mark.parametrize("text", [
+    "#!/bin/sh\nexec something-else \"$@\"\n",
+    "#!/bin/sh\n'''exec' '/nowhere/python' \"$0\" \"$@\"\n",
+    "#!/nowhere/python\n",
+    "no shebang at all\n",
+])
+def test_front_door_interpreter_refuses_a_shebang_it_cannot_read(builder, tmp_path, text):
+    with pytest.raises(SystemExit) as exc:
+        builder._front_door_interpreter(_door(tmp_path, text))
+    assert "front door" in str(exc.value)
+
+
 def test_format_transcript_a_missing_front_door_binary_exits_cleanly(builder, monkeypatch, tmp_path):
     """F13: a missing `uv` (or any front-door interpreter) raised
     `FileNotFoundError` straight out of `subprocess.run`, crashing with a

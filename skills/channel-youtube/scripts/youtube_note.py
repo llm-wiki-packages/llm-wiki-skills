@@ -130,9 +130,13 @@ def _project_dir(door: list) -> str | None:
     return None
 
 
+# uv's and pip's console-script trampoline: `#!/bin/sh`, then this line.
+TRAMPOLINE = re.compile(r"^'''exec' '([^']+)' ")
+
+
 def _front_door_interpreter(door: list) -> str | None:
     """The python a `uv tool install`ed `llm-wiki-ops` runs under, read off
-    its own shebang, or None.
+    its own shebang, or None where there is no front door to read.
 
     `LLM_WIKI_OPS` always ends up naming that bare console script — every
     `llm-wiki-ops`/`llm-wiki-cli` entry rewrites it to the durable path at
@@ -147,24 +151,41 @@ def _front_door_interpreter(door: list) -> str | None:
 
     `door[-1]` is a bare command name (`llm-wiki-ops`), not a file, on a
     `--project`-shaped line — in EITHER flag form (F13) — so its own venv
-    (`<project>/.venv/bin/python3`) is read directly instead."""
+    (`<project>/.venv/bin/python3`) is read directly instead.
+
+    A `#!/bin/sh` shebang is a console-script trampoline whose next line
+    execs the python (`TRAMPOLINE`). A shebang that resolves to no file
+    exits: `sys.executable` lacks the formatter's imports."""
     if not door:
         return None
     target = door[-1]
-    if not Path(target).is_file():
+    # Only a one-element door is itself exec'd; in a longer line `door[-1]`
+    # is an argument its launcher reads, whose shebang nothing obeys.
+    if len(door) > 1 or not Path(target).is_file():
         project = _project_dir(door)
         if not project:
             return None
         candidate = Path(project) / ".venv" / "bin" / "python3"
         return str(candidate) if candidate.is_file() else None
     try:
-        first_line = Path(target).open(encoding="utf-8", errors="ignore").readline()
-    except OSError:
-        return None
-    if not first_line.startswith("#!"):
-        return None
-    interpreter = first_line[2:].strip()
-    return interpreter if interpreter and Path(interpreter).is_file() else None
+        lines = Path(target).read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError as exc:
+        sys.exit(f"youtube_note: cannot read the front door {target}: {exc}")
+    shebang = lines[0][2:].split() if lines and lines[0].startswith("#!") else []
+    interpreter = None
+    if shebang == ["/bin/sh"] and len(lines) > 1:
+        trampoline = TRAMPOLINE.match(lines[1])
+        interpreter = trampoline.group(1) if trampoline else None
+    elif len(shebang) == 2 and Path(shebang[0]).name == "env":
+        interpreter = shutil.which(shebang[1])
+    elif len(shebang) == 1 and shebang[0] != "/bin/sh":
+        interpreter = shebang[0]
+    if interpreter and Path(interpreter).is_file():
+        return interpreter
+    sys.exit(
+        f"youtube_note: the front door {target} names no interpreter this can resolve "
+        f"({(lines[0] if lines else '')!r}) — the transcript formatter needs the python it runs under"
+    )
 
 
 def open_ticket(ticket: str, stage: str | None = None) -> dict:
