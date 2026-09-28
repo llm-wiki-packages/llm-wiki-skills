@@ -30,9 +30,9 @@
    needs it installed and logged in to the workspace the job names: `ntn
    login` there, by the operator, then `ntn whoami` to confirm it. The jail
    never sees the token: a harvest needs a `notion` route in this machine's
-   harness profile — prefer the profile scoped to this wiki alone, so only
-   this wiki's harvest sessions reach it. The sandbox reference's
-   `## Credential` section spells out the route's fields:
+   harness profile. The sandbox reference's `## Credential` section spells
+   out the route's fields, and how a profile scoped to this wiki alone
+   differs from the machine-wide fallback:
 
    ```sh
    llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md

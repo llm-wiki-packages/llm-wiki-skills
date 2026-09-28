@@ -73,14 +73,19 @@ def test_the_reference_carries_no_notion_route_and_the_profile_reaches_only_the_
     # The admin's hand-written harness-profile route, shown as an example
     # only — a plain fenced block, never under a `## Machine`/`## Probe`
     # heading `skills install` would read — carries everything a route
-    # nothing mints for it needs.
+    # nothing mints for it needs, nested under `profile` exactly as the
+    # harness's own `harness.command` and login route are (spec §3; the
+    # seed `claude.jsonc`), never at the file's top level.
     example = json.loads(re.search(r"```json\n(.*?)^```$", text, re.M | re.S).group(1))
-    assert example["network"]["credentials"] == ["notion"]
-    assert example["network"]["custom_credentials"]["notion"] == {
+    assert example["v"] == 1
+    assert example["profile"]["network"]["credentials"] == ["notion"]
+    assert example["profile"]["network"]["custom_credentials"]["notion"] == {
         "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
         "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
     }
-    assert example["credential_capture"]["notion"]["command"] == ["ntn", "auth", "token"]
+    assert example["profile"]["credential_capture"]["notion"] == {
+        "command": ["ntn", "auth", "token"], "timeout_secs": 30, "cache_ttl_secs": 900,
+    }
 
 
 def test_a_captured_token_reaches_a_spawned_harvest_session():
