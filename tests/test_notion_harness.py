@@ -49,7 +49,7 @@ def test_the_reference_routes_the_token_and_the_profile_reaches_only_the_api():
         "upstream": "https://api.notion.com", "credential_key": "cmd://notion",
         "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
     }
-    assert machine["credential_capture"]["notion"]["command"] == ["{bin:ntn}", "auth", "token"]
+    assert machine["credential_capture"]["notion"]["command"] == ["ntn", "auth", "token"]
     probe = json.loads(re.search(r"^## Probe\n.*?^```json\n(.*?)^```$", text, re.M | re.S).group(1))
     assert probe == ["{bin:ntn}", "whoami"]
 

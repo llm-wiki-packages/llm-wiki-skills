@@ -40,7 +40,9 @@ template never carries it.
 ## Machine
 
 `{bin:ntn}` is resolved on the machine, as `requires.bins` is. Never
-write a machine path here.
+write a machine path here. `credential_capture` runs on the supervisor
+side, through nono's own PATH lookup, so its command takes the bare
+name (`"ntn"`), never a `{bin:}` placeholder.
 
 ```json
 {
@@ -57,7 +59,7 @@ write a machine path here.
   },
   "credential_capture": {
     "notion": {
-      "command": ["{bin:ntn}", "auth", "token"],
+      "command": ["ntn", "auth", "token"],
       "timeout_secs": 10,
       "cache_ttl_secs": 900
     }
