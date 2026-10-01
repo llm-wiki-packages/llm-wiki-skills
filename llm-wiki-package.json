@@ -16,6 +16,11 @@
   "artifacts": [
     {
       "type": "skill",
+      "name": "daily-report",
+      "path": "skills/daily-report"
+    },
+    {
+      "type": "skill",
       "name": "channel-circle",
       "path": "skills/channel-circle"
     },
