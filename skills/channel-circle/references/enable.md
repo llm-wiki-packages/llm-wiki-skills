@@ -1,10 +1,9 @@
 # channel-circle — after enabling
 
 1. **Auth walkthrough** — Circle content is licensed, so do it now:
-   `llm-wiki-ops run scripts/login.py <domain>` (run FROM the
-   wiki root — the helper takes the current directory as the wiki root,
-   and resolves the credential store from there) opens a real
-   Chrome window; the operator logs in (solving any Turnstile/2FA), opens a
+   `llm-wiki-ops credentials set <domain> kind=dir login=browser host=<domain>`
+   once, then `llm-wiki-ops credentials login <domain>` (attended, macOS only)
+   opens a real Chrome window; the operator logs in (solving any Turnstile/2FA), opens a
    gated lesson to confirm access, then presses Enter in the terminal. This
    saves the storage state AND the persistent per-domain profile — on
    Circle the profile is the load-bearing half (Cloudflare's `cf_clearance`

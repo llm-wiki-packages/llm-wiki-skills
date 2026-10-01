@@ -58,7 +58,7 @@ deliberate — do not try to finish the allowlist.
 This skill declares `requires.credential: "optional"`, which never makes the
 stage unclaimable. A job with no binding on this machine captures keyless
 (`partial`, possibly-truncated list). A job bound with `llm-wiki-ops
-credential bind <slug> spotify` gets that one payload in its slice, named on
+credentials bind <slug> spotify` gets that one payload in its slice, named on
 its ticket, and the capture uses the API: full item lists, dates,
 `min_date`. The manifest's exact `host:spotify.com` keyword is the
 credential's claim. Unverified live.

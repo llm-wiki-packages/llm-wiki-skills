@@ -384,7 +384,7 @@ def load_auth(root, name=CREDENTIAL, unreadable=None):
     if root is None:  # outside a wiki there is no store to reach — degrade keyless
         return {}
     try:
-        rc, answer = _ops(root, "credential", "get", name)
+        rc, answer = _ops(root, "credentials", "get", name)
     except OSError as e:
         die(f"credential store unreachable ({e.__class__.__name__}: {e})")
     if rc != 0:
@@ -1487,7 +1487,7 @@ def cmd_auth(a):
     data.pop("token", None)
     data.pop("expires_at", None)
     try:
-        rc, answer = _ops(root, "credential", "set", CREDENTIAL, input=json.dumps(data, indent=1).encode())
+        rc, answer = _ops(root, "credentials", "set", CREDENTIAL, input=json.dumps(data, indent=1).encode())
     except OSError as e:
         die(f"credential store unreachable ({e.__class__.__name__}: {e})")
     if rc != 0:

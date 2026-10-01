@@ -32,7 +32,7 @@ def _needs_run_verb(ops, env, wiki):
 
 
 @pytest.fixture
-def page_server(tmp_path_factory):
+def page_server(tmp_path_factory, wiki):
     directory = tmp_path_factory.mktemp("web-page-http")
     (directory / "page.html").write_bytes(PAGE)
     handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=str(directory), **k)  # noqa: E731
@@ -54,12 +54,25 @@ def page_server(tmp_path_factory):
             "a real url-ticket fetch cannot reach a local server here without a plugins-side test seam; "
             "reported, not invented"
         )
+    # `jobs add` refuses a url ticket's host that is one of this machine's own
+    # interface addresses (a jail reaching it hairpins back to the box);
+    # `[runner] widen_allow` in the wiki's local manifest is the one override
+    # the CLI names for a box that is meant to be its own ticket target, which
+    # is exactly what this server is. The address is the box's, never a
+    # literal, so the case does not depend on which machine runs it.
+    local = wiki / ".llm-wiki.local.toml"
+    before = local.read_text(encoding="utf-8") if local.exists() else None
+    local.write_text((before or "") + f'\n[runner]\nwiden_allow = ["{host}"]\n', encoding="utf-8")
     server = http.server.HTTPServer((host, 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://{host}:{server.server_port}/page.html"
     server.shutdown()
     server.server_close()
+    if before is None:
+        local.unlink()
+    else:
+        local.write_text(before, encoding="utf-8")
 
 
 def test_a_harvested_url_lands_as_a_report_through_the_run_line(ops, env, wiki, page_server):

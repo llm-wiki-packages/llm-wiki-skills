@@ -1047,7 +1047,7 @@ def ops_stub(tmp_path: Path, rc: int, answer: dict) -> tuple:
     open`/`update` like `_stub_ops` (open answers the last built `ticket()`,
     update is recorded to `update-calls.jsonl` so `_updates`/`_kv` read it
     same as any other test here) — and for anything else, here always
-    `credential get <name>`, answers `answer`/`rc` and records ITS argv to
+    `credentials get <name>`, answers `answer`/`rc` and records ITS argv to
     `seen`."""
     bin_dir, seen, updates = tmp_path / "stub-bin", tmp_path / "seen.json", tmp_path / "update-calls.jsonl"
     bin_dir.mkdir(exist_ok=True)
@@ -1072,11 +1072,11 @@ def ops_stub(tmp_path: Path, rc: int, answer: dict) -> tuple:
     # `LLM_WIKI_OPS` named explicitly, not just PATH: `cli()` only auto-injects
     # its own ticket stub when the env it is handed names no front door yet,
     # and this one must be it, so both the ticket-open call `open_ticket`
-    # makes ahead of `credential get` and the credential call itself land here.
+    # makes ahead of `credentials get` and the credential call itself land here.
     return {"PATH": f"{bin_dir}:/usr/bin:/bin", "LLM_WIKI_OPS": str(stub)}, seen
 
 
-# What `credential get` answers inside a slice for a payload that is THERE and ungranted
+# What `credentials get` answers inside a slice for a payload that is THERE and ungranted
 # (common/wiki/secrets.py::get), exit 1 — as against "no credential 'spotify' on this machine".
 UNREADABLE = {"error": "cannot read credential 'spotify': [Errno 13] Permission denied: '/home/u/.config/llm-wiki/credentials/r/spotify.json'"}
 EMBED = {"props": {"pageProps": {"state": {"data": {"entity": {
@@ -1088,14 +1088,14 @@ EMBED_ROUTES = {"https://open.spotify.com/embed/": {"text": f'<script id="__NEXT
 
 def test_an_unreadable_store_under_a_ticket_is_keyless_ok_and_says_auth(tmp_path):
     """The manifest declares `requires.credential: false`, so a slice is granted
-    no payload and `credential get spotify` answers "cannot read" on every box
+    no payload and `credentials get spotify` answers "cannot read" on every box
     that HAS credentials. That used to exit 2: the capture failed every time."""
     root, rel = fake_wiki(tmp_path), "_raw/money-models/playlist--deadbeef"
     ticket(root / rel)
     path, seen = ops_stub(tmp_path, 1, UNREADABLE)
     r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
     assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credential", "get", "spotify"]
+    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify"]
     summary = json.loads(r.stdout)
     assert summary["keyless"] is True and summary["credential_unreadable"] is True
     assert cli(tmp_path, "report", "--capture-dir", rel, cwd=root, env=path).returncode == 0
@@ -1134,7 +1134,7 @@ def test_the_front_door_a_hosted_run_names_wins_over_the_bare_name(tmp_path):
     r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root,
             env={"LLM_WIKI_OPS": str(tmp_path / "stub-bin" / "llm-wiki-ops")}, routes=EMBED_ROUTES)
     assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credential", "get", "spotify"]
+    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify"]
 
 
 def test_a_ticket_that_names_a_credential_is_asked_for_that_one(tmp_path):
@@ -1143,7 +1143,7 @@ def test_a_ticket_that_names_a_credential_is_asked_for_that_one(tmp_path):
     path, seen = ops_stub(tmp_path, 1, {"error": "no credential 'spotify-work' on this machine"})
     r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
     assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credential", "get", "spotify-work"]
+    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify-work"]
     assert read(root / rel, "meta.json").get("auth") is None  # absent is the documented degradation, not an auth problem
 
 
@@ -1168,7 +1168,7 @@ def auth_run(spotify, monkeypatch, tmp_path, **ns):
 def test_auth_reads_the_secret_from_stdin_when_there_is_no_terminal(spotify, monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "stdin", io.StringIO("s3cret\n"))
     stored = auth_run(spotify, monkeypatch, tmp_path, client_id="cid", client_secret=None)
-    assert stored["argv"] == ("credential", "set", "spotify")
+    assert stored["argv"] == ("credentials", "set", "spotify")
     assert json.loads(stored["stdin"]) == {"client_id": "cid", "client_secret": "s3cret"}
 
 
