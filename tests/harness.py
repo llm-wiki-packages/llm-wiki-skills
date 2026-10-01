@@ -176,7 +176,7 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
     sandbox enabled, the stage bound. A snippet key the policy reader does not
     admit fails here, at `sandboxes enable`."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
-    for stage, spec in unit_manifest(name)["stages"].items():
+    for stage, spec in unit_manifest(name).get("stages", {}).items():
         ref = spec.get("sandbox_ref")
         if not ref:
             continue
