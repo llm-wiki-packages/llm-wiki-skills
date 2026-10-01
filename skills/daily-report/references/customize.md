@@ -1,8 +1,9 @@
 # daily-report — customizing this skill
 
 The brief's look, sections and tone belong to the wiki, not to this unit's
-body. Steer them through the wiki's `daily-report` overlay and its
-`wiki/reports/_template.html`, never by editing `SKILL.md`.
+body. Prefer the wiki's `daily-report` overlay and its
+`wiki/reports/_template.html`. Editing `SKILL.md` makes the unit `customized`,
+and `skills install` then refuses to refresh it.
 
 Ask, with an operator at the keyboard:
 

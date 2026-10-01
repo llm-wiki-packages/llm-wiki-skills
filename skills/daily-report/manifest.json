@@ -1,11 +1,8 @@
 {
   "keywords": [
-    "report",
     "brief",
     "dashboard",
-    "digest",
-    "morning",
-    "daily"
+    "morning"
   ],
   "kind": "tool",
   "name": "daily-report",
@@ -15,6 +12,5 @@
   },
   "usage": "/daily-report [date|focus|setup]",
   "v": 1,
-  "venue": "wiki",
   "version": "0.1.0"
 }

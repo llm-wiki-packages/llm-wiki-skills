@@ -17,7 +17,8 @@
    /daily-report
    ```
 
-3. Schedule it by naming `daily-report` in the wiki's pipeline bundle, or
-   leave it by hand. A scheduled run never asks questions: it follows the
+3. The seeded `morning` schedule bundle runs it once a day, after dream and
+   wiki-report; its `stages:` line reads `[/daily-report]`
+   (`llm-wiki-ops reference schedule-bundles`). A scheduled run never asks questions: it follows the
    overlay and writes what it could not answer into the report's open
    questions.

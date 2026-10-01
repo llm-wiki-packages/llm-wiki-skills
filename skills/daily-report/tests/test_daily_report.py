@@ -1,5 +1,4 @@
 """What the daily-report skill's body claims about its own directory."""
-import re
 from pathlib import Path
 
 import pytest

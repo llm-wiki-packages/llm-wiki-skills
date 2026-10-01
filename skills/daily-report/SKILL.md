@@ -1,7 +1,7 @@
 ---
 name: daily-report
 description: >
-  Use for the daily report, morning brief or dashboard, what needs attention today, or a synthesized what's-new across wikis; also to redesign the brief. Plain windowed digest: use report.
+  Use for the daily report, morning brief or dashboard, what needs attention today, or a synthesized what's-new across wikis; also to redesign the brief. Plain windowed digest: use /llm-wiki:wiki-report.
 argument-hint: "[date|focus|setup]"
 ---
 

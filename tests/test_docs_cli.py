@@ -319,3 +319,13 @@ def test_the_unit_address_scan_finds_the_ones_it_was_written_for():
         for unit, name in _UNIT_ADDRESS.findall(" ".join(doc.read_text(encoding="utf-8").split()))
     }
     assert ("channel-youtube", "youtube_note.py") in found and len(found) >= 10, sorted(found)
+
+
+_REFERENCE = re.compile(r"llm-wiki-ops reference ([a-z0-9][a-z0-9-]*)(?![\w/:.-])")
+_REFERENCED = sorted({name for doc in DOCS for name in _REFERENCE.findall(" ".join(doc.read_text(encoding="utf-8").split()))})
+
+
+@pytest.mark.parametrize("name", _REFERENCED)
+def test_every_reference_a_doc_names_is_served(ops, env, wiki, name):
+    r = run(ops, rooted(env, wiki), "reference", name)
+    assert r.returncode == 0, f"reference {name}: {r.stdout}{r.stderr}"
