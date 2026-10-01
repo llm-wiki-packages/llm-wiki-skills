@@ -165,9 +165,9 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
   `capture_lesson.py` asks `llm-wiki-ops --json credential profile-dir
   <domain>` for it, and `exists: false` means no login has run on this machine.
 - One-time manual login, by a person at a browser, which the host arranges
-  and a worker never does — run FROM the wiki root, which is where the helper
-  resolves the credential store: `llm-wiki-ops run scripts/login.py <domain>`.
-  It saves the `<domain>.storage` credential AND a persistent Chrome profile.
+  and a worker never does: `llm-wiki-ops credentials set <domain> kind=dir
+  login=browser host=<domain>`, then `llm-wiki-ops credentials login <domain>`.
+  It saves a persistent Chrome profile in the credential's directory.
 - **Cloudflare-fronted — the profile is what replays, and `<domain>.storage`
   is deliberately unused here.** A fresh bundled-Chromium context gets a
   Turnstile challenge; real Chrome (`channel="chrome"`) with the persistent

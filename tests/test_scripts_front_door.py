@@ -1,7 +1,7 @@
 """The unit scripts that ask the front door a question read its ANSWER, not
 just its exit code.
 
-`llm-wiki-ops credential profile-dir` and `credential get` print prose for a
+`llm-wiki-ops credential profile-dir` and `credentials get` print prose for a
 person unless asked for `--json`, and `profile-dir` exits 0 for a profile that
 does not exist. A caller that trusts the exit code and takes stdout for a
 path launches a browser on a directory named after three lines of prose —
@@ -131,7 +131,7 @@ def test_prose_on_stdout_is_never_taken_for_a_path(circle, front_door, tmp_path)
     assert path is None and refused[0] == "unreachable", (path, refused)
 
 
-# --- channel-spotify: `credential get|set spotify` ------------------------------
+# --- channel-spotify: `credentials get|set spotify` ------------------------------
 
 
 @pytest.fixture
@@ -148,7 +148,7 @@ def test_a_stored_credential_is_the_payload_inside_the_answer(spotify, front_doo
     seen = front_door(0, {"name": "spotify", "value": json.dumps(STORED, indent=1), "store": "/s"}, "name: spotify\nvalue: {\n")
     assert spotify.load_auth(tmp_path) == STORED
     got = seen()
-    assert got["argv"] == ["--json", "credential", "get", "spotify"] and got["inherited"] == [], got
+    assert got["argv"] == ["--json", "credentials", "get", "spotify"] and got["inherited"] == [], got
     assert Path(got["cwd"]) == tmp_path.resolve(), got
 
 
@@ -173,7 +173,7 @@ def test_auth_stores_the_payload_on_stdin_never_on_the_command_line(spotify, fro
     monkeypatch.setattr(spotify, "get_token", lambda root: None)
     spotify.cmd_auth(types.SimpleNamespace(client_id="cid", client_secret="sec"))
     got = seen()
-    assert got["argv"] == ["--json", "credential", "set", "spotify"], got
+    assert got["argv"] == ["--json", "credentials", "set", "spotify"], got
     assert json.loads(got["stdin"]) == STORED and "sec" not in " ".join(got["argv"])
 
 

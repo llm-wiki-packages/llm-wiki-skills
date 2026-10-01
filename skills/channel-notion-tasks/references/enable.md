@@ -41,7 +41,7 @@
    Without the route a harvest reports `failed`, `auth`, on
    `api.notion.com`.
 3. **No credential to bind, and why.** `requires.credential` stays `false`:
-   `true` asks each machine to `credential set` and `credential bind` a
+   `true` asks each machine to `credentials set` and `credentials bind` a
    payload the slice is handed, and this skill reads none. Its credential is
    the harness-profile route above, held by whichever machine (or wiki-scoped
    profile) runs the harness — never by the enabled sandbox, which carries no

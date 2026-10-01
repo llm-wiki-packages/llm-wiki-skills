@@ -38,12 +38,12 @@
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
    mailbox". Exactly what to run, on the machine that pulls:
-   `printf '%s' '<who>@example.com' | llm-wiki-ops credential set <slug>-mailbox`
+   `printf '%s' '<who>@example.com' | llm-wiki-ops credentials set <slug>-mailbox`
    — the name is the operator's to choose (`<slug>-mailbox` reads well in
-   `credential bindings`); the VALUE is unused by everything, so set it to
+   `credentials bindings`); the VALUE is unused by everything, so set it to
    the mailbox's address, a label, and NEVER to a real password or token
    (a spawned slice is read-granted that one payload file). Then:
-   `llm-wiki-ops credential bind <slug> <slug>-mailbox` — `bind` refuses a
+   `llm-wiki-ops credentials bind <slug> <slug>-mailbox` — `bind` refuses a
    name that is not set on this machine. After a peer changes the job, look
    at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.

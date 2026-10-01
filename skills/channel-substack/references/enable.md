@@ -5,7 +5,7 @@
    free jobs need no binding): a slice is granted a secret only when the
    skill declares the need and the job is bound. SKILL.md's "Auth" lists the
    steps — set `requires.credential` to `true` in this wiki's copy,
-   re-enable, `llm-wiki-ops credential set <name>`, `llm-wiki-ops credential
+   re-enable, `llm-wiki-ops credentials set <name>`, `llm-wiki-ops credentials
    bind <slug> <name>` — and their cost: every job on this skill then needs
    a binding.
 2. Declare the job, naming the skill: `llm-wiki-ops pipeline jobs add
