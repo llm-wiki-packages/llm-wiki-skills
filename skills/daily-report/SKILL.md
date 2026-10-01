@@ -1,13 +1,7 @@
 ---
 name: daily-report
 description: >
-  Use when asked for the daily report, morning report, dashboard, brief,
-  what needs attention today, or a synthesized what's-new across wikis —
-  even if none of those words are used — and when the operator wants to
-  change or redesign their morning brief: its look, sections, tone,
-  template, or populating instructions ("make my report...", "drop the
-  calendar section"). For the plain windowed digest with no synthesis, use
-  report.
+  Use for the daily report, morning brief or dashboard, what needs attention today, or a synthesized what's-new across wikis; also to redesign the brief. Plain windowed digest: use report.
 argument-hint: "[date|focus|setup]"
 ---
 
