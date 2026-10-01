@@ -1,0 +1,725 @@
+<!doctype html>
+<!--
+  llm-wiki daily-report — "Morning Brief" reference template.
+
+  WHAT THIS FILE IS
+  A working sample page (fictional studio, one sample morning) showing the
+  editorial design language for daily reports: tokens, type scale,
+  components (masthead, drop-cap summary, focus list, delta strip, action
+  cards with tabs + detail panel, insight rows, calendar/wins, reach-out
+  rail, watching list, copyable draft replies, source receipts).
+
+  WHAT THIS FILE IS NOT
+  A contract. There is no required data schema and no fixed section list.
+  Each day's report is STANDALONE HTML, authored fresh from that day's
+  story — the agent decides what sections today needs, in what order, at
+  what depth. Borrow this file's tokens and component patterns for
+  consistency; never treat its sections as slots to fill. If today is one
+  urgent negotiation and nothing else, the right report is one deep card
+  and a paragraph — not this page with empty sections.
+
+  CONVENTIONS
+  - Copied to <root>/wiki/reports/_template.html on first design pass;
+    WIKI-OWNED and fully customizable from then on (see the skill's
+    references/DESIGN.md for how template + policy divide the concerns).
+  - Every report stays self-contained: inline CSS/JS, no external fonts,
+    stylesheets, scripts, or images (data: URIs only). The font stacks
+    below use locally-installed serifs when present (Cormorant Garamond /
+    Lora give the intended look) and degrade to Georgia gracefully.
+  - Tweakables live in :root — alternate accent ramps (burgundy, forest,
+    slate) are included as comments; swapping a palette is a token edit,
+    not a redesign.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Morning Brief — 2026-07-21</title>
+<style>
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201f1d;
+  --color-accent: #b68235;
+  --color-divider: color-mix(in srgb, #201f1d 16%, transparent);
+
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff3e4;
+  --color-accent-400: #e1ad66;
+  --color-accent-500: #c28d41;
+  --color-accent-700: #7d5411;
+
+  /* Alt accent ramps — swap the accent vars above (incl. 400/500/700)
+     to retheme. Full ramps, light→dark:
+     burgundy: #9d4147 · 100 #fdf0ef · 400 #d99a98 · 500 #b97473 · 700 #773c40
+     forest:   #66794a · 100 #f1f5e9 · 400 #a3b781 · 500 #839a5e · 700 #4d612c
+     slate:    #5f7a99 · 100 #eef4fa · 400 #97b0cc · 500 #7691b0 · 700 #405874 */
+
+  --prio-high: #a8433a;
+  --prio-medium: var(--color-accent-500);
+  --prio-low: #7691b0;
+  --prio-done: var(--color-neutral-400);
+
+  --font-heading: "Cormorant Garamond", "Playfair Display", "EB Garamond",
+                  Georgia, "Times New Roman", serif;
+  --font-body: "Lora", "Source Serif 4", Georgia, serif;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--color-bg); color: var(--color-text);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h3, h4, h6 { font-family: var(--font-heading); font-weight: 600;
+                 line-height: 1.12; letter-spacing: -0.015em; margin: 0; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 40px 40px 72px; }
+@keyframes briefIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes panelIn { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* masthead */
+header.masthead { border-top: 2px solid var(--color-text); padding-top: 3px;
+  animation: briefIn 0.5s ease both; }
+.masthead-row { border-top: 1px solid var(--color-divider); display: flex;
+  flex-wrap: wrap; gap: 8px 24px; align-items: baseline; padding: 12px 0 0; }
+.brand { font-family: var(--font-heading); font-weight: 600; font-size: 15px;
+  letter-spacing: 0.14em; text-transform: uppercase; }
+.brief-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-accent-700); }
+.masthead-date { margin-left: auto; font-size: 12px;
+  font-feature-settings: 'tnum'; color: var(--color-neutral-600); }
+
+/* greeting + focus */
+.greeting { margin-top: 44px; animation: briefIn 0.55s ease 0.05s both; }
+.greeting-cols { display: flex; flex-wrap: wrap; gap: 32px 56px; align-items: flex-start; }
+.greeting-main { flex: 1 1 440px; max-width: 72ch; }
+.greeting-main h1 { font-size: 52px; font-weight: 400; letter-spacing: -0.01em;
+  margin: 0 0 6px; }
+.prepared { font-style: italic; font-size: 14px; color: var(--color-neutral-600);
+  margin: 0 0 24px; }
+.summary { text-align: justify; font-size: 16px; line-height: 1.7; }
+.dropcap { float: left; font-family: var(--font-heading); font-size: 66px;
+  line-height: 0.78; padding: 8px 10px 0 0; color: var(--color-accent-700); }
+.focus-col { flex: 1 1 250px; max-width: 330px; padding-top: 10px; }
+.focus-col h6 { margin: 0 0 2px; color: var(--color-accent-700); }
+.focus-row { display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--color-divider); }
+.focus-row:last-child { border-bottom: 0; }
+.focus-dash { flex: none; width: 14px; height: 1px; background: var(--color-accent); }
+.focus-row span:last-child { font-size: 13.5px; }
+
+/* delta strip */
+.deltas { display: flex; flex-wrap: wrap; border-top: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--color-divider); margin-top: 28px; }
+.delta { display: flex; flex-direction: column; gap: 3px; padding: 14px 28px;
+  border-right: 1px solid var(--color-divider); }
+.delta:first-child { padding-left: 0; }
+.delta:last-child { border-right: 0; }
+.delta-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-neutral-600); }
+.delta-value { font-family: var(--font-heading); font-weight: 600; font-size: 24px;
+  font-feature-settings: 'tnum'; line-height: 1.1; }
+.delta-note { font-size: 11.5px; color: var(--color-neutral-600); }
+
+/* section headers + tabs */
+.sec { margin-top: 48px; animation: briefIn 0.55s ease 0.1s both; }
+.sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px;
+  flex-wrap: wrap; }
+.sec-head h6 { color: var(--color-neutral-800); }
+.sec-count { font-size: 11px; font-feature-settings: 'tnum';
+  color: var(--color-accent-700); }
+.sec-rule { flex: 1; height: 1px; background: var(--color-divider); }
+.tabs { display: flex; gap: 2px; }
+.tab { font: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--color-neutral-600); padding: 6px 10px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--color-accent-700);
+  border-bottom-color: var(--color-accent); }
+
+/* action cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px; }
+.card { display: flex; flex-direction: column; gap: 9px; padding: 18px;
+  border: 1px solid var(--color-divider); border-radius: 4px; cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.card:hover { border-color: var(--color-accent-400); box-shadow: var(--shadow-sm); }
+.card-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.prio-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.prio-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-neutral-600); }
+.card-meta-right { margin-left: auto; font-size: 11px; color: var(--color-neutral-500); }
+.card h4 { font-size: 19px; line-height: 1.2; }
+.card-sum { font-size: 13.5px; line-height: 1.6; opacity: 0.8; flex: 1; }
+.card-open { display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-top: 2px; }
+
+/* insight + calendar + wins + rail rows */
+.row-list > * { border-bottom: 1px solid var(--color-divider); }
+.insight { display: flex; gap: 14px; align-items: baseline; padding: 15px 4px;
+  cursor: pointer; transition: background 0.15s ease; }
+.insight:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent); flex: none; min-width: 62px; }
+.insight h4 { font-size: 17px; margin: 0 0 3px; line-height: 1.25; }
+.insight p { font-size: 13px; line-height: 1.6; color: var(--color-neutral-700); }
+.cal-row { display: flex; gap: 14px; align-items: baseline; padding: 11px 4px; }
+.cal-time { flex: none; width: 46px; font-size: 12px; font-feature-settings: 'tnum';
+  color: var(--color-neutral-600); }
+.cal-title { font-size: 13.5px; flex: 1; }
+.cal-meta { flex: none; font-size: 11px; color: var(--color-neutral-500); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent);
+  font-size: 9.5px; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.02em; }
+.win-row { display: flex; gap: 10px; align-items: flex-start; padding: 11px 4px; }
+.win-row svg { flex: none; margin-top: 3px; color: var(--color-accent); }
+.win-row p { font-size: 13px; line-height: 1.55; }
+.person { display: flex; gap: 12px; align-items: flex-start; padding: 14px 4px;
+  cursor: pointer; transition: background 0.15s ease; }
+.person:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.avatar { width: 34px; height: 34px; flex: none; border-radius: 50%;
+  border: 1px solid var(--color-accent); color: var(--color-accent-700);
+  display: grid; place-items: center; font-family: var(--font-heading);
+  font-weight: 600; font-size: 12.5px; letter-spacing: 0.04em; }
+.person-name { font-family: var(--font-heading); font-weight: 600; font-size: 16px; }
+.person-org { font-size: 11px; color: var(--color-neutral-600); }
+.person-line { margin-top: 2px; font-size: 12.5px; line-height: 1.5;
+  color: var(--color-neutral-700); }
+.wait { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-neutral-500); flex: none; }
+.wait-high { color: var(--color-accent-700); }
+.watch-row { padding: 11px 4px; }
+.watch-row p:first-child { font-size: 13px; font-weight: 600; }
+.watch-row p:last-child { margin-top: 2px; font-size: 12px;
+  color: var(--color-neutral-600); line-height: 1.5; }
+
+/* two-column lower layout */
+.lower { display: flex; flex-wrap: wrap; gap: 56px; margin-top: 48px; }
+.lower main { flex: 2 1 600px; min-width: 0; display: flex; flex-direction: column;
+  gap: 48px; animation: briefIn 0.55s ease 0.15s both; }
+.lower aside { flex: 1 1 300px; max-width: 420px; display: flex;
+  flex-direction: column; gap: 40px; animation: briefIn 0.55s ease 0.2s both; }
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 40px 48px; }
+.mini-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.mini-head h6 { color: var(--color-neutral-800); }
+
+/* footer */
+footer.colophon { margin-top: 64px; border-top: 1px solid var(--color-divider);
+  padding-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 24px;
+  font-size: 11.5px; color: var(--color-neutral-600); }
+footer.colophon span:last-child { margin-left: auto; font-style: italic; }
+
+/* detail panel */
+.backdrop { position: fixed; inset: 0; z-index: 60;
+  background: color-mix(in srgb, #2d2b2b 32%, transparent);
+  animation: fadeIn 0.2s ease both; }
+.panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(470px, 94vw);
+  overflow-y: auto; background: var(--color-bg);
+  border-left: 1px solid var(--color-divider); box-shadow: var(--shadow-lg);
+  padding: 34px 32px 44px; animation: panelIn 0.25s ease both; }
+.panel-head { display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 14px; }
+.panel h3 { margin: 4px 0 0; font-size: 24px; }
+.btn-close { width: 36px; height: 36px; flex: none; display: grid;
+  place-items: center; background: none; border: 1px solid var(--color-divider);
+  border-radius: 4px; color: var(--color-text); cursor: pointer; }
+.btn-close:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.panel .hr { height: 1px; border: 0; margin: 18px 0; background: var(--color-divider); }
+.panel h6 { color: var(--color-accent-700); margin-bottom: 6px; }
+.panel h6.src-h { color: var(--color-neutral-700); margin-bottom: 2px; }
+.panel p { font-size: 14px; line-height: 1.7; margin-bottom: 13px; }
+.panel p.just { text-align: justify; }
+.draft { border-left: 2px solid var(--color-accent); padding: 10px 16px;
+  margin: 6px 0 10px; font-style: italic; font-size: 13.5px; line-height: 1.65;
+  color: var(--color-neutral-800); white-space: pre-line; }
+.btn-ghost { font-family: var(--font-heading); font-weight: 600; font-size: 13px;
+  color: var(--color-accent); background: none; border: 0; border-radius: 4px;
+  padding: 8px 6px; cursor: pointer; }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.src-row { display: flex; gap: 10px; align-items: baseline; padding: 8px 0;
+  border-bottom: 1px solid var(--color-divider); font-size: 13px; }
+.src-type { flex: none; min-width: 96px; font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--color-accent-700); }
+.src-label { color: var(--color-neutral-800); }
+.detail-src { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="masthead-row">
+      <span class="brand">Northlight Studio</span>
+      <span class="brief-label">The Morning Brief</span>
+      <span class="masthead-date">Monday, July 21, 2026</span>
+    </div>
+  </header>
+
+  <section class="greeting">
+    <div class="greeting-cols">
+      <div class="greeting-main">
+        <h1>Good morning, Joe.</h1>
+        <p class="prepared">Prepared at 6:42 am from 214 signals across email, Slack, and Notion.</p>
+        <p class="summary"><span class="dropcap">S</span>ince yesterday's brief, the ground has shifted in your favor. Meridian Health signed — $120k booked and your first anchor client in healthcare — while the Copperline proposal quietly became the day's real test: Dave has now waited three days, and his board meets tomorrow morning. Thursday holds a capacity clash that gets cheaper the earlier you resolve it. Everything else on this page can flex.</p>
+      </div>
+      <div class="focus-col">
+        <h6>Today's focus</h6>
+        <div class="focus-row"><span class="focus-dash"></span><span>Reply to client proposals</span></div>
+        <div class="focus-row"><span class="focus-dash"></span><span>Confirm the Meridian kickoff</span></div>
+        <div class="focus-row"><span class="focus-dash"></span><span>Lock Thursday staffing</span></div>
+        <div class="focus-row"><span class="focus-dash"></span><span>Protect Wednesday for pricing</span></div>
+      </div>
+    </div>
+    <div class="deltas">
+      <div class="delta"><span class="delta-label">Booked revenue</span><span class="delta-value">+$120k</span><span class="delta-note">Meridian signed overnight</span></div>
+      <div class="delta"><span class="delta-label">Proposal at risk</span><span class="delta-value">$95k</span><span class="delta-note">Copperline — response 3 days overdue</span></div>
+      <div class="delta"><span class="delta-label">Deep work this week</span><span class="delta-value">4 hrs</span><span class="delta-note">against 11 hrs of meetings</span></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h6>Priority actions</h6><span class="sec-count" id="action-count">05</span>
+      <span class="sec-rule"></span>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="today">Today</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="week">This week</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="done">Completed</button>
+      </div>
+    </div>
+    <div class="cards" id="cards">
+
+      <article class="card" data-bucket="today" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-high)"></span>
+          <span class="prio-label">high</span>
+          <span class="card-meta-right">Copperline · $95k</span>
+        </div>
+        <h4>Close the loop with Copperline</h4>
+        <p class="card-sum">Dave Okafor has waited 3 days on your proposal response, and his board meets tomorrow at 9 am. A reply this morning keeps the $95k rebrand in play.</p>
+        <div class="detail-src">
+          <div data-why>Copperline is the largest proposal in the pipeline and the only one with a hard external deadline: their board reviews vendor selections tomorrow morning. Dave flagged three open questions on Friday — silence past the board date usually means a quarter's delay, not a lost deal, but the momentum is yours to lose.</div>
+          <div data-next>Send the reply below before your 10:30 review, then offer Dave a 15-minute call this afternoon.</div>
+          <div data-draft>Hi Dave — thank you for the board's questions, and apologies for the slower turnaround. Short answers: yes, the timeline holds if we start by Aug 11; the naming workshop is included in phase one; and we can phase the website work to fit this year's budget. Full notes attached — happy to walk the board through any of it tomorrow before you meet. — Joe</div>
+          <div data-source data-type="Email">Thread "Copperline — proposal questions" · Jul 18</div>
+          <div data-source data-type="Notion">Copperline rebrand — proposal v3</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="today" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-high)"></span>
+          <span class="prio-label">high</span>
+          <span class="card-meta-right">Meridian · $120k</span>
+        </div>
+        <h4>Countersign the Meridian Health SOW</h4>
+        <p class="card-sum">Legal returned the redlines clean at 9:40 last night. Countersign and confirm the Aug 3 kickoff — Priya expects a date from you today.</p>
+        <div class="detail-src">
+          <div data-why>The SOW locks $120k over two quarters, and Meridian has an internal announcement queued for Friday. The only open item was the IP clause — legal accepted their language last night, so nothing stands between you and the signature.</div>
+          <div data-next>Countersign in PandaDoc, then confirm the Aug 3 kickoff in your reply to Priya.</div>
+          <div data-draft>Priya — countersigned copy attached. We're confirmed for an Aug 3 kickoff; invites for the discovery week will follow today. The team is genuinely excited about this one. — Joe</div>
+          <div data-source data-type="Email">"Meridian — SOW final redlines" · 9:40 pm</div>
+          <div data-source data-type="Notion">Meridian Health — engagement plan</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="today" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-medium)"></span>
+          <span class="prio-label">medium</span>
+          <span class="card-meta-right">Staffing · Thursday</span>
+        </div>
+        <h4>Resolve Thursday's capacity clash</h4>
+        <p class="card-sum">Sara and Ben are double-booked across the Harbor and Vantage sprints on Thursday. Maya is holding her freelance availability for you — but only until 5 pm today.</p>
+        <div class="detail-src">
+          <div data-why>Harbor's round-3 revisions and Vantage's sprint review both land Thursday, and Sara and Ben are the only seniors on both accounts. Maya covered the June crunch well; every hour you wait narrows the options to the expensive ones.</div>
+          <div data-next>Decide by lunch: shift the Vantage review to Friday morning (Tom is flexible) or book Maya for the day ($1,040).</div>
+          <div data-source data-type="Slack">#staffing — Thursday clash thread</div>
+          <div data-source data-type="Notion">Capacity board — week of Jul 20</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="today" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-medium)"></span>
+          <span class="prio-label">medium</span>
+          <span class="card-meta-right">Harbor · $18k</span>
+        </div>
+        <h4>Chase the Harbor June invoice</h4>
+        <p class="card-sum">Invoice #1142 ($18k) is now 12 days past terms. Their AP contact changed in June — a warm nudge to the new one usually clears it same-day.</p>
+        <div class="detail-src">
+          <div data-why>Harbor is otherwise a healthy account; this is a routing problem, not a payment problem. But at 12 days it starts to distort your July cash picture and makes Friday's pricing conversation harder to ground.</div>
+          <div data-next>Forward the invoice to their new AP contact (Elena Cruz) with a one-line note, and cc Sara.</div>
+          <div data-draft>Hi Elena — welcome aboard on the Harbor side! Forwarding invoice #1142 from June which may have missed the handover. Anything you need from us to process it, just say the word. — Joe</div>
+          <div data-source data-type="Company data">AR aging report — Jul 21</div>
+          <div data-source data-type="Email">"AP contact change" · Harbor ops, Jun 30</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="today" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-low)"></span>
+          <span class="prio-label">low</span>
+          <span class="card-meta-right">Marketing · August</span>
+        </div>
+        <h4>Approve the August content calendar</h4>
+        <p class="card-sum">Nina needs a yes/no by end of day to hold the case-study slot with the video editor. Ten minutes, low stakes — just don't let it slip.</p>
+        <div class="detail-src">
+          <div data-why>The calendar is built around the Meridian announcement; approving today locks the editor's availability at the current rate. A week's slip pushes the case study past the announcement window.</div>
+          <div data-next>Skim the calendar in Notion and leave an approve/adjust comment for Nina.</div>
+          <div data-source data-type="Notion">Content calendar — August draft</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="week" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-high)"></span>
+          <span class="prio-label">high</span>
+          <span class="card-meta-right">Pricing · Friday sync</span>
+        </div>
+        <h4>Review Q3 pricing before Friday's partner sync</h4>
+        <p class="card-sum">Utilization has held above 85% for eleven straight weeks while rates have been flat for 18 months. A 12% uplift on new work is on the table Friday.</p>
+        <div class="detail-src">
+          <div data-why>Sustained utilization above 85% is the classic signal you're underpriced. Rates were last touched in January 2025; comparable studios moved 8–15% since. Friday's partner sync is the natural moment to decide — unprepared, it will slip another quarter.</div>
+          <div data-next>Skim the one-page pricing memo in Notion and mark up the two open questions during Wednesday's protected morning.</div>
+          <div data-source data-type="Notion">Q3 pricing memo — draft</div>
+          <div data-source data-type="Company data">Utilization report — trailing 12 weeks</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="week" data-kicker="Priority action" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-medium)"></span>
+          <span class="prio-label">medium</span>
+          <span class="card-meta-right">Hiring · Thursday</span>
+        </div>
+        <h4>Interview Nadia for the senior design role</h4>
+        <p class="card-sum">Second-round interview Thursday at 2. She's the strongest portfolio of the batch and has a competing offer maturing next week.</p>
+        <div class="detail-src">
+          <div data-why>The August capacity dip and the Maya decision both get easier with a senior hire in motion. Nadia's competing offer means your usual two-week deliberation window doesn't exist this time.</div>
+          <div data-next>Review her portfolio notes Wednesday and prep two project-deep-dive questions; be ready to signal timeline in the room.</div>
+          <div data-source data-type="Notion">Hiring — senior designer pipeline</div>
+          <div data-source data-type="Email">"Re: next steps" · Nadia, Jul 19</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="done" data-kicker="Completed" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-done)"></span>
+          <span class="prio-label">done</span>
+          <span class="card-meta-right">Resolved · Jul 20</span>
+        </div>
+        <h4>Harbor round-2 files delivered</h4>
+        <p class="card-sum">Shipped a day ahead of promise. The client called it "the strongest work so far" — logged to the account history.</p>
+        <div class="detail-src">
+          <div data-why>Early delivery on a wobbly-margin account bought goodwill right before the change-order conversation round 3 will need.</div>
+          <div data-next>No follow-up needed — round 3 kickoff is on Thursday's calendar.</div>
+          <div data-source data-type="Slack">#harbor — delivery thread · Jul 20</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+      <article class="card" data-bucket="done" data-kicker="Completed" tabindex="0">
+        <div class="card-head">
+          <span class="prio-dot" style="background: var(--prio-done)"></span>
+          <span class="prio-label">done</span>
+          <span class="card-meta-right">Resolved · Jul 19</span>
+        </div>
+        <h4>June books closed with Marcus</h4>
+        <p class="card-sum">Closed four days earlier than May. Net margin landed at 22% — the AR chase on Harbor is the only loose end carried into July.</p>
+        <div class="detail-src">
+          <div data-why>A clean, early close is what makes this morning's cash and margin numbers trustworthy.</div>
+          <div data-next>No follow-up needed — Harbor invoice chase is tracked under today's actions.</div>
+          <div data-source data-type="Company data">June close — P&amp;L summary</div>
+        </div>
+        <div class="card-open">Full briefing <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+      </article>
+
+    </div>
+  </section>
+
+  <div class="lower">
+    <main>
+      <section>
+        <div class="sec-head" style="margin-bottom: 0">
+          <h6>Insights &amp; recommendations</h6><span class="sec-count">03</span>
+          <span class="sec-rule"></span>
+        </div>
+        <div class="row-list">
+
+          <div class="insight" data-kicker="Pattern" tabindex="0">
+            <span class="kicker">Pattern</span>
+            <div style="flex: 1; min-width: 0">
+              <h4>Referrals now open 60% of new pipeline</h4>
+              <p>Four of the last six qualified leads were referred by past clients — up from one in six a year ago. Worth formalizing before it plateaus.</p>
+              <div class="detail-src">
+                <div data-why>Referred leads close 2.4× more often and negotiate less. Right now the flow is pure luck: no ask, no thank-you, no timing. A small ritual would compound your best channel.</div>
+                <div data-next>Draft a two-line referral thank-you ritual — a handwritten note plus credit toward future work — and try it on Priya after Friday's signing announcement.</div>
+                <div data-source data-type="Company data">Pipeline source analysis — trailing 6 months</div>
+              </div>
+            </div>
+            <svg style="flex: none; align-self: center; color: var(--color-neutral-500)" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          </div>
+
+          <div class="insight" data-kicker="Margin" tabindex="0">
+            <span class="kicker">Margin</span>
+            <div style="flex: 1; min-width: 0">
+              <h4>Harbor margin has slipped 42% → 34%</h4>
+              <p>Round-3 revision scope is the culprit. A change order now recovers about $9k and resets expectations before round 4.</p>
+              <div class="detail-src">
+                <div data-why>Round 3 grew from 12 requested changes to 31, none covered by the original scope. At the current pace Harbor lands at 34% margin against your 45% target — and sets a precedent for round 4.</div>
+                <div data-next>Have Sara log the out-of-scope items today; a change order before round 4 recovers roughly $9k.</div>
+                <div data-source data-type="Notion">Harbor — scope tracker</div>
+                <div data-source data-type="Slack">#harbor — revision thread</div>
+              </div>
+            </div>
+            <svg style="flex: none; align-self: center; color: var(--color-neutral-500)" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          </div>
+
+          <div class="insight" data-kicker="Time" tabindex="0">
+            <span class="kicker">Time</span>
+            <div style="flex: 1; min-width: 0">
+              <h4>11 hours of meetings vs 4 of deep work</h4>
+              <p>Wednesday morning is your only unbroken stretch this week. Protect it for the pricing review — it will not survive by accident.</p>
+              <div class="detail-src">
+                <div data-why>You've called proposal quality and pricing the highest-leverage work of the quarter, and both need unbroken time. This week holds exactly one such block: Wednesday, 8 to 12.</div>
+                <div data-next>Decline the two "optional" Wednesday invites now, before the block erodes.</div>
+                <div data-source data-type="Calendar">Week of Jul 20 — time analysis</div>
+              </div>
+            </div>
+            <svg style="flex: none; align-self: center; color: var(--color-neutral-500)" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          </div>
+
+        </div>
+      </section>
+
+      <div class="duo">
+        <section>
+          <div class="mini-head"><h6>Today's calendar</h6><span class="sec-rule"></span></div>
+          <div class="row-list">
+            <div class="cal-row"><span class="cal-time">9:00</span><span class="cal-title">Leadership standup</span><span class="cal-meta">30 min</span></div>
+            <div class="cal-row"><span class="cal-time">10:30</span><span class="cal-title">Harbor — design review</span><span class="cal-meta">60 min</span></div>
+            <div class="cal-row"><span class="cal-time">14:00</span><span class="cal-title">Proposal work — Copperline</span><span class="tag-outline">held for you</span><span class="cal-meta">2 hrs</span></div>
+            <div class="cal-row"><span class="cal-time">16:30</span><span class="cal-title">Pipeline review with Priya K.</span><span class="cal-meta">45 min</span></div>
+          </div>
+        </section>
+        <section>
+          <div class="mini-head"><h6>Yesterday's wins</h6><span class="sec-rule"></span></div>
+          <div class="row-list">
+            <div class="win-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><p>Meridian Health signed — $120k booked, your first anchor client in healthcare.</p></div>
+            <div class="win-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><p>Harbor round 2 shipped a day early; the client called it "the strongest work so far."</p></div>
+            <div class="win-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><p>Vantage NPS came back at 68 — up nine points from March.</p></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <aside>
+      <section>
+        <div class="mini-head"><h6>Reach out today</h6><span class="sec-rule"></span></div>
+        <div class="row-list">
+
+          <div class="person" data-kicker="Relationship" data-title="Dave Okafor — Copperline" tabindex="0">
+            <span class="avatar">DO</span>
+            <div style="min-width: 0; flex: 1">
+              <div><span class="person-name">Dave Okafor</span> <span class="person-org">Copperline</span></div>
+              <p class="person-line">Waiting on your response to the rebrand proposal</p>
+              <div class="detail-src">
+                <div data-why>Three days of silence on a $95k proposal, with his board meeting tomorrow. Dave championed you internally — going quiet costs him credibility too.</div>
+                <div data-next>Send the proposal reply this morning (drafted under Priority Actions), then offer a 15-minute call before end of day.</div>
+                <div data-source data-type="Email">Thread "Copperline — proposal questions" · Jul 18</div>
+              </div>
+            </div>
+            <span class="wait wait-high">3 days</span>
+          </div>
+
+          <div class="person" data-kicker="Relationship" data-title="Priya Shah — Meridian Health" tabindex="0">
+            <span class="avatar">PS</span>
+            <div style="min-width: 0; flex: 1">
+              <div><span class="person-name">Priya Shah</span> <span class="person-org">Meridian Health</span></div>
+              <p class="person-line">Expects a kickoff date now that the SOW is signed</p>
+              <div class="detail-src">
+                <div data-why>The first week after a signature sets the tone for the whole engagement. Fast, specific communication now buys grace for the inevitable bumps later.</div>
+                <div data-next>Confirm the Aug 3 kickoff in writing today, with the discovery-week agenda attached.</div>
+                <div data-source data-type="Email">"Meridian — SOW final redlines" · 9:40 pm</div>
+              </div>
+            </div>
+            <span class="wait wait-high">today</span>
+          </div>
+
+          <div class="person" data-kicker="Relationship" data-title="Maya Lindqvist — Freelance" tabindex="0">
+            <span class="avatar">ML</span>
+            <div style="min-width: 0; flex: 1">
+              <div><span class="person-name">Maya Lindqvist</span> <span class="person-org">Freelance design</span></div>
+              <p class="person-line">Holding Thursday open for you until 5 pm</p>
+              <div class="detail-src">
+                <div data-why>Maya is your best freelance cover and she is fielding other offers this week. Whatever you decide about Thursday, she should hear it from you by 5 — a clear no keeps the relationship warm; silence doesn't.</div>
+                <div data-next>Message her by 3 pm with either a booking or a clear, warm no.</div>
+                <div data-source data-type="Slack">DM — Maya · yesterday 4:12 pm</div>
+              </div>
+            </div>
+            <span class="wait">by 5 pm</span>
+          </div>
+
+          <div class="person" data-kicker="Relationship" data-title="Tom Berger — Vantage" tabindex="0">
+            <span class="avatar">TB</span>
+            <div style="min-width: 0; flex: 1">
+              <div><span class="person-name">Tom Berger</span> <span class="person-org">Vantage</span></div>
+              <p class="person-line">Mentioned in passing that the brand "needs to grow up" with their Series B</p>
+              <div class="detail-src">
+                <div data-why>Tom wrote in #vantage-general that their Series B closed and "the brand needs to grow up with it." Unprompted signals like this convert well within a week — and go stale fast.</div>
+                <div data-next>Send a casual congratulations plus one specific idea. No pitch deck.</div>
+                <div data-draft>Tom — congrats on the close, that's huge. Been thinking about what you said re: the brand growing up with the round; one idea keeps sticking. Coffee Thursday? — Joe</div>
+                <div data-source data-type="Slack">#vantage-general · yesterday 5:40 pm</div>
+              </div>
+            </div>
+            <span class="wait">warm</span>
+          </div>
+
+        </div>
+      </section>
+
+      <section>
+        <div class="mini-head"><h6>Watching — not urgent</h6><span class="sec-rule"></span></div>
+        <div class="row-list">
+          <div class="watch-row"><p>Solstice and Bramble leads gone quiet</p><p>No reply in 10 days — nudge early next week, not today.</p></div>
+          <div class="watch-row"><p>August capacity dips about 20%</p><p>Overlapping PTO; the Maya decision softens this too.</p></div>
+          <div class="watch-row"><p>Software spend up 12% month over month</p><p>Three overlapping AI tools — worth a 15-minute audit Friday.</p></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="colophon">
+    <span>Assembled by your morning agents · sources refreshed 6:42 am</span>
+    <span>Tomorrow's brief arrives at 6:45 am</span>
+  </footer>
+</div>
+
+<div class="backdrop" id="backdrop" hidden>
+  <aside class="panel" id="panel" role="dialog" aria-modal="true">
+    <div class="panel-head">
+      <div>
+        <div class="kicker" id="d-kicker"></div>
+        <h3 id="d-title"></h3>
+      </div>
+      <button class="btn-close" id="d-close" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="hr"></div>
+    <h6>Why this matters</h6>
+    <p class="just" id="d-why"></p>
+    <h6>Suggested next step</h6>
+    <p id="d-next"></p>
+    <div id="d-draft-wrap" hidden>
+      <div class="draft" id="d-draft"></div>
+      <button class="btn-ghost" id="d-copy">Copy draft reply</button>
+    </div>
+    <div class="hr"></div>
+    <h6 class="src-h">Sources</h6>
+    <div id="d-sources"></div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* Interactions only — all content above is static, authored per day.
+   Tabs filter action cards; clicking a card/insight/person opens the
+   right-hand briefing panel from its hidden .detail-src block. */
+
+var backdrop = document.getElementById("backdrop");
+function el(id) { return document.getElementById(id); }
+function closePanel() { backdrop.hidden = true; }
+
+/* tabs */
+var tabs = document.querySelectorAll(".tab");
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function applyTab(name) {
+  tabs.forEach(function (t) {
+    t.setAttribute("aria-selected", String(t.dataset.tab === name));
+  });
+  var count = 0;
+  document.querySelectorAll("#cards .card").forEach(function (c) {
+    var show = c.dataset.bucket === name;
+    c.style.display = show ? "" : "none";
+    if (show) count++;
+  });
+  document.getElementById("action-count").textContent = pad2(count);
+  closePanel();
+}
+tabs.forEach(function (t) {
+  t.addEventListener("click", function () { applyTab(t.dataset.tab); });
+});
+applyTab("today");
+
+/* detail panel */
+function openPanel(item) {
+  var d = item.querySelector(".detail-src");
+  if (!d) return;
+  el("d-kicker").textContent = item.dataset.kicker || "";
+  el("d-title").textContent = item.dataset.title ||
+    (item.querySelector("h4") && item.querySelector("h4").textContent) || "";
+  el("d-why").textContent =
+    (d.querySelector("[data-why]") || {}).textContent || "";
+  el("d-next").textContent =
+    (d.querySelector("[data-next]") || {}).textContent || "";
+  var draft = d.querySelector("[data-draft]");
+  el("d-draft-wrap").hidden = !draft;
+  if (draft) {
+    el("d-draft").textContent = draft.textContent;
+    el("d-copy").textContent = "Copy draft reply";
+  }
+  var host = el("d-sources");
+  host.textContent = "";
+  d.querySelectorAll("[data-source]").forEach(function (s) {
+    var row = document.createElement("div"); row.className = "src-row";
+    var type = document.createElement("span"); type.className = "src-type";
+    type.textContent = s.dataset.type || "";
+    var label = document.createElement("span"); label.className = "src-label";
+    label.textContent = s.textContent;
+    row.appendChild(type); row.appendChild(label); host.appendChild(row);
+  });
+  backdrop.hidden = false;
+}
+document.querySelectorAll(".card, .insight, .person").forEach(function (item) {
+  item.addEventListener("click", function () { openPanel(item); });
+  item.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPanel(item); }
+  });
+});
+backdrop.addEventListener("click", function (e) {
+  if (e.target === backdrop) closePanel();
+});
+el("d-close").addEventListener("click", closePanel);
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") closePanel();
+});
+el("d-copy").addEventListener("click", function () {
+  navigator.clipboard.writeText(el("d-draft").textContent).then(function () {
+    el("d-copy").textContent = "Copied to clipboard";
+  });
+});
+</script>
+</body>
+</html>

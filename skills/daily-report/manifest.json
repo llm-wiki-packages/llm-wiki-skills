@@ -1,0 +1,16 @@
+{
+  "keywords": [
+    "brief",
+    "dashboard",
+    "morning"
+  ],
+  "kind": "tool",
+  "name": "daily-report",
+  "requires": {
+    "credential": false,
+    "ops": ">=0.1.0"
+  },
+  "usage": "/daily-report [date|focus|setup]",
+  "v": 1,
+  "version": "0.1.0"
+}

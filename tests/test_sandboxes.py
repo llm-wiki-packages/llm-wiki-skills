@@ -23,7 +23,7 @@ PARKED = {"circle", "substack", "teachable"}
 # A unit's harvest stage MAY carry no `sandbox_ref` at all — the ninth unit's
 # `script` stage runs the seeded `harvest` sandbox instead (A-5) — so only a
 # unit that DOES name one has a reference to check here.
-SANDBOXED = [n for n in SKILLS if "sandbox_ref" in unit_manifest(n)["stages"].get("harvest", {})]
+SANDBOXED = [n for n in SKILLS if "sandbox_ref" in unit_manifest(n).get("stages", {}).get("harvest", {})]
 
 
 def _reference(name: str) -> tuple[str, dict]:
@@ -43,7 +43,7 @@ def _hosts(name: str) -> list[str]:
 def test_only_harvest_names_a_sandbox_and_requires_names_no_network(name):
     manifest = unit_manifest(name)
     assert "network" not in manifest["requires"], name
-    for stage, spec in manifest["stages"].items():
+    for stage, spec in manifest.get("stages", {}).items():
         assert stage == "harvest" or "sandbox_ref" not in spec, (name, stage, spec)
         assert not {"sandbox", "reviewed"} & set(spec), f"{name}: a package manifest carries no binding"
 
