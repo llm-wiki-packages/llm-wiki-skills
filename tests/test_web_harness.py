@@ -101,8 +101,6 @@ def test_a_harvested_capture_becomes_a_staged_page_through_the_real_pass(ops, en
     extractor must ignore any other — is the one fact `test_port_smoke.py`
     proved and this case folds in, so it keeps a test."""
     _needs_run_verb(ops, env, wiki)
-    if run(ops, rooted(env, wiki), "pipeline", "pass", "--help").returncode != 0:
-        pytest.skip("`pipeline pass` is plugins PR 2 (#2486)")
     job = declared_job(ops, env, wiki, "web-page", page_server, slug="port-web-pass")
     ticket_id, capture_dir = live_ticket(ops, env, wiki, job)
     r = run(ops, rooted(env, wiki), "run", "ops/skills/web-page/scripts/fetch.py", f"ticket={ticket_id}", cwd=wiki)
@@ -112,10 +110,10 @@ def test_a_harvested_capture_becomes_a_staged_page_through_the_real_pass(ops, en
     (capture_dir / "capture.json").write_text(json.dumps(capture), encoding="utf-8")
     closed = landed(ops, env, wiki, ticket_id)
     assert closed.get("status") in ("ok", None), closed
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "pass", "wait=30s")
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "run", f"job={job.slug}", "wait=30s")
     assert r.returncode == 0, r.stdout + r.stderr
     # A machine-level nono incompatibility, not this fixture: on this box
-    # `pass`'s real jailed dispatch refuses to start at all ("this
+    # `pipeline run`'s real jailed dispatch refuses to start at all ("this
     # platform's sandbox has no deny primitive..."), so the process ticket
     # is `skipped`, never `started`, and no page lands. Reported separately
     # (not a fixture bug, not fixed here); this case still proves everything
@@ -133,17 +131,14 @@ def test_a_host_outside_the_allowlist_is_reported_denied_under_a_jail(ops, env, 
     dispatched `script` stage runs jailed under the seeded `harvest`
     sandbox plus the ticket's own host (A-6) — never under `spawn=self`,
     which moves the ticket to this session and runs it UNJAILED, so
-    proving the jail needs the real pass dispatch, not a hand-built nono
-    invocation guessing at PR 2's own composition. Skips without `nono`,
-    and skips until `pipeline pass` (PR 2) exists to do that dispatching."""
+    proving the jail needs the real `pipeline run` dispatch, not a hand-built nono
+    invocation guessing at the dispatch's own composition. Skips without `nono`."""
     if shutil.which("nono") is None:
         pytest.skip("no nono on PATH")
-    if run(ops, rooted(env, wiki), "pipeline", "pass", "--help").returncode != 0:
-        pytest.skip("`pipeline pass` — the jailed `script`-stage dispatch (A-6) — is plugins PR 2 (#2486)")
     plugin = os.environ.get("LLM_WIKI_OPS_PLUGIN")
     if not plugin:
         pytest.skip("set LLM_WIKI_OPS_PLUGIN to the ops plugin's root — the harvest sandbox profile is served from it")
-    # `.invalid` never resolves, and `spawn=self`/`pipeline pass` now refuse a
+    # `.invalid` never resolves, and `spawn=self`/`pipeline run` now refuse a
     # ticket whose target host does not, before the jail ever starts (plugins
     # main, post-#2487) — no report lands, this case's own assertion never
     # runs. A resolvable substitute cannot reproduce "denied" instead: web-page
@@ -163,7 +158,7 @@ def test_a_host_outside_the_allowlist_is_reported_denied_under_a_jail(ops, env, 
     r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "claim", job.slug)
     assert r.returncode == 0, r.stdout + r.stderr
     ticket_id = r.data["claimed"][0]["tickets"][0]["id"]
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "pass", "wait=30s")
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "run", f"job={job.slug}", "wait=30s")
     assert r.returncode == 0, r.stdout + r.stderr
     capture_rel = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "show", ticket_id).data["tickets"][0]["capture_dir"]
     report = json.loads((wiki / capture_rel / f"report.{ticket_id}.json").read_text(encoding="utf-8"))

@@ -195,12 +195,11 @@ def _wrong(cli, job_record, text: str, unit: str | None) -> list:
 
 
 # Verbs the docs already name ahead of plugins PR 2 (#2486) landing them —
-# `run`/`close`/`retry`/`drop`/`hold`/`wait` under `pipeline tickets`, and
-# `pass` under `pipeline`. A doc's ONLY wrongness being one of these is that
-# PR's, not this one's; anything else in the same doc still fails normally.
+# `run`/`close`/`retry`/`drop`/`hold`/`wait` under `pipeline tickets`. A doc's
+# ONLY wrongness being one of these is that PR's, not this one's; anything else in the same doc still fails normally.
 _PR2_PENDING = tuple(
     f"`pipeline tickets` has no `{verb}`" for verb in ("run", "close", "retry", "drop", "hold", "wait")
-) + ("`pipeline` has no `pass`",)
+)
 
 
 @pytest.mark.parametrize("doc", DOCS, ids=lambda p: str(p.relative_to(ROOT)))
@@ -226,8 +225,8 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`llm-wiki-ops skills enable x --conf`", "takes no `--conf`"),
         ("`llm-wiki-ops pipeline jobs add u slug=s harvest.maxage=3m`", "no `harvest.maxage`"),
         ("`llm-wiki-ops pipeline jobs add u slug=s option.mailbox=m`", "no `option.mailbox`"),
-        ("`llm-wiki-ops pipeline add u slug=s`", "Retired: moved to `pipeline jobs add`"),
-        ("`llm-wiki-ops pipeline queue show x`", "Retired: moved to `pipeline tickets show`"),
+        ("`llm-wiki-ops pipeline add u slug=s`", "`pipeline` has no `add`"),
+        ("`llm-wiki-ops pipeline queue show x`", "`pipeline` has no `queue`"),
         pytest.param(
             "`llm-wiki-ops pipeline apply x`", "retired",
             marks=pytest.mark.skip(reason="`apply` folds into `close` in plugins PR 2 (#2486); still real on main"),
