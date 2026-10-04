@@ -196,8 +196,7 @@ def _wrong(cli, job_record, text: str, unit: str | None) -> list:
 
 # Verbs the docs already name ahead of plugins PR 2 (#2486) landing them —
 # `run`/`close`/`retry`/`drop`/`hold`/`wait` under `pipeline tickets`. A doc's
-# ONLY wrongness being one of these is that
-# PR's, not this one's; anything else in the same doc still fails normally.
+# ONLY wrongness being one of these is that PR's, not this one's; anything else in the same doc still fails normally.
 _PR2_PENDING = tuple(
     f"`pipeline tickets` has no `{verb}`" for verb in ("run", "close", "retry", "drop", "hold", "wait")
 )
