@@ -51,10 +51,11 @@
    (`/llm-wiki:enable channel-gmail`, which enables the bound harvest
    sandbox there too) — installed is not loaded, and enablement never
    travels with a `git pull`.
-4. **Where this skill's HARVEST is expected to work: only where
-   `llm-wiki-ops whereami` reports `spawn: none`** — the foreman runs the
-   worker in its own session, which holds the connector — until the plugin
-   grants a slice a connector. Read off the plugin's source, unconfirmed by a
+4. **Where this skill's HARVEST is expected to work: only where the
+   stage's own jail loads the connector** — a stage's session always runs in
+   the jail the runner composes for it — until the plugin grants a slice a
+   connector, or this machine's operator lists the unit in `[unsandboxed]`
+   for this wiki and drives its ticket with `tickets run <id> spawn=self`. Read off the plugin's source, unconfirmed by a
    run: a spawned slice is deny-read on `~/.claude.json` and its two other
    homes (the MCP server configuration) and on `~/.claude/.credentials.json`
    (`schedule/runner/floor.py`). Its egress is the sandbox its harvest stage

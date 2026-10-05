@@ -159,15 +159,15 @@ is the JOB's slug, so two mailboxes make two ledgers on the same day.
 is an MCP tool whose name depends on which client this machine
 authenticated, so a pattern written here would match nothing while looking
 correct. Access is session-level and PER MAILBOX, so expect harvest to work
-only where `llm-wiki-ops whereami` reports `spawn: none` — `references/enable.md`
-says why. The process step has no such limit; it reads files.
+only where the stage's own jail loads that connector, which is unmeasured —
+`references/enable.md` says why. The process step has no such limit; it reads files.
 
 **With no connector** (no Gmail tool in your tool list, or every call
 refused): do not look for another way to the mailbox — no browser, no IMAP,
 no url. Fail and report, with these words:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none — this job pulls where whereami reports spawn: none" --missing connector mcp:gmail denied
+llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none" --missing connector mcp:gmail denied
 ```
 
 `connector` there is a label, not a hostname: there is nothing to widen to.

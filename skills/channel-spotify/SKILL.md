@@ -151,12 +151,10 @@ which the host mints for a page older than the job's `harvest.refresh` period
 — so declare the job with a cadence and a refresh period.
 
 **Search-driven adds.** When the operator names content instead of pasting a
-URL ("add the Lex Fridman podcast episode 400"), resolve it first:
-
-    llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py search "lex fridman #400" --type episode
-
-JSON rows come back with name/by/date/duration/url — confirm the match, then
-watch the chosen URL. Search requires API credentials.
+URL ("add the Lex Fridman podcast episode 400"), ask for the URL: `search`
+(`spotify.py search <query> --type episode`, rows of name/by/date/duration/url,
+API credentials required) is run only by a stage's own session in its jail, and
+no session has a ticket before the job exists.
 
 ## Dates
 
@@ -175,10 +173,10 @@ gets no `published` key at all.
 
 - **API credentials** (client-credentials flow; public catalog only): the
   `spotify` credential, machine-local, never synced. Set up once per machine,
-  by the operator at a terminal:
-  `llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py auth --client-id <id>`
-  — the secret is prompted for without echo, then stored and tested. Get
-  credentials at developer.spotify.com → create an app; no user login.
+  by the operator at a terminal: `llm-wiki-ops credentials set spotify`, the
+  JSON payload `{"client_id": ..., "client_secret": ...}` on stdin — never in
+  argv. Get credentials at developer.spotify.com → create an app; no user
+  login.
 - **Keyless degradation**: with no credentials, `meta`/`capture` fall back to
   the public embed endpoint — entity name and a possibly **truncated** item
   list, `"keyless": true`, and a warning callout on the page.
@@ -224,7 +222,7 @@ wiki-relative). `-h` after the script path for the rest.
 - `capture [<url>] --capture-dir <dir> [--ticket ID] [--slug S] [--market US]
   [--min-date D] [--assets reference|download|download-audio] [--keyless]
   [--no-audio] [--entity-json FILE]` — the harvest step. Naming the URL marks
-  a hand run; `--no-audio` skips the feed lookup, `--keyless` forces the
+  a run with no ticket; `--no-audio` skips the feed lookup, `--keyless` forces the
   embed fallback, `--entity-json` captures an already-fetched entity. Exit 4
   = no audio resolved; exit 3 = not found, its verdict handed to `report`.
 - `process --capture-dir <dir> [--ticket ID] [--dest REL] [--min-date D]` —

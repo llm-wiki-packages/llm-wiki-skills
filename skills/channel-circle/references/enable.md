@@ -10,8 +10,9 @@
    is fingerprint-bound to it; see the SKILL.md's Auth section).
    The credential store never syncs, so every harvesting machine repeats
    this once. Tell the operator now: a SPAWNED slice's jail is granted no
-   profile directory today, so until it is, this skill captures only where the
-   worker itself runs unjailed — see the SKILL.md's Auth section.
+   profile directory today, so until it is, an authenticated capture fails
+   in its jail unless the operator lists this unit in `[unsandboxed]` for this
+   wiki — see the SKILL.md's Auth section.
 2. Declare the job, naming the skill: `llm-wiki-ops pipeline jobs add
    <space-root-url> slug=<community> description="<what this is>"
    skill=channel-circle` — the skill's manifest supplies `every=once`,

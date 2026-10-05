@@ -39,3 +39,32 @@ def test_the_harness_runs_nothing_from_the_checkout():
     neutral directory needs is that no wiki owns it."""
     assert NEUTRAL_CWD.is_dir() and not NEUTRAL_CWD.is_relative_to(ROOT) and not ROOT.is_relative_to(NEUTRAL_CWD)
     assert not any((p / ".llm-wiki.toml").exists() for p in (NEUTRAL_CWD, *NEUTRAL_CWD.parents))
+
+
+class _Answer:
+    def __init__(self, returncode, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+REFUSAL = "refused: runs only in its jail; run `pipeline tickets run <id> wait=<s>` instead"
+
+
+@pytest.mark.parametrize("args", [
+    ("--json", "pipeline", "tickets", "run", "t1", "spawn=self"),
+    ("run", "ops/skills/channel-gmail/scripts/write_items.py", "write", "_raw/x/y"),
+])
+def test_a_stage_driven_by_hand_and_refused_for_the_jail_is_a_skip_not_a_failure(args):
+    from harness import _refused_for_the_jail
+
+    assert _refused_for_the_jail(args, _Answer(2, stderr=REFUSAL))
+
+
+@pytest.mark.parametrize("args, answer", [
+    (("run", "ops/skills/x/scripts/y.py"), _Answer(2, stderr="usage: y.py")),  # a refusal that is not the jail's stays a failure
+    (("run", "ops/skills/x/scripts/y.py"), _Answer(0, stdout=REFUSAL)),
+    (("pipeline", "tickets", "close", "t1"), _Answer(2, stderr=REFUSAL)),  # not a hand-driven stage
+])
+def test_every_other_answer_is_the_cases_to_judge(args, answer):
+    from harness import _refused_for_the_jail
+
+    assert _refused_for_the_jail(args, answer) is None

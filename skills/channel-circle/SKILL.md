@@ -174,9 +174,11 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
   per-domain profile clears it, because the profile carries the `cf_clearance`
   the human's login earned and that clearance is fingerprint-bound. Never
   attempt to solve a challenge.
-- **A spawned slice's jail is granted no profile directory**, so this unit is
-  expected to capture only where the worker itself is unjailed
-  (`llm-wiki-ops whereami` reporting `jail: none`). `capture_lesson.py` then
+- **A spawned slice's jail is granted no profile directory**, so an
+  authenticated capture is expected to fail in the jail the runner composes.
+  The one way past is the operator's: a machine that lists this unit in
+  `[unsandboxed]` for this wiki can drive its ticket with `tickets run <id>
+  spawn=self`, with its own logins. `capture_lesson.py` then
   exits 5, or a browser that cannot write its profile dies on launch: report
   `--missing-leaf <n> error`, or for the root `--reason "profile_dir
   unreachable inside the slice"` — `error`, **never `auth`**, because `auth`
@@ -303,7 +305,7 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py . --ticket <i
 ```
 
 It probes the ticket's own `target`, through `tickets open` (a url on the
-command line is for a person's hand run). Always exits 0 and prints a JSON verdict;
+command line is for a run with no ticket). Always exits 0 and prints a JSON verdict;
 `fixed` means auth is OK, no 5xx was seen, and the content wrapper has real
 children. Use it to gate a harvest behind an outage.
 

@@ -42,6 +42,6 @@
         "required": true
       }
     },
-    "note": "One watch per workspace: the `ntn` bot token bound in the harness profile's `notion` route decides which Notion workspace a harvest reaches, and the harvest refuses a workspace that is not `options.workspace`."
+    "note": "One watch per workspace: the `ntn` bot token in the wiki's vault entry `notion`, which the sandbox's `notion` route spends, decides which Notion workspace a harvest reaches, and the harvest refuses a workspace that is not `options.workspace`."
   }
 }

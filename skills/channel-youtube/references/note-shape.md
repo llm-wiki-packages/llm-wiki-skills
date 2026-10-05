@@ -38,8 +38,8 @@ frontmatter of its own — `title`, `status: draft`, `resource` (the capture's
 }
 ```
 
-`slug` and `item` come from `tickets open` (`--slug`/`--item` on a hand run —
-`--item` is required where there is no ticket); `fetched_at` is
+`slug` and `item` come from `tickets open` (`--slug`/`--item` where there is no
+ticket; `--item` is then required); `fetched_at` is
 when yt-dlp wrote `metadata.json`.
 
 `title` is the video's title **made a legal filename** (`safe_title`): the
@@ -75,7 +75,7 @@ empty `published` is a malformed value that lint reports and the engine drops.
 `source_host` and `areas` are two keys with two meanings — the mechanical site
 at progressively broader breadths, and the curated knowledge areas. They were
 once one `domains:` list told apart by bracket shape, which is why neither
-filtered reliably. `tags` and `areas` are present only on a hand run that
+filtered reliably. `tags` and `areas` are present only where a run
 passed `--tag`/`--area`: a job's `meta` never crosses into a harvest slice, so
 a ticket carries neither, and the host's `close` is what stamps the
 job's own onto the page.
