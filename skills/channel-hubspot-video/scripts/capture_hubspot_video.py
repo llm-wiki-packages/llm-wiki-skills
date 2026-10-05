@@ -38,15 +38,15 @@ shell line is a command. `--capture-dir` is then the TICKET's capture
 directory, the url and the leaf's own directory are read off
 `<capture-dir>/plan.json` (`leaves.py plan` wrote it, and dropped every url
 outside a conservative character set), and the three files land in that leaf.
-`<url>` is for a hand run; with neither, `--ticket <id>`'s own `item` is the
-page.
+With no `--leaf`, `--ticket <id>`'s own `item` is the page: no url is ever
+typed on this command line.
 
 `meta.json` also carries `status` (the HTTP status the page answered with —
 404/410 is `gone` on a refresh ticket, never a capture) and `fetched_at` (when
 THIS render read the page, which `leaves.py record` writes into `capture.json`).
 
-With no `--leaf` and no `<url>`, `--ticket <id>` names the ticket whose own
-`item` is the page — read through `tickets open` (A-1), never a file on disk.
+With no `--leaf`, `--ticket <id>` names the ticket whose own `item` is the
+page — read through `tickets open` (A-1), never a file on disk.
 
 Second mode, `patch-assets`, applies the platform's manifest rules to a
 manifest produced by the plugin's `assets.py detect`:
@@ -215,9 +215,13 @@ def render(args):
             print(f"--leaf {args.leaf}: {cap}/plan.json names no page at that index — run `leaves.py plan` first, and pass the ticket's capture_dir", file=sys.stderr)
             return 2
         args.url, cap = found
-    args.url = args.url or ticket_item(args.ticket)
+    else:
+        if not args.ticket:
+            print("render needs --leaf <n> or --ticket <id>: the page is never named on the command line", file=sys.stderr)
+            return 2
+        args.url = ticket_item(args.ticket)
     if not args.url or not args.url.startswith(("http://", "https://")):
-        print("no http(s) url given and no --ticket names one", file=sys.stderr)
+        print(f"ticket {args.ticket} names no http(s) item", file=sys.stderr)
         return 2
     cap.mkdir(parents=True, exist_ok=True)
     reqs = []
@@ -344,10 +348,9 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("render", help="render a lesson page and resolve its Mux stream")
-    r.add_argument("url", nargs="?", default=None, help="a HAND run only — never a url read off a venue; default: --ticket's own `item`")
     r.add_argument("--capture-dir", required=True, help="wiki-relative. With --leaf: the TICKET's capture_dir; else the leaf to write into")
     r.add_argument("--leaf", type=int, default=None, help="the page's index in <capture-dir>/plan.json's leaves[] — what `leaves.py next` printed")
-    r.add_argument("--ticket", default=None, help="the ticket id, opened for the page's own `item` — needed only with no --leaf and no <url>")
+    r.add_argument("--ticket", default=None, help="the ticket id, opened for the page's own `item` — needed only with no --leaf")
     r.add_argument("--timeout", type=int, default=90000, help="page.goto timeout (ms)")
     r.add_argument("--settle", type=int, default=9000, help="ms to wait after clicking play, for the manifest request")
     r.add_argument("--headed", action="store_true")

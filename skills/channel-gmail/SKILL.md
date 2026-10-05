@@ -135,7 +135,7 @@ of `{"id": "gmail:<msg-id>", "line": "<your line>", "junk": null}` — `junk`
 is the rule's name where a rule discards it, and `line` may then be null:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py ledger <capture_dir> --ticket <id> --dest <dest> --from lines.json
+llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds

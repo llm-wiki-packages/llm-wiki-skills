@@ -343,7 +343,7 @@ def test_plan_record_report_from_a_ticket_with_files_only(tmp_path):
 
     lesson_dir = root / plan["leaves"][0]["dir"]
     _fill(lesson_dir)
-    done = _run("record", str(cap), str(lesson_dir))
+    done = _run("record", str(cap), "--leaf", "0")
     assert done.returncode == 0, done.stderr
     # Harvest rendered nothing: the capture is the bytes the venue served.
     assert not (lesson_dir / "page.md").exists()
@@ -371,19 +371,18 @@ def test_everything_known_is_ok_with_nothing_captured_not_a_failure(tmp_path):
     assert kv["status"] == "ok" and "known" in kv["reason"] and "captured" not in kv
 
 
-def test_a_hand_run_with_no_ticket_takes_the_job_as_flags(tmp_path):
+def test_plan_runs_on_its_ticket_and_nothing_stands_in_for_one(tmp_path):
     cap = tmp_path / "_raw" / "site-learn" / "learn--00000000"
     cap.mkdir(parents=True)
     refused = _run("plan", str(cap), "--urls", str(FIX / "sitemap.xml"))
-    assert refused.returncode == 2 and "--slug" in refused.stderr
-    done = _run("plan", str(cap), "--urls", str(FIX / "sitemap.xml"), "--slug", "site-learn", "--target", SECTION)
-    assert done.returncode == 0, done.stderr
-    # `report` still needs SOME front door to post — a hand run's own stub, with no `tickets open` behind the id.
-    done = _cli("report", str(cap), "--ticket", "feedfacecafe", "--failed", "--reason", "auth_expired:www.example-hubspot.invalid", tmp_path=tmp_path, ticket_dict=None)
-    assert done.returncode == 1, done.stderr
-    call = _updates(tmp_path)[-1]
-    kv = _kv(call)
-    assert (call[3], kv["status"], kv["reason"]) == ("feedfacecafe", "failed", "auth_expired:www.example-hubspot.invalid")
+    assert refused.returncode == 2 and "--ticket" in refused.stderr
+    for flags in (["--slug", "site-learn", "--target", SECTION], ["--scope", "page"], ["--min-date", "2026-01-01"]):
+        done = _run("plan", str(cap), "--urls", str(FIX / "sitemap.xml"), "--ticket", "feedfacecafe", *flags)
+        assert done.returncode == 2 and "unrecognized arguments" in done.stderr, flags
+    for flags in (["--url", LESSON], [str(cap / "leaf")]):
+        done = _run("record", str(cap), *flags)
+        assert done.returncode == 2 and "unrecognized arguments" in done.stderr, flags
+    assert not (cap / "plan.json").exists()
 
 
 def test_no_doc_or_manifest_names_the_extract_block_any_more():
@@ -546,10 +545,10 @@ def test_the_downloaded_video_is_read_off_the_asset_manifest(tmp_path):
 
     manifest[1].update(status="downloaded", local_path="../assets/0123456789ab-lesson.m4a")
     (leaf / "assets.json").write_text(json.dumps(manifest), encoding="utf-8")
-    assert _run("record", str(cap), str(leaf), "--no-media").returncode == 0
+    assert _run("record", str(cap), "--leaf", "0", "--no-media").returncode == 0
     assert json.loads((leaf / "capture.json").read_text(encoding="utf-8"))["body"] == "page.html"
     assert not list(leaf.glob("media.*"))
-    done = _run("record", str(cap), str(leaf))
+    done = _run("record", str(cap), "--leaf", "0")
     assert done.returncode == 0, done.stderr
     assert json.loads(done.stdout)["captured"]["media"] == "media.m4a"
     assert (leaf / "media.m4a").read_bytes() == b"audio, by courtesy"
@@ -569,7 +568,7 @@ def test_a_media_file_the_transcriber_could_not_read_is_refused(tmp_path, bad):
     leaf = root / json.loads((cap / "plan.json").read_text(encoding="utf-8"))["leaves"][0]["dir"]
     _fill(leaf)
     (tmp_path / "notes.txt").write_text("x", encoding="utf-8")
-    done = _run("record", str(cap), str(leaf), "--media-file", str(tmp_path / bad))
+    done = _run("record", str(cap), "--leaf", "0", "--media-file", str(tmp_path / bad))
     assert done.returncode == 2 and "not a media file" in done.stderr
     assert not (leaf / "capture.json").exists()  # refused before anything was written
 
@@ -615,14 +614,14 @@ def test_venue_text_cannot_forge_a_heading_a_rule_or_an_attribute(tmp_path):
     (leaf / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
     (leaf / "published.txt").write_text("2026-07-15\n# Forged by a date\n", encoding="utf-8")
     (leaf / "external_url.txt").write_text("javascript:alert(1)\n", encoding="utf-8")
-    assert _run("record", str(cap), str(leaf)).returncode == 0
+    assert _run("record", str(cap), "--leaf", "0").returncode == 0
     record = json.loads((leaf / "capture.json").read_text(encoding="utf-8"))
     assert record["title"] == "Pricing --- # Forged heading ```"  # one line, and the host's filename rule holds it
     assert all(isinstance(value, str) or value is None for value in record.values())
 
     # …and what `record` hands the process step is CHECKED, so the hostile
     # embed and the forged canonical never reach a page.
-    said = json.loads(_run("record", str(cap), str(leaf)).stdout)["captured"]["video"]
+    said = json.loads(_run("record", str(cap), "--leaf", "0").stdout)["captured"]["video"]
     assert said == {"embed_url": None, "player_url": None, "stream_url": STREAM,
                     "mux_playback_id": "AbCdEfGhIjKlMnOpQrStUvWx0123456789"}
     assert all(value is None or "\n" not in value for value in said.values())

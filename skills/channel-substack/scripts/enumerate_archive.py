@@ -19,7 +19,6 @@ and keeps a post only if it passes, in this order:
 
 - `min_date`       the ticket's floor (`now - harvest.max_age`). The API is
                    newest-first, so the first post below the floor ends the walk.
-- `--max-date`     a hand-run ceiling, inclusive. Not how a run resumes — see below.
 - `harvest.scope`  applied HERE, against the ticket's `target`:
                    `domain`  the post is on the target's host (`www.` ignored);
                    `section` same host, and under the target's path;
@@ -75,19 +74,18 @@ would land the page `unchanged` on bytes nobody re-read.
 
 `--capture-dir` is REQUIRED and is the ticket's `capture_dir` VERBATIM —
 wiki-relative, because `llm-wiki-ops run` starts a script at the WIKI ROOT,
-not in the directory the worker stands in. Inputs come from `tickets open`,
-given `--ticket`. Every other flag is an override for a hand run; with no `--ticket` give
-the domain or archive URL positionally, and `--slug`. A relative `--out` is
-resolved INSIDE the capture directory, never against the wiki root.
+not in the directory the worker stands in. Every input of the walk comes
+from `tickets open`, given `--ticket`, which is required: no flag stands in
+for one. A relative `--out` is resolved INSIDE the capture directory, never
+against the wiki root.
 
 Output: one JSON object on stdout, `{"v", "ticket", "slug", "newsletter",
-"capture_dir", "refresh", "leaves": [...], "summary": {...}}`, and — when
-there is a `--ticket`, or `--out` names a file — the same object written as
-`leaves.json`, which `capture_posts.py` reads (`--report` as well as the
-capture arm). `summary`:
+"capture_dir", "refresh", "leaves": [...], "summary": {...}}`, and the same
+object written as `leaves.json` (or where `--out` names), which
+`capture_posts.py` reads (`--report` as well as the capture arm). `summary`:
 {"total_posts", "by_audience", "skipped_paywalled", "skipped_known",
-"skipped_excluded", "skipped_by_scope", "skipped_newer",
-"stopped_at_min_date", "planned", "on_disk", "truncated", "fetch_failed"}.
+"skipped_excluded", "skipped_by_scope", "stopped_at_min_date", "planned",
+"on_disk", "truncated", "fetch_failed"}.
 """
 
 import argparse
@@ -114,7 +112,6 @@ CAPTURE_NAME = "capture.json"
 # when the plan is that one leaf: see "STABLE across pulls" above.
 OWN_LEAF_FILES = ("page.html", "leaf.json", CAPTURE_NAME, "results.json")
 RAW_DIRNAME = "_raw"
-SCOPES = ("page", "section", "domain")
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 _POST_PATH = re.compile(r"^/p/[^/]+/?$")
@@ -172,7 +169,7 @@ def _host(url):
 def in_scope(url, target, scope):
     """Does `harvest.scope`, read against the job's `target`, keep this post?"""
     if not target:
-        return True  # a hand run with no job behind it has nothing to scope against
+        return True  # nothing to scope against
     if scope == "page":
         return url.rstrip("/") == target.rstrip("/")
     if _host(url) != _host(target):
@@ -265,51 +262,12 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(
-        "domain",
-        nargs="?",
-        default=None,
-        help="Substack domain (e.g. example.substack.com) or full archive URL. Default: the ticket's `target`",
-    )
-    ap.add_argument(
         "--capture-dir",
         required=True,
         help="REQUIRED: the ticket's `capture_dir`, verbatim. It is WIKI-RELATIVE — `llm-wiki-ops run` starts "
         "this script at the wiki root, and is where leaves.json is written",
     )
-    ap.add_argument(
-        "--ticket", default=None, help="the ticket id (`tickets open`'s own); REQUIRED unless every other flag names a hand run's inputs",
-    )
-    ap.add_argument("--slug", default=None, help="the job's slug, which names the leaf dirs. Default: the ticket's `slug`")
-    ap.add_argument(
-        "--min-date",
-        default=None,
-        help="ISO date floor (YYYY-MM-DD); stop paginating once posts fall below it. Default: the ticket's `min_date`",
-    )
-    ap.add_argument(
-        "--max-date",
-        default=None,
-        help="ISO date ceiling (YYYY-MM-DD), INCLUSIVE: skip every post newer than it. A hand-run "
-        "window only — a run resumes through the ticket's known[], never through a date",
-    )
-    ap.add_argument(
-        "--access",
-        choices=["licensed", "free"],
-        default=None,
-        help="licensed: every post reachable; free: only audience=everyone. Default: the ticket's harvest.access, else free",
-    )
-    ap.add_argument(
-        "--scope",
-        choices=SCOPES,
-        default=None,
-        help="Default: the ticket's harvest.scope, else domain. On an archive target only `domain` keeps any post",
-    )
-    ap.add_argument(
-        "--exclude-url",
-        action="append",
-        default=None,
-        metavar="URL|PREFIX|GLOB",
-        help="repeatable; REPLACES the ticket's harvest.exclude_urls when given",
-    )
+    ap.add_argument("--ticket", required=True, help="the ticket id (`tickets open`'s own): every input of the walk")
     ap.add_argument("--limit", type=int, default=50, help="page size for the archive API (default 50)")
     ap.add_argument(
         "--max-leaves",
@@ -323,7 +281,7 @@ def main():
         "--out",
         default=None,
         help="write the plan here as well as stdout; a relative path is resolved INSIDE --capture-dir. "
-        "Default: <capture-dir>/leaves.json when a --ticket is given",
+        "Default: <capture-dir>/leaves.json",
     )
     args = ap.parse_args()
 
@@ -334,22 +292,22 @@ def main():
             f"`capture_dir` verbatim: it is wiki-relative, and `llm-wiki-ops run` starts a script at the wiki root"
         )
     capture_dir = capture_dir.resolve()
-    ticket = open_ticket(args.ticket, "harvest") if args.ticket else {}
+    ticket = open_ticket(args.ticket, "harvest")
     harvest = ticket.get("harvest") if isinstance(ticket.get("harvest"), dict) else {}
 
-    target = args.domain or ticket.get("target") or ticket.get("item")
+    target = ticket.get("target") or ticket.get("item")
     if not target:
-        ap.error(f"no domain given and no --ticket with a `target` in {capture_dir}")
-    slug = args.slug or ticket.get("slug")
+        ap.error(f"ticket {args.ticket} names no `target`")
+    slug = ticket.get("slug")
     if not slug:
-        ap.error(f"no --slug given and no --ticket with a `slug` in {capture_dir}")
-    min_date = args.min_date or ticket.get("min_date")
-    access = args.access or harvest.get("access") or "free"
-    scope = args.scope or harvest.get("scope") or "domain"
-    patterns = args.exclude_url if args.exclude_url is not None else harvest.get("exclude_urls") or []
+        ap.error(f"ticket {args.ticket} names no `slug`")
+    min_date = ticket.get("min_date")
+    access = harvest.get("access") or "free"
+    scope = harvest.get("scope") or "domain"
+    patterns = harvest.get("exclude_urls") or []
     known = known_resources(ticket)
-    # A scope is read against the JOB's target; a bare domain on a hand run is one too.
-    scope_target = ticket.get("target") or (target if "://" in target else f"https://{target}")
+    # A scope is read against the JOB's target.
+    scope_target = target if "://" in target else f"https://{target}"
 
     domain = domain_from_arg(target)
     own_dir = ticket.get("capture_dir")  # wiki-relative, host-derived: never recomposed
@@ -357,7 +315,7 @@ def main():
     by_audience = {}
     leaves = []
     counts = dict.fromkeys(
-        ("skipped_paywalled", "skipped_known", "skipped_excluded", "skipped_by_scope", "skipped_newer"), 0
+        ("skipped_paywalled", "skipped_known", "skipped_excluded", "skipped_by_scope"), 0
     )
     total_posts = 0
     planned = 0
@@ -443,10 +401,6 @@ def main():
                 stop = True
                 stopped_at_min_date = True
                 break
-
-            if args.max_date and post_date and post_date > args.max_date:
-                counts["skipped_newer"] += 1
-                continue
 
             url = post_url(domain, post)
 
@@ -537,9 +491,8 @@ def main():
     }
     text = json.dumps(plan, indent=2)
     # `capture_dir / <absolute>` is the absolute path; a relative one lands inside.
-    out = capture_dir / args.out if args.out else (capture_dir / PLAN_NAME if ticket else None)
-    if out is not None:
-        out.write_text(text + "\n", encoding="utf-8")
+    out = capture_dir / (args.out or PLAN_NAME)
+    out.write_text(text + "\n", encoding="utf-8")
     print(text)
 
 

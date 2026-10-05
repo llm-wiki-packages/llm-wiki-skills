@@ -13,15 +13,15 @@
   write_items.py write <capture_dir> --failed <reason> [--missing ...]
 
   process:
-  write_items.py ledger <capture_dir> --dest <dest> [--from lines.json] [--partial <reason>]
+  write_items.py ledger <capture_dir> [--from lines.json] [--partial <reason>]
 
 `<capture_dir>` is the ticket's own `capture_dir`, VERBATIM — the job's DAY
 directory, `_raw/<slug>/<YYYY-MM-DD>`, WIKI-RELATIVE: `llm-wiki-ops run` starts
 a script at the wiki root, not in the capture directory the worker stands
-in, so `.` is the wrong answer here. `--ticket <id>` is read through
-`llm-wiki-ops pipeline tickets open` for the `capture_dir` the report names,
-`options.mailbox` and `min_date`; a run with no `--ticket` is a hand run
-(`--mailbox` and `--min-date` stand in for the rest). A bare `--from` name is
+in, so `.` is the wrong answer here. Every verb takes `--ticket <id>`, read
+through `llm-wiki-ops pipeline tickets open` for the `capture_dir` the report
+names, `options.mailbox`, `min_date` and — on `ledger` — `dest`; a run with no
+ticket is refused, and nothing stands in for one. A bare `--from` name is
 looked for INSIDE the capture directory; no `--from` is `pull.json` there,
 else stdin.
 
@@ -507,10 +507,10 @@ def carried(directory, ticket_id):
 
 def job_from(ticket, args):
     """This run's inputs: the ticket's own fields (`tickets open`, A-1),
-    overridden by a hand run's flags."""
+    and nothing else."""
     options = ticket.get("options") if isinstance(ticket.get("options"), dict) else {}
-    answer = getattr(args, INPUT_KEY, None) or options.get(INPUT_KEY)
-    floor = getattr(args, "min_date", None) or ticket.get("min_date")
+    answer = options.get(INPUT_KEY)
+    floor = ticket.get("min_date")
     try:
         min_date = floor if isinstance(floor, str) and DAY_RE.fullmatch(floor) and from_day(floor) >= 0 else None
     except (ValueError, OverflowError):
@@ -521,7 +521,7 @@ def job_from(ticket, args):
         "item": ticket.get("item") or ticket.get("target"),
         INPUT_KEY: answer if isinstance(answer, str) and answer.strip() else None,
         "min_date": min_date,
-        "dest": getattr(args, "dest", None) or ticket.get("dest"),
+        "dest": ticket.get("dest"),
     }
 
 
@@ -557,10 +557,7 @@ def _opened(directory, args, stage):
     a wrong positional that still looked like a day directory used to be
     refused, but the ticket's own answer is the one grant that matters, so
     it is what every read and write below uses, as `section_plan.py`
-    already does. A hand run (no `--ticket`) keeps the positional as
-    given — there is no ticket to defer to."""
-    if not args.ticket:
-        return {}, directory
+    already does."""
     ticket = open_ticket(args.ticket, stage)
     named = ticket.get("capture_dir")
     if isinstance(named, str) and named:
@@ -631,7 +628,7 @@ def write(directory, args, *, now=None):
         else:
             (directory / CAPTURE_NAME).unlink(missing_ok=True)
         code = post_update(args.ticket, "harvest", outcome, reason=reason,
-                            missing=[(m["host"], m["url"], m["why"]) for m in missing]) if args.ticket else 0
+                            missing=[(m["host"], m["url"], m["why"]) for m in missing])
         if code:
             print(f"write_items: `tickets update` refused — the report above did not land", file=sys.stderr)
         print(json.dumps({"outcome": outcome, "reason": reason, "captured": int(captured), **(counts or {})}, indent=2))
@@ -800,7 +797,7 @@ def ledger(directory, args, *, now=None):
         if written:
             written_from = "written.json"
             _write_json(directory / written_from, written)
-        code = post_update(args.ticket, "process", outcome, reason=reason, written_from=written_from) if args.ticket else 0
+        code = post_update(args.ticket, "process", outcome, reason=reason, written_from=written_from)
         if code:
             print(f"write_items: `tickets update` refused — the report above did not land", file=sys.stderr)
         print(json.dumps({"outcome": outcome, "reason": reason, "written": written, **(counts or {})}, indent=2))
@@ -808,8 +805,8 @@ def ledger(directory, args, *, now=None):
 
     if not dest:
         print(
-            "write_items: --dest is the ticket's `dest`, wiki-relative and verbatim — the job's ledger route, "
-            "`research/channels/<slug>`; a process ticket carries it, and a hand run names --dest directly",
+            "write_items: the ticket names no `dest` — a process ticket carries the job's ledger route, "
+            "`research/channels/<slug>`, wiki-relative",
             file=sys.stderr,
         )
         return 2
@@ -839,14 +836,11 @@ def main(argv=None):
     for verb in ("since", "write", "ledger"):
         sub = subs.add_parser(verb)
         sub.add_argument("capture_dir", help="the ticket's own `capture_dir`, WIKI-RELATIVE as the ticket spells it: the job's day directory")
-        sub.add_argument("--ticket", help="the ticket id, read through `tickets open`; a hand run omits it")
-        sub.add_argument(f"--{INPUT_KEY}", help=f"`options.{INPUT_KEY}`, for a hand run with no --ticket; overrides it when there is one")
-        sub.add_argument("--min-date", metavar="YYYY-MM-DD", help="the ticket's `min_date`, for a hand run with no --ticket; overrides it when there is one")
+        sub.add_argument("--ticket", required=True, help="the ticket id, read through `tickets open` for every other input")
         if verb == "since":
             sub.add_argument("--lookback-days", type=int, default=LOOKBACK_DAYS, help="the FIRST pull's window")
             continue
         if verb == "ledger":
-            sub.add_argument("--dest", help="the ticket's `dest`, wiki-relative and verbatim: the job's ledger route")
             sub.add_argument("--from", dest="source", help=f"this step's lines as a JSON file: a bare name is looked for IN the capture directory, `-` is stdin; absent, `{LINES_NAME}` there")
             sub.add_argument("--partial", metavar="REASON", help="only some of the day was judged, and why")
             continue
@@ -862,20 +856,6 @@ def main(argv=None):
         print(
             f"write_items: {args.capture_dir!r} is not a day directory — give the ticket's own `capture_dir` "
             f"(`_raw/<slug>/<YYYY-MM-DD>`), wiki-relative: this script runs at the wiki root, not where you stand",
-            file=sys.stderr,
-        )
-        return 2
-    if not args.ticket and args.verb != "ledger" and not getattr(args, INPUT_KEY, None):
-        print(
-            f"write_items: no --ticket and no --{INPUT_KEY} — a worker passes --ticket <id>, read through "
-            f"`tickets open`; a hand run names --{INPUT_KEY} directly",
-            file=sys.stderr,
-        )
-        return 2
-    if args.verb == "ledger" and not args.ticket and not args.dest:
-        print(
-            "write_items: no --ticket and no --dest — a worker passes --ticket <id>, read through `tickets open`; "
-            "a hand run names --dest directly",
             file=sys.stderr,
         )
         return 2

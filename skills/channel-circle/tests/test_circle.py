@@ -330,7 +330,7 @@ def test_report_is_partial_until_every_planned_leaf_is_on_disk(slice_dir, tmp_pa
     plan = json.loads((cap / "plan.json").read_text(encoding="utf-8"))
     first = cap.parent / plan["leaves"][0]["dir"].split("/")[-1]
     bytes_in(first, "lesson-1")
-    assert run_plan("record", cap, L1).returncode == 0
+    assert run_plan("record", cap, "--leaf", "1").returncode == 0
 
     done = run_plan("report", cap, tmp_path=tmp_path, ticket_dict=t)
     assert done.returncode == 0
@@ -374,11 +374,25 @@ def test_everything_already_held_is_ok_not_failed(slice_dir, tmp_path):
     assert done.returncode == 0 and _kv(_updates(tmp_path)[-1])["status"] == "ok"
 
 
-def test_record_refuses_a_url_the_plan_does_not_hold(slice_dir, tmp_path):
+def test_record_takes_a_lesson_by_number_and_never_by_url(slice_dir, tmp_path):
     cap, t = slice_dir
     assert run_plan("plan", cap, tmp_path=tmp_path, ticket_dict=t).returncode == 0
-    done = run_plan("record", cap, OTHER_SPACE)
+    done = run_plan("record", cap, "--leaf", "9")
     assert done.returncode == 1 and "not a leaf" in done.stderr
+    done = run_plan("record", cap, L1)
+    assert done.returncode == 2 and "unrecognized arguments" in done.stderr
+
+
+def test_plan_runs_on_its_ticket_and_nothing_stands_in_for_one(slice_dir, tmp_path):
+    cap, _t = slice_dir
+    done = run_plan("plan", cap)
+    assert done.returncode == 2 and "--ticket" in done.stderr
+    for flags in (["--target", TARGET, "--slug", "course"], ["--scope", "page"]):
+        done = run_plan("plan", cap, "--ticket", "0123456789ab", *flags)
+        assert done.returncode == 2 and "unrecognized arguments" in done.stderr, flags
+    done = run_plan("report", cap, "--ticket", "0123456789ab", "--missing", "h", "https://h/x", "denied")
+    assert done.returncode == 2 and "--missing could match --missing-leaf, --missing-host" in done.stderr
+    assert not (cap / "plan.json").exists()
 
 
 def test_a_missing_asset_host_leaves_a_full_capture_ok(slice_dir, tmp_path):
@@ -389,19 +403,18 @@ def test_a_missing_asset_host_leaves_a_full_capture_ok(slice_dir, tmp_path):
     plan = json.loads((cap / "plan.json").read_text(encoding="utf-8"))
     for leaf, fixture in zip(plan["leaves"], ("lesson-1", "lesson-2")):
         bytes_in(cap.parent / leaf["dir"].split("/")[-1], fixture)
-        assert run_plan("record", cap, leaf["url"]).returncode == 0
+        assert run_plan("record", cap, "--leaf", str(leaf["order"])).returncode == 0
     assert run_plan("report", cap, tmp_path=tmp_path, ticket_dict=t).returncode == 0
     assert _kv(_updates(tmp_path)[-1])["status"] == "ok"
-    denied = run_plan("report", cap, "--missing", "fast.wistia.com", "https://fast.wistia.com/embed/medias/x.m3u8", "denied",
-                      tmp_path=tmp_path, ticket_dict=t)
+    denied = run_plan("report", cap, "--missing-host", "fast.wistia.com", "denied", tmp_path=tmp_path, ticket_dict=t)
     kv = _kv(_updates(tmp_path)[-1])
     assert denied.returncode == 0 and kv["status"] == "ok"
     call = _updates(tmp_path)[-1]
     captured = [a.split("=", 1)[1] for a in call if a.startswith("captured=")]
     assert len(captured) == 2
     missing = [a.split("=", 1)[1] for a in call if a.startswith("missing=")]
-    assert missing == ["fast.wistia.com,https://fast.wistia.com/embed/medias/x.m3u8,denied"]
-    assert run_plan("report", cap, "--missing", "h", "https://h/x", "paywalled", tmp_path=tmp_path, ticket_dict=t).returncode == 2
+    assert missing == ["fast.wistia.com,https://fast.wistia.com/,denied"]
+    assert run_plan("report", cap, "--missing-host", "h.example", "paywalled", tmp_path=tmp_path, ticket_dict=t).returncode == 2
 
 
 # --- capture_lesson: the url off the ticket when none is given ----------------
@@ -661,9 +674,8 @@ def test_capture_lesson_reads_a_leafs_url_and_dir_off_the_plan(wiki_root, tmp_pa
     monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path_factory.mktemp("ticket-door"), t))
     assert capture.resolve_job(root, out=rel, ticket=t["ticket"]) == (TARGET, root / rel, True, None)
     monkeypatch.delenv("LLM_WIKI_OPS", raising=False)
-    assert capture.resolve_job(root, url=L1, out="_raw/course/by-hand")[:3] == (L1, root / "_raw/course/by-hand", False)
     for kwargs, code in (({"plan": f"{rel}/plan.json", "leaf": 9}, 4), ({"leaf": 1}, 4), ({"plan": f"{rel}/nope.json", "leaf": 1}, 4),
-                         ({}, 4), ({"out": "_raw/course/empty"}, 4), ({"url": "file:///etc/passwd", "out": rel}, 4),
+                         ({}, 4), ({"out": "_raw/course/empty"}, 4),
                          ({"plan": f"{rel}/plan.json", "leaf": 1, "out": "_raw/course/elsewhere"}, 4)):
         assert capture.resolve_job(root, **kwargs)[3][0] == code, kwargs
 
@@ -689,7 +701,7 @@ def test_capture_lesson_resolve_job_falls_back_to_the_generic_line_on_a_silent_r
     monkeypatch.setenv("LLM_WIKI_OPS", _silent_refusal_ops(tmp_path_factory.mktemp("silent-refusal")))
     code, why = capture.resolve_job(root, out=rel, ticket="no-such-ticket")[3]
     assert code == capture.EXIT_NOTHING_TO_CAPTURE
-    assert why == "no url given and no --ticket names one"
+    assert why == "no --ticket names a target"
 
 
 def test_capture_lesson_the_documented_way_reads_the_profile_answer(wiki_root, tmp_path_factory):
@@ -728,7 +740,7 @@ def backdate_plan(cap: Path, seconds: float) -> None:
     (cap / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
 
 
-def test_the_deadline_is_keyed_to_claimed_at_and_a_hand_run_has_none(wiki_root, tmp_path, tmp_path_factory):
+def test_the_deadline_is_keyed_to_claimed_at(wiki_root, tmp_path, tmp_path_factory):
     root, rel = wiki_root
     t = ticket()
     plan = last_json_plan(cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path, ticket_dict=t))
@@ -756,15 +768,6 @@ def test_the_deadline_is_keyed_to_claimed_at_and_a_hand_run_has_none(wiki_root, 
     unclaimed = last_json_plan(cli(PLAN, "plan", rel, cwd=root, tmp_path=no_claim, ticket_dict=bare))
     assert unclaimed["deadline_epoch"] is not None
     assert abs(unclaimed["deadline_epoch"] - (time.time() + 1500 - mod.CLAIMED_AT_MARGIN_SECONDS)) < 5
-
-    hand = tmp_path_factory.mktemp("deadline-hand") / "_raw" / "course" / "r--00000000"
-    hand.mkdir(parents=True)
-    shutil.copy(FIX / "root" / "meta.json", hand / "meta.json")
-    by_hand = subprocess.run(
-        [sys.executable, str(PLAN), "plan", "_raw/course/r--00000000", "--target", TARGET, "--slug", "course"],
-        cwd=hand.parents[2], capture_output=True, text=True,
-    )
-    assert last_json_plan(by_hand)["deadline"] is None and not mod.past_deadline(last_json_plan(by_hand))
 
 
 def test_the_no_claimed_at_fallback_re_stamps_every_plan_call(wiki_root, tmp_path_factory):

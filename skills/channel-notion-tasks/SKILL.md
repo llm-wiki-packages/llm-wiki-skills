@@ -111,7 +111,7 @@ run `partial`; a second pull the same day adds to the file you left.
 **2. Write the ledger.** `<dest>` is the ticket's, verbatim:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py ledger <capture_dir> --ticket <id> --dest <dest>
+llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/write_items.py ledger <capture_dir> --ticket <id>
 ```
 
 It writes `<dest>/<YYYY-MM-DD>.md` — one page per day, **regenerated WHOLE
