@@ -99,9 +99,8 @@ Usage:
 
 `<capture_dir>` is the ticket's capture dir — `_raw/<slug>/<one>` from the
 wiki root, which is where the front door's `run` starts a script. The manifest
-defaults to `<capture_dir>/tree.json`. Outside a slice — a hand run continuing
-an old plan — pass `--slice-seconds 0`: there is no kill to stay ahead of,
-and the old spawn's clock is long spent.
+defaults to `<capture_dir>/tree.json`. `--slice-seconds 0` turns the slice
+clock off, for a run in no slice at all.
 
 Outputs one JSON summary on stdout: {"outcome", "reason", "planned",
 "captured", "failed", "remaining", "skipped": {"known", "excluded", "scope",
@@ -537,7 +536,7 @@ def main() -> int:
     ap.add_argument("--manifest", type=Path, default=None, help="tree.json from enumerate_tree.py (default: <capture_dir>/tree.json)")
     ap.add_argument("--plan-only", action="store_true", help="write plan.json and print the summary; fetch nothing, post nothing")
     ap.add_argument("--budget-seconds", type=float, default=BUDGET_SECONDS, help=f"start no new leaf after this long in THIS pass (default {BUDGET_SECONDS})")
-    ap.add_argument("--slice-seconds", type=float, default=SLICE_SECONDS, help=f"start no new leaf this long after the slice was spawned — this run's own first write, P-8 (default {SLICE_SECONDS}; the slice is killed at {SLICE_CAP_SECONDS}). 0: no slice clock, a hand run outside a slice")
+    ap.add_argument("--slice-seconds", type=float, default=SLICE_SECONDS, help=f"start no new leaf this long after the slice was spawned — this run's own first write, P-8 (default {SLICE_SECONDS}; the slice is killed at {SLICE_CAP_SECONDS}). 0: no slice clock")
     ap.add_argument("--kill-seconds", type=float, default=KILL_SECONDS, help=f"kill a child still running this long after the spawn and record its leaf as `timeout` (default {KILL_SECONDS})")
     ap.add_argument("--pause-seconds", type=float, default=PAUSE_SECONDS, help="pause between leaves — one reader, not a crawler")
     ap.add_argument("--retry-failed", action="store_true", help="re-fetch leaves an earlier pass recorded as failed")
@@ -656,7 +655,7 @@ def main() -> int:
         if stop == "slice" and not fetched:
             print(
                 f"note: the slice clock (this run's own first write) is {time.time() - epoch:.0f}s old, so no leaf was "
-                f"started; outside a slice (a hand run) pass --slice-seconds 0",
+                f"started",
                 file=sys.stderr,
             )
     counts = [s for s, _ in states.values()]

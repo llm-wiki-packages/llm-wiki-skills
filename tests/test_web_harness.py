@@ -4,10 +4,7 @@ composes, and its capture landing through the plugin's real `extract`.
 
 Its helpers and constants are the unit's own tests' —
 `skills/web-page/tests/test_fetch.py`, which ships with the unit — so a case
-here reads exactly as it did beside them. `tests/test_port_smoke.py` folds
-in here (the youtube-shaped `page.md` with a `frontmatter` key the extractor
-ignores is this file's `test_a_unit_rendered_page_md_becomes_a_staged_page`
-fixture body now).
+here reads exactly as it did beside them.
 """
 
 from __future__ import annotations
@@ -74,7 +71,7 @@ def _no_jail_here(r):
     """Skip, naming the machine's own refusal, where the runner could not compose or start the stage's jail."""
     for entry in (r.data or {}).get("skipped") or []:
         reason = entry.get("reason", "")
-        if "sandbox" in reason or "nono" in reason or "jail" in reason:
+        if "no deny primitive" in reason:
             pytest.skip(f"this machine cannot start the stage's jail: {reason[:160]}")
 
 

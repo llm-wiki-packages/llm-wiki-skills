@@ -28,8 +28,9 @@ scripts launch.
 None declared (`requires.credential: false`). A members-only community
 replays the per-domain login profile `scripts/login.py` minted, and a
 spawned slice is granted no profile directory yet (llm-wiki-plugins#2282),
-so an authenticated harvest exits 2 or 5 in a slice; a stage runs only in
-its jail, so it fails until the grant exists.
+so an authenticated harvest exits 2 or 5 in a slice and fails until the
+grant exists, unless this machine's operator lists the unit in `[unsandboxed]`
+for this wiki.
 
 ## Customize
 

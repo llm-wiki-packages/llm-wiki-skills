@@ -56,7 +56,7 @@ which your report repeats when it is not null.
 llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/pull.py <capture_dir> --workspace <options.workspace> --since <since> --database <database-id>
 ```
 
-It writes `pull.json` in `<capture_dir>` and answers `status`, `count` and, when `partial`, the reason. Exit 3 pulled nothing: `failed`, with `why` (`denied|timeout|auth|error`) and `reason`; go to step 3's failed form with that `why`. Past its own deadline it stops with what it has and says `partial`. Transcribe, never rewrite: nothing here edits a task.
+It writes `pull.json` in `<capture_dir>` and answers `status`, `count` and, when `partial`, the reason. Exit 3 pulled nothing: `failed`, with `why` (`denied|timeout|auth|error`) and `reason`; go to step 3's failed form with that `why`. A failed read or its own deadline (900s from its start; `--deadline-seconds` changes it) stops it with what is contiguous from the old end, `partial`: pass the reason on as `--partial`. Transcribe, never rewrite: nothing here edits a task.
 
 **3. Write it down.** `pull.json` is a list, one object per task: `id`,
 `last_edited` (Notion's string), `database` (the id queried), `title`,

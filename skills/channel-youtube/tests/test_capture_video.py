@@ -30,7 +30,7 @@ if os.environ.get("FAKE_YT_FAIL"):
     print(os.environ["FAKE_YT_FAIL"], file=sys.stderr)
     sys.exit(1)
 if "--dump-json" in argv:
-    sys.stdout.write(pathlib.Path(os.environ["FAKE_FIXTURES"], "metadata.json").read_text())
+    sys.stdout.write(os.environ.get("FAKE_YT_META") or pathlib.Path(os.environ["FAKE_FIXTURES"], "metadata.json").read_text())
 else:
     out = pathlib.Path(argv[argv.index("-o") + 1].replace("%(id)s", "dQw4fixture").replace("%(ext)s", "en.vtt"))
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +54,7 @@ def front_door(tmp_path, ticket):
     return shlex.join([sys.executable, str(stub)])
 
 
-def harvest(tmp_path, *, fail="", **over):
+def harvest(tmp_path, *, fail="", meta="", **over):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     fake = bin_dir / "yt-dlp"
@@ -65,7 +65,7 @@ def harvest(tmp_path, *, fail="", **over):
     ticket.update(over)
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "LLM_WIKI_OPS": front_door(tmp_path, ticket),
            "FAKE_LOG": str(tmp_path / "yt.log"), "FAKE_UPDATES": str(tmp_path / "updates.log"),
-           "FAKE_FIXTURES": str(FIXTURES), "FAKE_YT_FAIL": fail}
+           "FAKE_FIXTURES": str(FIXTURES), "FAKE_YT_FAIL": fail, "FAKE_YT_META": meta}
     cp = subprocess.run([sys.executable, str(SCRIPT), f"ticket={TICKET_ID}"], cwd=tmp_path, env=env, capture_output=True, text=True)
     read = lambda name: [json.loads(line) for line in (tmp_path / name).read_text().splitlines()] if (tmp_path / name).exists() else []  # noqa: E731
     return cp, read("yt.log"), read("updates.log")
@@ -97,6 +97,7 @@ def test_a_refresh_fetches_a_known_item(tmp_path):
 @pytest.mark.parametrize("stderr, why", [
     ("ERROR: Sign in to confirm your age", "auth"),
     ("ERROR: Tunnel connection failed: 403 Forbidden: host x is not in the allowlist", "denied"),
+    ("ERROR: HTTP Error 403: Forbidden", "error"),  # YouTube's own 403 is retryable, never `denied`
     ("ERROR: read operation timed out", "timeout"),
     ("ERROR: something else", "error"),
 ])
@@ -107,6 +108,12 @@ def test_a_failed_yt_dlp_is_one_failed_update_naming_the_host_and_why(tmp_path, 
     assert cp.returncode == 0, cp.stderr
     assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},{why}" in updates[0]
     assert not (tmp_path / CAP / "metadata.json").exists() and not (tmp_path / CAP / "capture.json").exists()
+
+
+def test_a_capture_record_that_cannot_be_written_is_a_failed_update_not_an_ok(tmp_path):
+    cp, calls, updates = harvest(tmp_path, meta="{not json")
+    assert cp.returncode == 0, cp.stderr
+    assert len(updates) == 1 and "status=failed" in updates[0] and "status=ok" not in updates[0]
 
 
 def test_an_item_that_is_no_url_is_failed_and_never_run(tmp_path):

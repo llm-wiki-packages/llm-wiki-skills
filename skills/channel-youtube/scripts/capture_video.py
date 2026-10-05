@@ -40,7 +40,8 @@ OPS = "llm-wiki-ops"
 STALE = ("capture.json", "page.md", "written.json")
 SCHEMES = ("http", "https")
 CALL_TIMEOUT = 600
-DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist", "403", "proxy")
+# Only the proxy's own wording is `denied`, which is never retried; a 403 from YouTube is throttling or a signature change.
+DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 AUTH_MARKERS = ("sign in", "log in", "login", "age-restricted", "private video", "members-only", "members only", "confirm your age")
 TIMEOUT_MARKERS = ("timed out", "timeout")
 NOTE = Path(__file__).with_name("youtube_note.py")
@@ -158,8 +159,8 @@ def run_ticketed(ticket_id: str) -> int:
     if not isinstance(item, str) or not item:
         return post_update(ticket_id, "harvest", "failed", reason="no item: the ticket names no video")
     parts = urllib.parse.urlsplit(item)
-    if parts.scheme.lower() not in SCHEMES or not parts.hostname or "'" in item:
-        return post_update(ticket_id, "harvest", "failed", reason="the item is no YouTube url")
+    if parts.scheme.lower() not in SCHEMES or not parts.hostname:
+        return post_update(ticket_id, "harvest", "failed", reason="the item is no http(s) url")
     host = parts.hostname
 
     if not ticket.get("refresh") and already_held(ticket, item):

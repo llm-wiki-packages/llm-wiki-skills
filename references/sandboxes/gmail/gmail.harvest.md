@@ -21,7 +21,8 @@ harness`.
 spawn, and it may be spent only at `gmailmcp.googleapis.com`, the exact
 `host:` keyword the manifest claims. Whether a jailed `claude -p` loads
 account connectors at all is unmeasured (llm-wiki-plugins#2282); a stage
-runs only in its jail, so harvest is expected to fail until it does.
+runs only in its jail, so harvest is expected to fail until it does, unless
+this machine's operator lists the unit in `[unsandboxed]` for this wiki.
 
 ## Customize
 

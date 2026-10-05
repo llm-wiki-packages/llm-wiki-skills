@@ -222,7 +222,7 @@ wiki-relative). `-h` after the script path for the rest.
 - `capture [<url>] --capture-dir <dir> [--ticket ID] [--slug S] [--market US]
   [--min-date D] [--assets reference|download|download-audio] [--keyless]
   [--no-audio] [--entity-json FILE]` — the harvest step. Naming the URL marks
-  a hand run; `--no-audio` skips the feed lookup, `--keyless` forces the
+  a run with no ticket; `--no-audio` skips the feed lookup, `--keyless` forces the
   embed fallback, `--entity-json` captures an already-fetched entity. Exit 4
   = no audio resolved; exit 3 = not found, its verdict handed to `report`.
 - `process --capture-dir <dir> [--ticket ID] [--dest REL] [--min-date D]` —
