@@ -15,37 +15,32 @@ bytes; this script decides WHICH lessons, WHERE each one lands, writes the
 record that names those bytes, and posts the one `tickets update` that leaves
 the slice. The PAGE is the process step's, off those same bytes.
 
-  section_plan.py plan   <capture_dir> [--target URL] [--slug SLUG]
-                         [--scope page|section|domain] [--ticket ID]
-                         [--budget-s SECONDS]
+  section_plan.py plan   <capture_dir> --ticket ID [--budget-s SECONDS]
   section_plan.py detect <capture_dir> --leaf N
-  section_plan.py record <capture_dir> (--leaf N | <lesson-url>)
+  section_plan.py record <capture_dir> --leaf N
   section_plan.py report <capture_dir> --ticket ID [--auth-expired] [--gone]
                          [--reason TEXT]
                          [--missing-leaf N <why>]... [--missing-host HOST <why>]...
-                         [--missing <host> <url> <why>]...
                          [--stage harvest|process] [--written-from FILE]
 
 `<capture_dir>` is the TICKET's capture directory — the one holding the root
 capture (`meta.json`, `page.html`). It is REQUIRED and WIKI-RELATIVE:
 `llm-wiki-ops run` starts a script at the wiki root, not in the directory the
 worker stands in, so the ticket's own `capture_dir`, verbatim, is the path to
-pass. A hand run stands in for `--ticket` with `--target --slug` (`report`
-still needs `--ticket`, to post).
+pass. Every input is the ticket's: `plan` and `report` take `--ticket`, and
+nothing on the command line stands in for it.
 
 A lesson is named by its NUMBER — `--leaf N`, the leaf's `order` in
 `plan.json` — never by its url. A url is venue data; the worker's command line
 is a shell. `plan` refuses any url outside a conservative character set
-(`unsafe_url`), and no documented command takes one. The positional url of
-`record` and the three-part `--missing` are for hand runs.
+(`unsafe_url`), and no command takes one.
 
 plan    opens the ticket (target, slug, `harvest.scope`, `harvest.access`,
         `harvest.exclude_urls`, `known[]`, given `--ticket` — A-1) and reads
         the root capture's `meta.json` (`discovered_lesson_links`, in the
         order the course lists them), and writes `plan.json`: the ordered
         leaf work list, each with the directory it is captured into, plus
-        every link dropped and why. The flags stand in for `--ticket` on a
-        hand run. It stamps a `deadline`: the ticket's own `claimed_at` (falls
+        every link dropped and why. It stamps a `deadline`: the ticket's own `claimed_at` (falls
         back to this run's clock if the ticket carries none) plus
         `--budget-s` (default 1500 of the slice's 1800 seconds), less
         `CLAIMED_AT_MARGIN_SECONDS`. A leaf whose
@@ -380,9 +375,9 @@ def build_plan(ticket: dict, meta: dict, *, capture_rel: str) -> dict:
     target = clean_url(ticket.get("target") or ticket.get("item") or "")
     slug = ticket.get("slug")
     if not target:
-        raise ValueError("no usable target: no --ticket and no --target, or not a safe http(s) url")
+        raise ValueError("no usable target: the ticket names none, or not a safe http(s) url")
     if not isinstance(slug, str) or not slug:
-        raise ValueError("no slug: no --ticket and no --slug")
+        raise ValueError("no slug: the ticket names none")
     harvest = ticket.get("harvest") if isinstance(ticket.get("harvest"), dict) else {}
     scope = harvest.get("scope") or DEFAULT_SCOPE
     if scope not in SCOPES:
@@ -521,11 +516,6 @@ def leaf_path(capture_dir: Path, leaf: dict) -> Path:
     """Where a planned leaf is on disk. Every leaf is `_raw/<slug>/<one>`, so
     each is the ticket directory itself or a sibling of it."""
     return capture_dir if leaf.get("root") else capture_dir.parent / leaf["dir"].rsplit("/", 1)[-1]
-
-
-def find_leaf(plan: dict, url: str) -> dict | None:
-    key = same_key(clean_url(url) or url)
-    return next((leaf for leaf in plan.get("leaves") or [] if same_key(leaf["url"]) == key), None)
 
 
 def leaf_numbered(plan: dict, number) -> dict | None:
@@ -875,21 +865,13 @@ def build_update(
 
 
 def _ticket(args, *, stage: str | None = None) -> dict:
-    """The ticket (A-1): `tickets open`, given `--ticket` — the one field a
-    hand run's flags cannot stand in for is `known[]`, so a hand run without
-    one plans as if nothing were held. Explicit flags override either way."""
-    ticket = open_ticket(args.ticket, stage) if getattr(args, "ticket", None) else {}
-    for key in ("target", "slug", "ticket"):
-        if getattr(args, key, None):
-            ticket[key] = getattr(args, key)
-    if getattr(args, "scope", None):
-        ticket["harvest"] = {**(ticket.get("harvest") if isinstance(ticket.get("harvest"), dict) else {}), "scope": args.scope}
-    return ticket
+    """The ticket (A-1): `tickets open`, and nothing else."""
+    return {**open_ticket(args.ticket, stage), "ticket": args.ticket}
 
 
 def _capture_rel(capture_dir: Path, ticket: dict, given: str) -> str:
-    """The ticket's own `capture_dir`; on a hand run, the `_raw/<slug>/<one>`
-    tail of the path given."""
+    """The ticket's own `capture_dir`; on a record that carries none, the
+    `_raw/<slug>/<one>` tail of the path given."""
     if isinstance(ticket.get("capture_dir"), str) and ticket["capture_dir"]:
         return ticket["capture_dir"]
     parts = capture_dir.resolve().parts
@@ -925,18 +907,16 @@ def cmd_plan(args) -> int:
             forget(capture_dir / name)
     # P-8/Q1: the ticket's own `claimed_at` — the host's stamp at the move to
     # `active/`, which `tickets open` already answers — no per-run timestamp
-    # on disk to anchor the deadline on any more. None on a hand run (no
-    # `--ticket`), which nothing kills. N1: a --ticket run whose ticket
-    # somehow carries no `claimed_at` (an old record, or a hand-built one in
-    # a test) falls back to THIS run's own clock — a slice is still
-    # killable, as it always was before P-8/Q1 moved the anchor off it.
-    spawned = epoch(ticket.get("claimed_at")) if args.ticket else None
-    if args.ticket and spawned is None:
+    # on disk to anchor the deadline on any more. N1: a ticket that somehow
+    # carries no `claimed_at` (an old record, or a hand-built one in a test)
+    # falls back to THIS run's own clock — a slice is still killable, as it
+    # always was before P-8/Q1 moved the anchor off it.
+    spawned = epoch(ticket.get("claimed_at"))
+    if spawned is None:
         spawned = time.time()
-    if spawned is not None:
-        budget = max(0, min(args.budget_s, SLICE_CAP_SECONDS) - CLAIMED_AT_MARGIN_SECONDS)
-        plan["deadline_epoch"] = spawned + budget
-        plan["deadline"] = iso(plan["deadline_epoch"])
+    budget = max(0, min(args.budget_s, SLICE_CAP_SECONDS) - CLAIMED_AT_MARGIN_SECONDS)
+    plan["deadline_epoch"] = spawned + budget
+    plan["deadline"] = iso(plan["deadline_epoch"])
     for leaf in plan["leaves"]:
         leaf["landed"] = landed_as(leaf_path(capture_dir, leaf), leaf)
     write_json(capture_dir / PLAN_NAME, plan)
@@ -954,9 +934,6 @@ def _plan_and_leaf(args):
     if args.leaf is not None:
         leaf = leaf_numbered(plan, args.leaf)
         named = f"--leaf {args.leaf}"
-    elif getattr(args, "url", None):
-        leaf = find_leaf(plan, args.url)
-        named = redacted(args.url)
     else:
         print("error: name the lesson: --leaf N (its `order` in plan.json)", file=sys.stderr)
         return 1
@@ -1125,23 +1102,14 @@ def cmd_report(args) -> int:
         )
         return 2
     ticket = {"ticket": args.ticket}
-    for key in ("target", "slug"):
-        if getattr(args, key, None):
-            ticket[key] = getattr(args, key)
     plan = read_json(capture_dir / PLAN_NAME)
-    if not plan.get("target") and not ticket.get("target"):
-        # No plan (the root capture never landed) and no --target of a hand
-        # run: open the ticket for its own target, so a lasting failure
-        # (auth expiry, a hostile enumeration) still names what was missed.
-        opened = open_ticket(args.ticket)
-        ticket = {**opened, **ticket}
+    if not plan.get("target"):
+        # No plan (the root capture never landed): open the ticket for its own
+        # target, so a lasting failure (auth expiry, a hostile enumeration)
+        # still names what was missed.
+        ticket = {**open_ticket(args.ticket), **ticket}
 
     missing, bad = [], []
-    for host, url, why in args.missing or []:
-        if why not in WHYS or clean_url(url) is None or _host_arg(host) is None:
-            bad.append(f"--missing {redacted(host)} {redacted(url)} {redacted(why)}")
-        else:
-            missing.append({"host": _host_arg(host), "url": clean_url(url), "why": why})
     for number, why in args.missing_leaf or []:
         leaf = leaf_numbered(plan, int(number)) if number.isdigit() else None
         if why not in WHYS or leaf is None:
@@ -1217,10 +1185,7 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("plan", help="open the ticket and write plan.json: the ordered leaf work list")
     p.add_argument("capture_dir", help=f"{where}: the root capture's meta.json lands here")
-    p.add_argument("--ticket", help="the ticket id, opened for the rest of these defaults; REQUIRED unless every other flag names a hand run's inputs")
-    p.add_argument("--target", help="the job's url, for a hand run with no --ticket")
-    p.add_argument("--slug", help="the job's slug, for a hand run with no --ticket")
-    p.add_argument("--scope", choices=SCOPES, help="overrides the ticket's own harvest.scope")
+    p.add_argument("--ticket", required=True, help="the ticket id, opened for the target, slug and harvest rules")
     p.add_argument("--budget-s", type=int, default=DEFAULT_BUDGET_SECONDS,
                    help=f"seconds after the ticket's own claimed_at in which a new lesson may start, "
                         f"less the {CLAIMED_AT_MARGIN_SECONDS}s CLAIMED_AT_MARGIN_SECONDS "
@@ -1234,8 +1199,6 @@ def main(argv=None) -> int:
         r = sub.add_parser(name, help=text)
         r.add_argument("capture_dir", help=f"{where}: holds plan.json")
         r.add_argument("--leaf", type=int, metavar="N", help="the lesson, by its `order` in plan.json")
-        if name == "record":
-            r.add_argument("url", nargs="?", help="HAND RUNS ONLY: the planned lesson url, in place of --leaf")
         r.set_defaults(fn=fn)
 
     w = sub.add_parser("report", help="post `tickets update` — after every leaf, and last")
@@ -1246,15 +1209,12 @@ def main(argv=None) -> int:
     w.add_argument("--reason", help="overrides the derived reason — your own words, never venue text")
     w.add_argument("--missing-leaf", nargs=2, action="append", metavar=("N", "WHY"), help="a planned lesson, by number")
     w.add_argument("--missing-host", nargs=2, action="append", metavar=("HOST", "WHY"), help="a media host, by name")
-    w.add_argument("--missing", nargs=3, action="append", metavar=("HOST", "URL", "WHY"), help="HAND RUNS ONLY")
     w.add_argument("--stage", choices=STAGES, help="which step this report answers; `process` where no page was "
                                                     "written either")  # fmt: skip
     w.add_argument("--written-from", metavar="FILE",
                    help="a JSON list of wiki-relative pages THIS process ticket wrote, inside the capture dir. "
                         "Given it, the post is the process step's: written_from= is posted and no capture is "
                         "claimed")  # fmt: skip
-    w.add_argument("--target", help="a hand run with no plan.json: the ticket's own target")
-    w.add_argument("--slug", help="a hand run with no plan.json: the ticket's own slug")
     w.set_defaults(fn=cmd_report)
 
     args = ap.parse_args(argv)

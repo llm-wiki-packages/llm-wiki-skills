@@ -10,7 +10,6 @@ paragraph and dumped raw descriptions).
 
   youtube_note.py <wiki> --capture-dir <dir> --record --ticket <id>
   youtube_note.py <wiki> --capture-dir <dir> --dest <dest> --ticket <id>
-                  [--item <url>] [--slug <slug>] [--tag <tag>]... [--area <area>]...
                   [--format-transcript <path>]
 
 `--record` is the HARVEST arm: the bytes are already in the capture dir, and
@@ -20,12 +19,10 @@ writes the page under the ticket's `dest`.
 
 Reads, in the capture dir: `metadata.json` (`yt-dlp --dump-json`), the subtitle
 file yt-dlp fetched (.vtt or .srt, under `captions/` or beside the metadata),
-and `tickets open <id>` when `--ticket` names one (`slug`, `item`).
-`--slug`/`--item` override it. Given no `--ticket` at all, refused unless
-`--item` says what the directory holds (a hand run): `run` starts this script
-at the wiki root, so a mistyped `--capture-dir` is otherwise a page built from
-the wrong directory. The slug then defaults to the capture dir's parent
-(`_raw/<slug>/<leaf>`).
+and `tickets open <id>` (`slug`, `item`): `--ticket` is required, and nothing
+on the command line stands in for it. `run` starts this script at the wiki
+root, so a mistyped `--capture-dir` would otherwise be a page built from the
+wrong directory.
 
 FIRST, before it reads anything, it removes what an earlier run left in the
 capture dir — `page.md` and `written.json`, and `capture.json` on the harvest
@@ -772,11 +769,7 @@ def main():
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--record", action="store_true", help="HARVEST: write `capture.json` for the bytes already in the capture dir, and nothing else")
     mode.add_argument("--dest", default=None, help="PROCESS: the ticket's `dest`, verbatim — the one directory the page may land in")
-    ap.add_argument("--ticket", default=None, help="the ticket id — opened for `slug`/`item`/`process`; REQUIRED unless --item says what a hand run holds")
-    ap.add_argument("--item", default=None, help="the video url. Defaults to the ticket's `item`; REQUIRED where there is no --ticket (a hand run)")
-    ap.add_argument("--slug", default=None, help="the job slug. Defaults to the ticket's `slug`, then the capture dir's parent")
-    ap.add_argument("--tag", action="append", default=[], help="a tag for `frontmatter.tags` (repeatable) — a hand run's; a ticket carries none")
-    ap.add_argument("--area", action="append", default=[], help="a knowledge area for `frontmatter.areas` (repeatable) — a hand run's; a ticket carries none")
+    ap.add_argument("--ticket", required=True, help="the ticket id — opened for `slug`/`item`/`process`")
     ap.add_argument(
         "--ops",
         default=None,
@@ -789,7 +782,7 @@ def main():
         default=None,
         metavar="PATH",
         help="run this format_transcript.py directly instead of reaching the plugin's copy through the front door "
-             "(tests, hand runs). The one path here NOT read against the capture dir: absolute, or relative to the "
+             "(tests). The one path here NOT read against the capture dir: absolute, or relative to the "
              "cwd — which under `llm-wiki-ops run` is the wiki root",
     )
     args = ap.parse_args()
@@ -800,12 +793,7 @@ def main():
     cap_dir = args.wiki / given
     if not cap_dir.is_dir():
         sys.exit(f"youtube_note: {cap_dir} is not a directory — --capture-dir is relative to the wiki root, {args.wiki}")
-    if not args.ticket and not args.item:
-        sys.exit(
-            "youtube_note: no --ticket and no --item — not a spawned run. "
-            "For a hand run say what it holds: --item <video url> (and --slug)"
-        )
-    ticket = open_ticket(args.ticket, "harvest" if args.record else "process") if args.ticket else {}
+    ticket = open_ticket(args.ticket, "harvest" if args.record else "process")
 
     # FIRST, before anything can fail: a capture dir is stable across pulls, so
     # what an earlier run left here must not outlive a build that fails.
@@ -825,8 +813,8 @@ def main():
     if not isinstance(meta, dict):
         sys.exit(f"youtube_note: {metadata_path} is not yt-dlp's JSON (not an object) — nothing was captured")
 
-    slug = fold(args.slug or ticket.get("slug") or cap_dir.resolve().parent.name)
-    item = fold(args.item or ticket.get("item")) or None
+    slug = fold(ticket.get("slug") or cap_dir.resolve().parent.name)
+    item = fold(ticket.get("item")) or None
 
     if args.record:
         record = {
@@ -841,7 +829,7 @@ def main():
         print(json.dumps({"capture": f"{args.capture_dir.rstrip('/')}/{CAPTURE_NAME}", "title": record["title"]}))
         return 0
 
-    front = frontmatter_for(meta, tags=args.tag, areas=args.area)
+    front = frontmatter_for(meta)
 
     captions = find_captions(cap_dir)
     transcript_md = ""

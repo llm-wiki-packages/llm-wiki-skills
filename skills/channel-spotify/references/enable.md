@@ -1,24 +1,31 @@
 # channel-spotify — after enabling
 
-1. **API credentials** — needed for search and guaranteed-complete item
-   lists (public catalog only; no user login exists in this skill). Have
-   the operator create an app at developer.spotify.com → Dashboard, then
-   store per machine — the OPERATOR runs this, at a terminal:
-   `llm-wiki-ops credentials set spotify`
-   It reads the payload from stdin: one JSON object,
-   `{"client_id": "<id>", "client_secret": "<secret>"}`, typed or pasted at
-   the prompt, never as an argument (argv is readable in `ps` and lands in
-   shell history). The `spotify` credential is machine-local and never
-   synced. The unit's `spotify.py` is run only by a stage's own session in
-   its jail, never by hand from a session or a terminal. Without credentials the
-   capture degrades to the keyless embed fallback: possibly-truncated item
-   lists, flagged `"keyless": true` and with a warning callout in the note.
-   **Read "Credentials under a confined harvest" below** — stored
-   credentials alone do not reach a scheduled, confined run.
+1. **API access** — needed for guaranteed-complete item lists (public
+   catalog only; no user login exists in this skill). It is the harvest
+   sandbox's `spotify` route (`sandboxes enable` asks before it writes the
+   route to this machine's allow file), and its value is the wiki's own, in
+   its credential vault. Have the operator create an app at
+   developer.spotify.com → Dashboard; then the OPERATOR runs this at a
+   terminal, once per machine that harvests:
+
+   ```sh
+   tr -d '\n' | base64 | tr -d '\n'; echo
+   llm-wiki-ops credentials set spotify
+   ```
+
+   The first line reads `<client_id>:<client_secret>` typed at the terminal
+   (Enter, then Ctrl-D) and prints the grant, base64 of that pair; the second
+   asks for the value without echo — paste the grant there. Neither puts it in
+   an argument (argv is readable in `ps` and lands in shell history), and
+   `credentials set` asks only at a terminal: its stdin is not a pipe. In the harvest's jail the
+   route's variable holds a phantom, and the proxy adds the grant only to the
+   token request bound for `accounts.spotify.com`. With the route enabled and
+   no grant stored, the token request fails and the harvest says so; with no
+   route the capture degrades to the keyless embed fallback: possibly-truncated
+   item lists, flagged `"keyless": true` and with a warning callout in the note.
 2. **Non-URL requests** ("add the Lex Fridman podcast episode 400"): ask the
-   operator for the entity's Spotify URL, then watch that. `spotify.py search`
-   runs only inside a stage's jail, so no session resolves a name before the
-   job exists.
+   operator for the entity's Spotify URL, then watch that. Nothing in this
+   unit searches the catalog.
 3. **Declare the job**: one per entity URL.
    `llm-wiki-ops pipeline jobs add <entity-url> slug=<content-name>
    description="<what this is>" skill=channel-spotify
@@ -55,13 +62,11 @@ egress. A confined harvest therefore reaches metadata and the feed lookup
 and fails the download with a named allowlist refusal. The gap is
 deliberate — do not try to finish the allowlist.
 
-## Credentials under a confined harvest
+## The route, and nothing else
 
-This skill declares `requires.credential: "optional"`, which never makes the
-stage unclaimable. A job with no binding on this machine captures keyless
-(`partial`, possibly-truncated list). A job bound with `llm-wiki-ops
-credentials bind <slug> spotify` gets that one payload in its slice, named on
-its ticket, and the capture uses the API: full item lists, dates,
-`min_date`. The manifest's exact `host:spotify.com` keyword is the
-credential's claim. Unverified live.
-
+This skill declares `requires.credential: false`: a job is bound to no
+credential and its slice is granted no payload file. The `spotify` route is
+the one way the grant reaches a capture, and the script calls no
+`credentials` verb. A route in a harness profile, or `SPOTIFY_CLIENT_ID` in
+an environment, reaches nothing here. Unverified live: no capture has run
+against Spotify through the route.

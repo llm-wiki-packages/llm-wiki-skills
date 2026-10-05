@@ -106,8 +106,7 @@ def _run(tmp_path, cap, formatter=_DEFAULT, check=True, extra_env=None,
     one that builds a body; pass `["--record"]` for harvest. `ticket=True`
     (the default) stands up a front door answering `tickets open` with the
     standard ticket (`_default_ticket`) and appends `--ticket <id>`, unless
-    `extra_env` already names one; `ticket=False` is a hand run — `--item`
-    (and `--slug`) on `extra_argv` stand in for it."""
+    `extra_env` already names one; `ticket=False` runs with no ticket at all."""
     if mode is _DEFAULT:
         mode = ["--dest", DEST]
     if formatter is _DEFAULT:  # the host formatter, where a checkout names it
@@ -305,27 +304,17 @@ def test_slug_and_item_are_the_tickets_own(tmp_path):
     assert (record["slug"], record["item"]) == ("yt-somechannel", ITEM)
 
 
-def test_flags_override_the_ticket_and_stand_in_for_it_on_a_hand_run(tmp_path):
-    cap = _capture(tmp_path)
-    _run(tmp_path, cap, mode=["--record"], formatter=None, ticket=False,
-         extra_argv=["--slug", "by-hand", "--item", "https://youtu.be/abc123"])
-    record = json.loads((cap / "capture.json").read_text())
-    assert (record["slug"], record["item"]) == ("by-hand", "https://youtu.be/abc123")
-
-
-def test_a_hand_run_with_no_ticket_and_no_item_is_refused(tmp_path):
+def test_a_run_with_no_ticket_is_refused_and_no_flag_stands_in_for_one(tmp_path):
     """`llm-wiki-ops run` starts this script at the WIKI ROOT, so a directory
-    started with neither `--ticket` nor `--item` is as likely a mistyped
-    `--capture-dir` as a hand run. A hand run says what the directory holds
-    with `--item`; the slug may still be read off the layout,
-    `_raw/<slug>/<leaf>` by definition."""
+    started with no `--ticket` is as likely a mistyped `--capture-dir` as
+    anything; and every input is the ticket's, so nothing stands in."""
     cap = _capture(tmp_path)
     cp = _run(tmp_path, cap, mode=["--record"], formatter=None, ticket=False, check=False)
-    assert cp.returncode != 0 and "--ticket" in cp.stderr and "--item" in cp.stderr
+    assert cp.returncode != 0 and "--ticket" in cp.stderr
+    for flags in (["--item", ITEM], ["--slug", "by-hand"], ["--tag", "x"], ["--area", "y"]):
+        cp = _run(tmp_path, cap, mode=["--record"], formatter=None, check=False, extra_argv=flags)
+        assert cp.returncode == 2 and "unrecognized arguments" in cp.stderr, flags
     assert not (cap / "page.md").exists() and not (cap / "capture.json").exists()
-    _run(tmp_path, cap, mode=["--record"], formatter=None, ticket=False, extra_argv=["--item", ITEM])
-    record = json.loads((cap / "capture.json").read_text())
-    assert (record["slug"], record["item"]) == ("yt-somechannel", ITEM)
 
 
 def test_an_arm_must_be_named(tmp_path):

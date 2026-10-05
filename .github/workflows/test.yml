@@ -96,13 +96,15 @@ jobs:
       # declare. `uv tool` puts the binary where setup-uv already put PATH;
       # brew is on the runner but not on PATH, so only `ntn`'s own directory
       # joins it. No test runs `ntn`: `skills enable` resolves it and reads
-      # its version.
+      # its version. `nono` is the sandbox runtime the runner composes a
+      # stage's jail with: without it every staged harness case skips, saying so.
       - name: Install the binaries the manifests declare
         run: |
           uv tool install yt-dlp
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          brew install notion-cli
+          brew install notion-cli nono
           dirname "$(readlink -f "$(brew --prefix)/bin/ntn")" >> "$GITHUB_PATH"
+          dirname "$(readlink -f "$(brew --prefix)/bin/nono")" >> "$GITHUB_PATH"
       - name: Check the manifest
         run: python3 scripts/check-manifest.py
       # `-rs`: every skip prints its reason, so a harness that skipped its

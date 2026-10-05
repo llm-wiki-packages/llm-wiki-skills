@@ -6,8 +6,8 @@
 
 platform: frameio
 scope: platform-general (no hardcoded share ids or hosts). The per-leaf half
-of a share harvest: `harvest_share.py` calls it once per planned leaf, and it
-is also what a hand run uses for a single asset. It wraps `capture_asset.py`
+of a share harvest: `harvest_share.py` calls it once per planned leaf, inside
+the harvest's jail, with the ticket's values. It wraps `capture_asset.py`
 — one asset, one capture dir — and then leaves that dir holding what the venue
 served plus a FLAT `capture.json` naming it:
 
@@ -29,12 +29,11 @@ The leaf dir must be exactly `_raw/<slug>/<one component>` — the slice is
 granted the job's whole `_raw/<slug>/`, and `apply` mints a process ticket for
 no other shape — and that is checked BEFORE anything is fetched, because
 afterwards the bytes are already down. Resolved paths, compared by component
-against `--root` when the caller passes one (the driver always does): `..`
-and a symlinked component are both refused.
+against `--root`: `..` and a symlinked component are both refused.
 
 Usage:
-  uv run capture_job.py <leaf-dir> [--root <wiki root>] [--url <view-url>]
-      [--slug <slug>]
+  uv run capture_job.py <leaf-dir> --root <wiki root> --url <view-url>
+      --slug <slug>
       [--name=<original filename>] [--path=<folder> ...] [--crumb-skip=N]
       [--title-strip S] [--author A] [--group G] [--group-type T]
       [--timeout-ms N] [--deadline-seconds N] [--fresh]
@@ -46,9 +45,8 @@ less and is killed, with everything it started, when it runs out (exit 1,
 `timeout` in the error). `--fresh` is a refresh ticket's: the `video.mp4` an
 earlier capture left is dropped first, or yt-dlp would call it downloaded.
 
-`--url` and `--slug` default from `--ticket <id>`, opened through the front
-door (a ticket whose target is itself a leaf viewer); `harvest_share.py`
-always passes both explicitly.
+`--root`, `--url` and `--slug` are the driver's, off its ticket: this script
+opens none.
 `--name`/`--path` come off the share's leaf manifest; without them the name
 falls back to the URL's asset id and the document extension comes off the
 signed proxy route.
@@ -94,7 +92,6 @@ from capture_record import (
     inner_deadline,
     leaf_ids,
     name_stem,
-    open_ticket,
     pick_document,
     read_json,
     run,
@@ -107,7 +104,7 @@ VIDEO_BODY = "video.mp4"
 SCRIPTS = Path(__file__).resolve().parent
 
 
-def slice_leaf(leaf_dir: Path, slug: str, root=None):
+def slice_leaf(leaf_dir: Path, slug: str, root):
     """The leaf dir as wiki-relative `_raw/<slug>/<one>`, or None when it is not.
 
     Resolved and compared by path COMPONENT, never by string prefix: the dir
@@ -116,14 +113,10 @@ def slice_leaf(leaf_dir: Path, slug: str, root=None):
     granted. `resolve()` rather than `normpath()` because a grant is about
     where the BYTES land, and only `resolve` follows a symlink.
 
-    With `root` (the driver always passes it) the resolved dir must sit at
-    exactly that depth under THAT wiki. Without it — a hand run — the root is
-    read off the dir itself, three levels up, so only the shape is checked.
+    The resolved dir must sit at exactly that depth under THAT wiki.
     """
     target = leaf_dir.resolve()
-    base = Path(root).resolve() if root is not None else (target.parents[2] if len(target.parents) > 2 else None)
-    if base is None:
-        return None
+    base = Path(root).resolve()
     try:
         parts = target.relative_to(base).parts
     except ValueError:
@@ -141,10 +134,9 @@ def fail(item, rel, error, code=1):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("leaf_dir", type=Path, help="the leaf's capture dir: _raw/<slug>/<one component>")
-    ap.add_argument("--root", type=Path, default=None, help="the wiki root the leaf dir must sit under (default: read off the dir)")
-    ap.add_argument("--url", default=None, help="the leaf's view URL (default: --ticket's own target)")
-    ap.add_argument("--slug", default=None, help="the job's slug (default: --ticket's own slug)")
-    ap.add_argument("--ticket", default=None, help="the ticket id, opened for --url/--slug's defaults")
+    ap.add_argument("--root", type=Path, required=True, help="the wiki root the leaf dir must sit under")
+    ap.add_argument("--url", required=True, help="the leaf's view URL")
+    ap.add_argument("--slug", required=True, help="the job's slug")
     ap.add_argument("--name", default=None, help="the asset's original filename, off the share's leaf manifest")
     ap.add_argument("--path", action="append", default=None, help="folder breadcrumb bit, repeatable — same source as --name")
     ap.add_argument("--title-strip", default=None, help="share-wide suffix to trim off the captured title")
@@ -157,14 +149,12 @@ def main() -> int:
     ap.add_argument("--fresh", action="store_true", help="a refresh: drop the media an earlier capture left, so it is fetched again")
     args = ap.parse_args()
 
-    ticket = open_ticket(args.ticket) if args.ticket else {}
-    url = args.url or ticket.get("target")
-    slug = args.slug or ticket.get("slug")
+    url, slug = args.url, args.slug
     if not isinstance(url, str) or not url.startswith(("http://", "https://")) or not leaf_ids(url)[1]:
         print(f"error: {url!r} is not a leaf viewer URL (https://.../share/<share-id>/view/<asset-id>)", file=sys.stderr)
         return 2
-    if not isinstance(slug, str) or not slug:
-        print("error: no --slug and no --ticket to read one from", file=sys.stderr)
+    if not slug:
+        print("error: an empty --slug", file=sys.stderr)
         return 2
     rel = slice_leaf(args.leaf_dir, slug, args.root)
     if rel is None:

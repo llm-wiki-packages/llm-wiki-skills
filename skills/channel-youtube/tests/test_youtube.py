@@ -524,19 +524,18 @@ def test_both_scripts_run_from_the_wiki_root_with_the_tickets_relative_capture_d
 def test_a_capture_dir_that_is_not_wiki_relative_is_refused(tmp_path, tail):
     cap = _ticketed(tmp_path)
     for bad in (str(cap), "_raw/yt-job/../yt-job/watch--1a2b3c4d", "_raw/yt-job/nope"):
-        cp = _as_run_does(BUILDER, tmp_path, "--capture-dir", bad, *tail, "--item", ITEM)
+        cp = _as_run_does(BUILDER, tmp_path, "--capture-dir", bad, *tail, "--ticket", TICKET_ID)
         assert cp.returncode != 0 and "Traceback" not in cp.stderr, (bad, cp.stderr)
     assert not (cap / "page.md").exists() and not (tmp_path / "page.md").exists()
 
 
 def test_the_builder_refuses_a_directory_no_spawner_wrote_a_ticket_into(tmp_path):
     """`.` — the wiki root itself, which is what a capture-dir default of `.`
-    used to mean under `run` — has neither `--ticket` nor `--item`: refused,
-    nothing written."""
+    used to mean under `run` — with no `--ticket`: refused, nothing written."""
     cap = _ticketed(tmp_path)
     shutil.copy(cap / "metadata.json", tmp_path / "metadata.json")
     cp = _as_run_does(BUILDER, tmp_path, "--capture-dir", ".", "--record")
-    assert cp.returncode != 0 and "--ticket" in cp.stderr and "--item" in cp.stderr
+    assert cp.returncode != 0 and "--ticket" in cp.stderr
     assert not (tmp_path / "page.md").exists() and not (tmp_path / "capture.json").exists()
 
 

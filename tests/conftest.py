@@ -4,26 +4,13 @@ install-tier case runs against. The code is `harness.py`'s.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from harness import ROOT, SOURCE, _cli, _ops_argv, rooted, run
-
-# The machine's default harness profile, as an admin would write it: the
-# seed's argv less its `bins` and credential routes, so a spawn needs no agent
-# binary on PATH and no login. A plugins build that reads no profile ignores it.
-HARNESS_PROFILE = {
-    "v": 1,
-    "harness": {
-        "command": ["{plugin}/scripts/run-agent", "{prompt}", "--model", "{model}"],
-        "effort": ["--effort", "{effort}"],
-    },
-}
-
+from harness import AGENT_DIR, ROOT, SCRATCH, SOURCE, _cli, _ops_argv, machine_harness, machine_layer, rooted, run
 
 @pytest.fixture(scope="session")
 def ops() -> list:
@@ -34,17 +21,17 @@ def ops() -> list:
 
 
 @pytest.fixture(scope="session")
-def env(tmp_path_factory, ops) -> dict:
-    home = tmp_path_factory.mktemp("packages-home")
+def env(ops) -> dict:
+    home = SCRATCH / "packages-home"
+    home.mkdir()
     mp = home / "marketplaces" / SOURCE
     mp.parent.mkdir(parents=True)
     mp.symlink_to(ROOT, target_is_directory=True)
     # Every CLI call reads this box's config under HOME: a scratch one, so the
     # suite never touches the real machine's, and uv keeps its real cache.
-    machine_home = tmp_path_factory.mktemp("home")
-    profile = machine_home / ".config" / "llm-wiki" / "sandbox" / "harness" / "claude.jsonc"
-    profile.parent.mkdir(parents=True)
-    profile.write_text(json.dumps(HARNESS_PROFILE), encoding="utf-8")
+    machine_home = SCRATCH / "home"
+    machine_home.mkdir()
+    machine_harness(machine_home)
     uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
     e = dict(os.environ)
     # A suite started from inside a wiki session must not act on THAT wiki:
@@ -63,19 +50,19 @@ def env(tmp_path_factory, ops) -> dict:
         GIT_AUTHOR_EMAIL="harness@example.invalid",
         GIT_COMMITTER_NAME="harness",
         GIT_COMMITTER_EMAIL="harness@example.invalid",
-        # `live_ticket`'s `spawn=self` sets a ticket's `worker` to the calling
-        # session's id, and `open` refuses a ticket whose `worker` is not the
-        # caller's own — so the harness session needs one of its own to match.
+        # The session the runner names each slice's worker after
+        # (`harness-session.<ticket>`), rather than one it would mint.
         LLM_WIKI_SESSION_ID="harness-session",
+        PATH=f"{AGENT_DIR / 'bin'}{os.pathsep}{e.get('PATH', os.defpath)}",
     )
     return e
 
 
 @pytest.fixture(scope="session")
-def wiki(tmp_path_factory, ops, env) -> Path:
+def wiki(ops, env) -> Path:
     """One `init`ed wiki for the session — installs accumulate in it, which
     is what a real wiki does."""
-    w = tmp_path_factory.mktemp("wiki") / "w"
+    w = SCRATCH / "wiki" / "w"
     r = run(_cli(ops), env, "init", str(w), "preset=general")  # values are key=value; init commits on its own
     assert r.returncode == 0, r.stderr
     # `pipeline add` needs a joined checkout. `join` registers the wiki in the
@@ -86,6 +73,7 @@ def wiki(tmp_path_factory, ops, env) -> Path:
     join_env = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, join_env, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
+    machine_layer(ops, Path(env["HOME"]), env["UV_CACHE_DIR"])
     # A wiki must declare its packages with a pinned version, and `@latest`
     # names a release tag a shallow CI checkout does not carry: pin this
     # checkout's own commit, which the marketplace link above serves.

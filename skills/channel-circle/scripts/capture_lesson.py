@@ -31,25 +31,24 @@ Usage:
   llm-wiki-ops run ops/skills/channel-circle/scripts/capture_lesson.py \
          <root> --out <capture_dir> --ticket <id>          # the ticket's target
          <root> --plan <capture_dir>/plan.json --leaf N   # one planned lesson
-         <root> <url> --out <dir>                         # HAND RUNS ONLY
          [--headed] [--timeout-ms 45000]
 
 `<root>` is the wiki root (`.` under `llm-wiki-ops run`, which starts a script
 there) — auth profiles are reached through the `dir` credential
 named for the domain (`credentials info`). `--out` and `--plan` are WIKI-RELATIVE:
 a relative one is resolved against `<root>`, not against wherever the caller
-stands. A worker never types a url — a lesson's address is venue data and a
-command line is a shell: with no url, `--ticket <id>`'s own `target` is
-captured; with `--leaf N`, leaf N of `plan.json` (its `order`) is captured
-into the `dir` the plan gave it. A url on the command line is for hand runs.
+stands. No url is ever typed — a lesson's address is venue data and a
+command line is a shell: `--ticket <id>`'s own `target` is captured; with
+`--leaf N`, leaf N of `plan.json` (its `order`) is captured into the `dir`
+the plan gave it.
 
 Exit 0 on capture, 2 if there is no auth profile yet or the session
 had expired (landed on a sign_in page) — either way, re-run the login
 helper. 3 on a Cloudflare challenge that didn't clear. 5 if the credential
 store itself could not be reached (denied/unreadable) — a REAL failure,
 distinct from "no profile yet"; re-running the login helper will not fix it.
-4 if there is nothing usable to capture: no url and no `--ticket` naming a
-target, a `--leaf` the plan does not hold, or a url that is not http(s).
+4 if there is nothing usable to capture: no `--ticket` naming a target, a
+`--leaf` the plan does not hold, or a target that is not http(s).
 6 if `--leaf` was asked after the plan's `deadline`: NOTHING was started — run
 `section_plan.py report` and exit (the slice is killed at 30 minutes, and a
 killed slice posts no update).
@@ -167,7 +166,7 @@ def domain_of(url: str) -> str:
 
 def ticket_target(root: Path, ticket_id: str | None, refusal: list | None = None) -> str | None:
     """`--ticket <id>`'s own `target` (A-1), through `tickets open` — or None
-    where there is no `--ticket` (a hand run names its own url instead).
+    where there is no `--ticket`.
 
     `refusal`, given a list, gets the front door's own refusal text appended
     when `tickets open` itself failed (F10) — never when there was simply no
@@ -230,7 +229,7 @@ def planned_leaf(plan_path: Path, number: int, now: float | None = None):
     return leaf, None
 
 
-def resolve_job(root, url=None, out=None, plan=None, leaf=None, ticket=None, now=None):
+def resolve_job(root, out=None, plan=None, leaf=None, ticket=None, now=None):
     """`(url, out_dir, is_ticket_target, None)` or `(None, None, False, (exit, why))`
     — everything `main` decides before it needs a browser."""
     if leaf is not None:
@@ -247,9 +246,9 @@ def resolve_job(root, url=None, out=None, plan=None, leaf=None, ticket=None, now
         return None, None, False, (EXIT_NOTHING_TO_CAPTURE, "--out <capture_dir> is required (wiki-relative) unless --plan/--leaf name a lesson")
     out_dir = under(root, out)
     refusal: list = []
-    chosen, from_ticket = (url, False) if url else (ticket_target(root, ticket, refusal), True)
+    chosen, from_ticket = ticket_target(root, ticket, refusal), True
     if not chosen:
-        why = (refusal[0] if refusal else None) or "no url given and no --ticket names one"
+        why = (refusal[0] if refusal else None) or "no --ticket names a target"
         return None, None, False, (EXIT_NOTHING_TO_CAPTURE, why)
     if not is_http(chosen):
         return None, None, False, (EXIT_NOTHING_TO_CAPTURE, "the url is not an http(s) address")
@@ -278,19 +277,15 @@ def caption_records(tracks):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", help="wiki root path (`.` under `llm-wiki-ops run`)")
-    ap.add_argument("url", nargs="?", help="HAND RUNS ONLY. Default: --ticket's own `target`, or --leaf's url")
     ap.add_argument("--out", help="capture dir, wiki-relative; not needed with --leaf (the plan names the dir)")
     ap.add_argument("--plan", help="<capture_dir>/plan.json, wiki-relative — with --leaf")
     ap.add_argument("--leaf", type=int, metavar="N", help="capture leaf N of --plan (its `order`)")
-    ap.add_argument("--ticket", help="the ticket id, opened for its own `target` — needed only with no --leaf and no <url>")
+    ap.add_argument("--ticket", help="the ticket id, opened for its own `target` — needed with no --leaf")
     ap.add_argument("--headed", action="store_true", help="Show the browser (safer vs Cloudflare; default headless)")
     ap.add_argument("--timeout-ms", type=int, default=45000)
     args = ap.parse_args()
 
-    if args.leaf is not None and args.url:
-        print("error: a url and --leaf are two names for the lesson — give one", file=sys.stderr)
-        return EXIT_NOTHING_TO_CAPTURE
-    args.url, out, is_ticket_target, refused = resolve_job(args.root, args.url, args.out, args.plan, args.leaf, args.ticket)
+    args.url, out, is_ticket_target, refused = resolve_job(args.root, args.out, args.plan, args.leaf, args.ticket)
     if refused:
         print(f"error: {refused[1]}", file=sys.stderr)
         return refused[0]

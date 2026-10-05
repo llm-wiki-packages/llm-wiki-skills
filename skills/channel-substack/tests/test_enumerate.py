@@ -44,19 +44,18 @@ def _urls(out):
 
 
 def _run(monkeypatch, capsys, pages, *argv, ticket=None, tmp_path):
-    """One walk over `pages`. With `ticket`, the inputs come from `tickets
-    open` — stubbed in-process, since this runs the module directly rather
-    than as a subprocess — the way a worker's do; without, from flags.
-    `--capture-dir` is REQUIRED either way (2026-09-19: its `.` default read
-    and wrote at the wiki root under `llm-wiki-ops run`), so every case names
-    a directory; the wiki-relative, cwd-is-the-wiki-root form is driven in
-    `test_port_substack.py`."""
+    """One walk over `pages`, its inputs from `tickets open` — stubbed
+    in-process, since this runs the module directly rather than as a
+    subprocess — the way a worker's are. `ticket` defaults to `_ticket()`.
+    `--capture-dir` is REQUIRED (2026-09-19: its `.` default read and wrote at
+    the wiki root under `llm-wiki-ops run`), so every case names a directory;
+    the wiki-relative, cwd-is-the-wiki-root form is driven in
+    `test_substack.py`."""
     mod = _module()
     served = list(pages)
-    base = ["ex.substack.com", "--slug", "w1", "--capture-dir", str(tmp_path)]
-    if ticket is not None:
-        monkeypatch.setattr(mod, "open_ticket", lambda tid, stage=None: ticket)
-        base = ["--capture-dir", str(tmp_path), "--ticket", ticket["ticket"]]
+    ticket = ticket if ticket is not None else _ticket()
+    monkeypatch.setattr(mod, "open_ticket", lambda tid, stage=None: ticket)
+    base = ["--capture-dir", str(tmp_path), "--ticket", ticket["ticket"]]
 
     def fake_fetch(domain, offset, limit):
         return served.pop(0) if served else []
@@ -128,7 +127,7 @@ def test_free_access_emits_only_everyone(monkeypatch, capsys, tmp_path):
 def test_min_date_stops_the_walk(monkeypatch, capsys, tmp_path):
     out = _run(monkeypatch, capsys,
                [[_post(1, date="2026-08-01"), _post(2, date="2025-01-01")]],
-               "--min-date", "2026-01-01", tmp_path=tmp_path)
+               ticket=_ticket(min_date="2026-01-01"), tmp_path=tmp_path)
     assert out["summary"]["stopped_at_min_date"] is True
     assert len(out["leaves"]) == 1
     assert out["summary"]["truncated"] is False
@@ -167,11 +166,11 @@ def _dated_archive(n, start="2026-08-31"):
             for i in range(n)]
 
 
-def _ticket(known=()):
+def _ticket(known=(), min_date=None):
     return {"v": 1, "ticket": "0123456789ab", "unit": "channel-substack", "slug": "w1",
             "target": "https://ex.substack.com/archive", "capture_dir": "_raw/w1/archive--00000000",
             "harvest": {"scope": "domain", "access": "free", "exclude_urls": []},
-            "min_date": None, "known": [{"resource": u, "harvested_at": "2026-09-01T00:00:00Z"} for u in known]}
+            "min_date": min_date, "known": [{"resource": u, "harvested_at": "2026-09-01T00:00:00Z"} for u in known]}
 
 
 def test_known_is_what_advances_a_bounded_walk(monkeypatch, capsys, tmp_path):
@@ -220,21 +219,25 @@ def test_min_date_is_not_a_resume(monkeypatch, capsys, tmp_path):
     pages = [_dated_archive(300)[i:i + 50] for i in range(0, 300, 50)]
     first = _run(monkeypatch, capsys, pages, "--max-leaves", "50", tmp_path=tmp_path)
     again = _run(monkeypatch, capsys, pages, "--max-leaves", "50",
-                 "--min-date", "2020-01-01", tmp_path=tmp_path)
+                 ticket=_ticket(min_date="2020-01-01"), tmp_path=tmp_path)
     assert _urls(again) == _urls(first)
 
 
 def test_a_run_with_no_job_behind_it_is_refused(monkeypatch, tmp_path):
     """WAS `test_parent_is_required`: `--parent` named the dispatched job a
     `discovered` row had to match, and is gone with the row. What a run cannot
-    do without is the job's SLUG — it names every leaf directory — so that is
-    the refusal at the call now, from a flag or from `--ticket`."""
+    do without is the job's SLUG — it names every leaf directory — and the
+    ticket is where it comes from: no `--ticket` is refused at the call, and
+    no flag stands in for one."""
     mod = _module()
     # Stubbed even though the refusal should come first: without this, a
     # regression that made the slug optional would send this test to the real
     # Substack API — green or red by network rather than by the property.
     monkeypatch.setattr(mod, "fetch_page", lambda *a: [])
-    monkeypatch.setattr(sys, "argv", ["enumerate_archive.py", "ex.substack.com",
-                                      "--capture-dir", str(tmp_path)])
-    with pytest.raises(SystemExit):
-        mod.main()
+    for argv in (["--capture-dir", str(tmp_path)], ["ex.substack.com", "--capture-dir", str(tmp_path), "--ticket", "t1"],
+                 ["--capture-dir", str(tmp_path), "--ticket", "t1", "--slug", "w1"]):
+        monkeypatch.setattr(sys, "argv", ["enumerate_archive.py", *argv])
+        with pytest.raises(SystemExit) as refused:
+            mod.main()
+        assert refused.value.code == 2, argv
+    assert not (tmp_path / "leaves.json").exists()

@@ -25,11 +25,10 @@ and measures the wrapper's rendered size.
 Usage:
   llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py \
          <root> --ticket <id> [--headed] [--settle-ms 8000]
-         <root> <course-url> …                       # HAND RUNS ONLY
 
-`<root>` is the wiki root (`.` under `llm-wiki-ops run`). With `--ticket <id>`
-the url probed is that ticket's own `target` (A-1), through `tickets open` —
-a worker never types a venue url onto a command line. Always exits 0 (it's a
+`<root>` is the wiki root (`.` under `llm-wiki-ops run`). The url probed is
+`--ticket <id>`'s own `target` (A-1), through `tickets open` — a venue url is
+never typed onto a command line. Always exits 0 (it's a
 probe, not a gate).
 Prints a JSON verdict on stdout:
   {fixed, wrapper_children, wrapper_chars, http_5xx, sample_5xx,
@@ -159,15 +158,14 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", help="wiki root path")
-    ap.add_argument("url", nargs="?", help="HAND RUNS ONLY; default: --ticket's own `target`")
-    ap.add_argument("--ticket", help="the ticket id, opened for its own `target`")
+    ap.add_argument("--ticket", required=True, help="the ticket id, opened for its own `target`")
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--timeout-ms", type=int, default=45000)
     ap.add_argument("--settle-ms", type=int, default=8000, help="Wait after load for XHRs to fire / content to render")
     args = ap.parse_args()
 
     refusal: list = []
-    args.url = args.url or ticket_target(args.root, args.ticket, refusal)
+    args.url = ticket_target(args.root, args.ticket, refusal)
     if not args.url:
         why = (refusal[0] if refusal else None) or "no url: give --ticket <id> (opened for its own target)"
         print(json.dumps({"fixed": False, "error": why}))

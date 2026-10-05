@@ -14,7 +14,7 @@
   "kind": "channel",
   "name": "channel-spotify",
   "requires": {
-    "credential": "optional",
+    "credential": false,
     "ops": ">=0.1.0"
   },
   "stages": {
@@ -43,6 +43,6 @@
       }
     },
     "dest": "sources/podcasts/{slug}",
-    "note": "One watch per entity URL (playlist/show/episode/album/audiobook) \u2014 scope page; enumeration happens inside the capture via the API, not by link discovery. API credentials (the `spotify` credential, per machine) are needed for complete item lists and for search; keyless capture degrades to a possibly-truncated list. Audio downloads only when the show publishes an open RSS feed; Spotify-exclusive/music/audiobook audio is captured as DRM references, never ripped. A non-URL request (\"add episode 400 of X\") asks the operator for the URL. Confined harvest reaches metadata and the RSS lookup; media download needs a host the unit cannot declare (the creator's own feed and enclosure hosts, different per show)."
+    "note": "One watch per entity URL (playlist/show/episode/album/audiobook) \u2014 scope page; enumeration happens inside the capture via the API, not by link discovery. The harvest sandbox's `spotify` route (the app's client credentials, in the wiki's vault per machine) is needed for complete item lists; keyless capture degrades to a possibly-truncated list. Audio downloads only when the show publishes an open RSS feed; Spotify-exclusive/music/audiobook audio is captured as DRM references, never ripped. A non-URL request (\"add episode 400 of X\") asks the operator for the URL. Confined harvest reaches metadata and the RSS lookup; media download needs a host the unit cannot declare (the creator's own feed and enclosure hosts, different per show)."
   }
 }

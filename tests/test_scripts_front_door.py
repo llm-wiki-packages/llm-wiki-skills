@@ -1,13 +1,12 @@
 """The unit scripts that ask the front door a question read its ANSWER, not
 just its exit code.
 
-`llm-wiki-ops credentials info` and `credentials get` print prose for a
-person unless asked for `--json`, and `credentials info` exits 0 for a dir that
-no login has verified. A caller that trusts the exit code and takes stdout for a
-path launches a browser on a directory named after three lines of prose —
-silently logged out. Each stub below answers in the shape the real CLI's verb
-answers, prose included, so a caller that forgets `--json` fails here instead
-of on a wiki.
+`llm-wiki-ops credentials info` prints prose for a person unless asked for
+`--json`, and exits 0 for a dir that no login has verified. A caller that
+trusts the exit code and takes stdout for a path launches a browser on a
+directory named after three lines of prose — silently logged out. Each stub
+below answers in the shape the real CLI's verb answers, prose included, so a
+caller that forgets `--json` fails here instead of on a wiki.
 """
 
 from __future__ import annotations
@@ -32,8 +31,6 @@ PROFILE = "/home/u/.config/llm-wiki/credentials/realm/profiles/community.example
 # beside a `_cmd_` block, and exits 2). The scripts read the no-wiki arm off a
 # non-zero exit, so what this stub has to get right is refusing.
 NO_WIKI = {"error": "no wiki here — run `llm-wiki-cli wiki <key> ...` to reach one, or `llm-wiki-cli init <dir>` to make one"}
-ABSENT = {"error": "no credential 'spotify' on this machine"}
-STORED = {"client_id": "cid", "client_secret": "sec"}
 
 
 def _load(unit: str, script: str, *stubbed: str):
@@ -173,58 +170,6 @@ def test_no_circle_hint_names_a_login_script_the_unit_does_not_ship():
         assert "scripts/login.py" not in text, script
     capture = (SKILLS / "channel-circle" / "scripts" / "capture_lesson.py").read_text(encoding="utf-8")
     assert capture.count("credentials login") >= 3, "auth_expired, cloudflare_challenge and the absent hint"
-
-
-# --- channel-spotify: `credentials get|set spotify` ------------------------------
-
-
-@pytest.fixture
-def spotify(monkeypatch):
-    monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
-    monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
-    return _load("channel-spotify", "spotify.py", "requests")
-
-
-def test_a_stored_credential_is_the_payload_inside_the_answer(spotify, front_door, tmp_path):
-    """`get --json` answers `{name, value, store}` and `value` is the stored
-    TEXT. Parsing the answer itself as the payload yields a dict with no
-    `client_id`, and the capture goes keyless with credentials on the box."""
-    seen = front_door(0, {"name": "spotify", "value": json.dumps(STORED, indent=1), "store": "/s"}, "name: spotify\nvalue: {\n")
-    assert spotify.load_auth(tmp_path) == STORED
-    got = seen()
-    assert got["argv"] == ["--json", "credentials", "get", "spotify"] and got["inherited"] == [], got
-    assert Path(got["cwd"]) == tmp_path.resolve(), got
-
-
-def test_an_absent_credential_degrades_keyless(spotify, front_door, tmp_path):
-    front_door(1, ABSENT, "no credential 'spotify' on this machine\n")
-    assert spotify.load_auth(tmp_path) == {}
-
-
-def test_any_other_failure_is_an_error_not_a_quiet_keyless_run(spotify, front_door, tmp_path, capsys):
-    """Same exit code as absent. Degrading here ships a truncated, keyless
-    capture from a box that HAS credentials and could not read them."""
-    front_door(1, NO_WIKI)
-    with pytest.raises(SystemExit):
-        spotify.load_auth(tmp_path)
-    assert "no wiki here" in capsys.readouterr().err
-
-
-def test_auth_stores_the_payload_on_stdin_never_on_the_command_line(spotify, front_door, tmp_path, monkeypatch):
-    seen = front_door(0, {"name": "spotify", "store": "/s", "bytes": 60})
-    monkeypatch.setattr(spotify, "wiki_root", lambda: tmp_path)
-    monkeypatch.setattr(spotify, "load_auth", lambda root: {})
-    monkeypatch.setattr(spotify, "get_token", lambda root: None)
-    spotify.cmd_auth(types.SimpleNamespace(client_id="cid", client_secret="sec"))
-    got = seen()
-    assert got["argv"] == ["--json", "credentials", "set", "spotify"], got
-    assert json.loads(got["stdin"]) == STORED and "sec" not in " ".join(got["argv"])
-
-
-def test_outside_a_wiki_there_is_no_store_to_ask(spotify, front_door):
-    front_door(0, {"name": "spotify", "value": json.dumps(STORED), "store": "/s"})
-    assert spotify.load_auth(None) == {}
-    assert not front_door.seen.exists(), "the front door was run with no wiki to bind it to"
 
 
 # --- every unit reaches the front door a hosted run NAMES ----------------------

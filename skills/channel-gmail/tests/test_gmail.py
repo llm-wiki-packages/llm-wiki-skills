@@ -139,7 +139,7 @@ def page_calls(root: Path) -> list:
 
 def write(directory: Path, ticket: dict | None, items, *flags: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     """The script as a worker runs it: from the wiki root, the pull on stdin.
-    `ticket=None` is a genuine hand run — no `--ticket`, no front door."""
+    `ticket=None` runs with no `--ticket` and no front door."""
     root = cwd or directory.parents[2]
     argv = [sys.executable, str(SCRIPT), "write", str(directory.relative_to(root)), *flags]
     if ticket is not None:
@@ -457,11 +457,14 @@ def test_one_far_future_time_is_kept_under_the_pulls_clock_and_never_moves_the_c
     assert write(directory, ticket, [msg(4)]).returncode == 0 and cursor(directory)["newest_id"] == "m4"
 
 
-def test_the_cursor_never_moves_past_the_clock(tmp_path, capsys):
+def test_the_cursor_never_moves_past_the_clock(tmp_path, monkeypatch, capsys):
     """An hour of skew is believed — the item is filed under its own time — and the cursor stops at now."""
-    directory, _ticket = day_dir(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    directory, ticket = day_dir(tmp_path)
+    monkeypatch.setattr(W, "open_ticket", lambda tid, stage=None: ticket)
+    monkeypatch.setattr(W, "post_update", lambda *a, **k: 0)
     (directory / "pull.json").write_text(json.dumps([msg(1, internal_date=T0 + 3_600_000)]), encoding="utf-8")
-    args = type("A", (), {"ticket": None, "mailbox": None, "min_date": None, "missing": [], "failed": None, "partial": None,
+    args = type("A", (), {"ticket": ticket["ticket"], "missing": [], "failed": None, "partial": None,
                           "source": "pull.json", "cap": None, "exclude_label": [], "exclude_sender": []})()
     assert W.write(directory, args, now=datetime.fromtimestamp(T0 / 1000, timezone.utc)) == 0
     assert json.loads(capsys.readouterr().out)["bad_time"] == 0
@@ -493,31 +496,18 @@ def test_min_date_is_a_floor(tmp_path):
     assert json.loads(r.stdout)["filtered"] == {"min_date": 1}
 
 
-def test_a_hand_run_with_no_ticket_uses_the_flags_directly(tmp_path):
-    """No `--ticket`: nothing is read from `tickets open` and nothing posted
-    to `tickets update` — the flags carry everything."""
+def test_no_ticket_is_refused_and_no_flag_stands_in_for_one(tmp_path):
+    """Every input is the ticket's: a run with none is refused, and the old
+    hand-run flags are no flags at all."""
     directory = tmp_path / "_raw" / "mail" / DAY
     directory.mkdir(parents=True)
-    flags = ("--mailbox", "a@example.invalid", "--min-date", W.day_of(T0))
-    r = write(directory, None, [msg(1, internal_date=T0 - 2 * 86_400_000), msg(2)], *flags)
-    assert r.returncode == 0, r.stderr
-    assert names(directory) == [f"{T0 + 2000}--m2.json"]
-    assert not (directory / f"report.{TICKET_ID}.json").exists()
-    answer = json.loads(since(directory, None, *flags, "--lookback-days", "100000").stdout)  # the cursor is past the floor by now
-    assert answer["min_date"] == W.day_of(T0)
-    other, _other_ticket = day_dir(tmp_path, slug="bad")
-    assert since(other, None, "--mailbox", "a@example.invalid", "--min-date", "2026-13-45").returncode == 0  # the shape, and no day
-
-
-def test_no_ticket_and_no_hand_run_input_is_refused(tmp_path):
-    directory = tmp_path / "_raw" / "mail" / DAY
-    directory.mkdir(parents=True)
-    for verb in ("since", "write"):
+    for verb in ("since", "write", "ledger"):
         r = script(verb, directory, None)
-        assert r.returncode == 2 and "--ticket" in r.stderr and "--mailbox" in r.stderr
-    r = script("ledger", directory, None)
-    assert r.returncode == 2 and "--ticket" in r.stderr and "--dest" in r.stderr
-    assert not (directory / "items").exists()
+        assert r.returncode == 2 and "--ticket" in r.stderr, (verb, r.stderr)
+        for flag in (("--mailbox", "a@example.invalid"), ("--min-date", "2026-09-01"), ("--dest", "research/channels/mail")):
+            r = script(verb, directory, None, *flag, "--ticket", TICKET_ID)
+            assert r.returncode == 2 and "unrecognized arguments" in r.stderr, (verb, flag, r.stderr)
+    assert not (directory / "items").exists() and not update_calls(directory.parents[2])
 
 
 def test_a_cap_below_one_is_refused_not_obeyed(tmp_path):
@@ -552,12 +542,11 @@ def test_a_pull_nobody_can_read_is_a_report_not_a_traceback(tmp_path):
 
 
 def test_a_consumed_pull_file_is_removed_and_only_inside_the_day(tmp_path):
-    directory, _ticket = day_dir(tmp_path)
-    flags = ("--mailbox", "a@example.invalid")
+    directory, ticket = day_dir(tmp_path)
     inside, outside = directory / "pull.json", directory.parents[2] / "pull.json"
     for path in (inside, outside):
         path.write_text(json.dumps([msg(1)]), encoding="utf-8")
-        r = subprocess.run([sys.executable, str(SCRIPT), "write", str(directory), "--from", str(path), *flags], capture_output=True, text=True)
+        r = script("write", directory, ticket, "--from", str(path))
         assert r.returncode == 0, r.stderr
     assert not inside.exists() and outside.exists()
 
@@ -570,7 +559,7 @@ def test_since_is_the_cursor_else_the_lookback_never_before_min_date(tmp_path, m
     directory, ticket = day_dir(tmp_path)
     monkeypatch.setattr(W, "open_ticket", lambda tid, stage=None: ticket)
     now = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)
-    args = type("A", (), {"ticket": ticket["ticket"], "mailbox": None, "lookback_days": 7, "min_date": None})()
+    args = type("A", (), {"ticket": ticket["ticket"], "lookback_days": 7})()
     assert W.since(directory, args, now=now) == 0
     first = json.loads(capsys.readouterr().out)
     assert first["first_pull"] is True and first["since_day"] == "2026-09-11" and first["mailbox"] == "a@example.invalid"
@@ -587,16 +576,10 @@ def test_since_is_the_cursor_else_the_lookback_never_before_min_date(tmp_path, m
     assert again["first_pull"] is False and again["since"] == T0 + 1000
 
 
-def test_a_job_with_no_mailbox_is_refused(tmp_path, capsys):
-    directory, _ticket = day_dir(tmp_path)
-    args = type("A", (), {"ticket": None, "mailbox": None, "lookback_days": 7, "min_date": None})()
-    assert W.since(directory, args) == 1 and "options.mailbox" in capsys.readouterr().err
-
-
 def test_a_ticketed_job_with_no_mailbox_is_refused(tmp_path, monkeypatch, capsys):
     directory, ticket = day_dir(tmp_path, options={})
     monkeypatch.setattr(W, "open_ticket", lambda tid, stage=None: ticket)
-    args = type("A", (), {"ticket": ticket["ticket"], "mailbox": None, "lookback_days": 7, "min_date": None})()
+    args = type("A", (), {"ticket": ticket["ticket"], "lookback_days": 7})()
     assert W.since(directory, args) == 1 and "options.mailbox" in capsys.readouterr().err
 
 
@@ -621,7 +604,7 @@ def test_a_wrong_positional_is_ignored_for_the_tickets_own_capture_dir(tmp_path)
 def test_only_a_day_directory_is_written_into(tmp_path):
     leaf = tmp_path / "_raw" / "mail" / "inbox--0a1b2c3d"
     leaf.mkdir(parents=True)
-    r = subprocess.run([sys.executable, str(SCRIPT), "write", str(leaf), "--mailbox", "a@example.invalid"], input="[]", capture_output=True, text=True)
+    r = subprocess.run([sys.executable, str(SCRIPT), "write", str(leaf), "--ticket", TICKET_ID], input="[]", capture_output=True, text=True)
     assert r.returncode == 2 and not (leaf / "items").exists()
 
 
@@ -644,7 +627,7 @@ def test_write_the_documented_way_finds_a_bare_from_inside_the_capture_dir(tmp_p
 
 def test_a_dot_is_not_the_capture_dir_and_a_nested_pull_is_named(tmp_path):
     directory, ticket = day_dir(tmp_path)
-    r = subprocess.run([sys.executable, str(SCRIPT), "write", ".", "--mailbox", "a@example.invalid"],
+    r = subprocess.run([sys.executable, str(SCRIPT), "write", ".", "--ticket", TICKET_ID],
                         capture_output=True, text=True, cwd=tmp_path, stdin=subprocess.DEVNULL)
     assert r.returncode == 2 and "wiki-relative" in r.stderr
     # A worker standing IN the capture dir wrote `<capture_dir>/pull.json` relative to it: inside the grant, and nested.
@@ -671,7 +654,7 @@ def test_the_process_step_builds_the_page_as_an_argv_list_with_the_body_on_stdin
     this goes on a shell line."""
     directory, ticket = pulled(tmp_path, msg(1), msg(2))
     root = directory.parents[2]
-    r = ledger(directory, ticket, [line_for(1), line_for(2)], "--dest", "research/channels/mail")
+    r = ledger(directory, ticket, [line_for(1), line_for(2)])
     assert r.returncode == 0, r.stderr
     (call,) = page_calls(root)
     assert call["argv"] == ["page", "create", f"title={DAY}", "dest=research/channels/mail", "type=ledger",
@@ -685,7 +668,7 @@ def test_the_nested_front_door_call_does_not_carry_the_harness_project_dir(tmp_p
     never a directory the harness named."""
     directory, ticket = pulled(tmp_path, msg(1))
     root = directory.parents[2]
-    assert ledger(directory, ticket, [line_for(1)], "--dest", "research/channels/mail").returncode == 0
+    assert ledger(directory, ticket, [line_for(1)]).returncode == 0
     (call,) = page_calls(root)
     assert call["project"] is None
 
@@ -695,7 +678,7 @@ def test_a_second_pull_of_the_day_edits_the_page_the_first_one_left(tmp_path):
     filename IS the title — and the day's ledger is regenerated whole."""
     directory, ticket = pulled(tmp_path, msg(1))
     root = directory.parents[2]
-    r = ledger(directory, ticket, [line_for(1)], "--dest", "research/channels/mail", create_code=2)
+    r = ledger(directory, ticket, [line_for(1)], create_code=2)
     assert r.returncode == 0, r.stderr
     create, edit = page_calls(root)
     assert create["argv"][1] == "create"
@@ -708,7 +691,7 @@ def test_a_second_pull_of_the_day_edits_the_page_the_first_one_left(tmp_path):
 def test_a_page_that_could_not_be_written_is_a_failed_report_naming_both_refusals(tmp_path):
     directory, ticket = pulled(tmp_path, msg(1))
     root = directory.parents[2]
-    r = ledger(directory, ticket, [line_for(1)], "--dest", "research/channels/mail", create_code=2, edit_code=1)
+    r = ledger(directory, ticket, [line_for(1)], create_code=2, edit_code=1)
     assert r.returncode == 1 and len(page_calls(root)) == 2
     rep = report(directory)
     assert rep["status"] == "failed" and rep["written"] == [] and "page create" in rep["reason"] and "page edit" in rep["reason"]
@@ -717,7 +700,7 @@ def test_a_page_that_could_not_be_written_is_a_failed_report_naming_both_refusal
 def test_the_process_report_names_the_page_and_captures_nothing(tmp_path):
     directory, ticket = pulled(tmp_path, msg(1), msg(2))
     assert report(directory)["captured"], "the harvest named the day"
-    assert ledger(directory, ticket, [line_for(1), line_for(2)], "--dest", "research/channels/mail").returncode == 0
+    assert ledger(directory, ticket, [line_for(1), line_for(2)]).returncode == 0
     rep = report(directory)
     assert rep["status"] == "ok" and rep["reason"] is None
     assert rep["written"] == [f"research/channels/mail/{DAY}.md"]
@@ -728,7 +711,7 @@ def test_the_process_report_names_the_page_and_captures_nothing(tmp_path):
 def test_a_junked_item_is_counted_and_never_rendered(tmp_path):
     directory, ticket = pulled(tmp_path, msg(1), msg(2, subject="Weekly digest", body="secret"))
     root = directory.parents[2]
-    r = ledger(directory, ticket, [line_for(1), line_for(2, junk="newsletter")], "--dest", "research/channels/mail")
+    r = ledger(directory, ticket, [line_for(1), line_for(2, junk="newsletter")])
     assert r.returncode == 0, r.stderr
     body = page_calls(root)[0]["body"]
     assert body.count("\n- ") == 0 and body.startswith("- Person 1 asks")  # one bullet, and it is not the digest's
@@ -741,7 +724,7 @@ def test_an_item_the_step_judged_nothing_about_keeps_its_bullet_and_says_so(tmp_
     """A line missing loses a wording, never the item — and the report says how many."""
     directory, ticket = pulled(tmp_path, msg(1), msg(2, subject="paid — gmail:forged **now**"))
     root = directory.parents[2]
-    r = ledger(directory, ticket, [line_for(1)], "--dest", "research/channels/mail")
+    r = ledger(directory, ticket, [line_for(1)])
     assert r.returncode == 0, r.stderr
     bullets = [line for line in page_calls(root)[0]["body"].splitlines() if line.startswith("- ")]
     assert bullets[1] == "- paid - gmail:forged ∗∗now∗∗ — gmail:m2"  # the sender's own, neutralized
@@ -753,7 +736,7 @@ def test_an_item_the_step_judged_nothing_about_keeps_its_bullet_and_says_so(tmp_
 def test_a_day_with_no_items_is_ok_with_no_page(tmp_path):
     directory, ticket = day_dir(tmp_path)
     root = directory.parents[2]
-    r = ledger(directory, ticket, [], "--dest", "research/channels/mail")
+    r = ledger(directory, ticket, [])
     assert r.returncode == 0, r.stderr
     assert not page_calls(root)
     rep = report(directory)
@@ -765,6 +748,6 @@ def test_the_lines_are_found_inside_the_capture_dir_by_their_bare_name(tmp_path)
     root = directory.parents[2]
     (directory / "lines.json").write_text(json.dumps([line_for(1, "the wiki's own line")]), encoding="utf-8")
     for flags in (("--from", "lines.json"), ()):  # the bare name, and the default
-        assert script("ledger", directory, ticket, "--dest", "research/channels/mail", *flags).returncode == 0
+        assert script("ledger", directory, ticket, *flags).returncode == 0
     assert all("the wiki's own line" in call["body"] for call in page_calls(root))
     assert (directory / "lines.json").exists()  # read, never consumed: the page is regenerated whole

@@ -445,7 +445,7 @@ def test_since_is_the_watermark_else_the_lookback(tmp_path, monkeypatch, capsys)
     directory, ticket = day_dir(tmp_path)
     monkeypatch.setattr(W, "open_ticket", lambda tid, stage=None: ticket)
     now = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)
-    args = type("A", (), {"ticket": ticket["ticket"], "workspace": None, "lookback_days": 14, "min_date": None})()
+    args = type("A", (), {"ticket": ticket["ticket"], "lookback_days": 14})()
     assert W.since(directory, args, now=now) == 0
     first = json.loads(capsys.readouterr().out)
     assert first == {"workspace": "harness", "first_pull": True, "since": "2026-09-04T12:00:00.000Z",
@@ -556,18 +556,17 @@ def test_write_failed_the_documented_way_and_the_refusals(tmp_path):
     assert r.returncode == 1 and report(directory)["missing"] == [{"host": "api.notion.com", "url": "https://api.notion.com/v1/users/me", "why": "auth"}]
     assert script("write", directory, ticket, "--cap", "-1").returncode == 2 and script("write", directory, ticket, "--cap", "0").returncode == 2
     for verb in ("since", "write", "ledger"):
-        dot = subprocess.run([sys.executable, str(SCRIPT), verb, ".", "--workspace", "harness"],
+        dot = subprocess.run([sys.executable, str(SCRIPT), verb, ".", "--ticket", TICKET_ID],
                               capture_output=True, text=True, cwd=tmp_path, stdin=subprocess.DEVNULL)
         assert dot.returncode == 2 and "wiki-relative" in dot.stderr, verb
     bare = tmp_path / "_raw" / "none" / DAY
     bare.mkdir(parents=True)
-    for verb in ("since", "write"):
-        r2 = script(verb, bare, None)  # no --ticket, no --workspace
-        assert r2.returncode == 2, verb
-    r3 = script("ledger", bare, None)  # no --ticket, no --dest
-    assert r3.returncode == 2
-    hand = since(bare, None, "--workspace", "harness", "--min-date", "2026-09-10")
-    assert hand.returncode == 0 and json.loads(hand.stdout)["since_day"] >= "2026-09-10"
+    for verb in ("since", "write", "ledger"):
+        r2 = script(verb, bare, None)  # no --ticket: refused, and nothing stands in for one
+        assert r2.returncode == 2 and "--ticket" in r2.stderr, verb
+        for flag in (("--workspace", "harness"), ("--min-date", "2026-09-10"), ("--dest", "research/channels/none")):
+            r3 = script(verb, bare, None, *flag, "--ticket", TICKET_ID)
+            assert r3.returncode == 2 and "unrecognized arguments" in r3.stderr, (verb, flag)
 
 
 def test_a_wrong_positional_is_ignored_for_the_tickets_own_capture_dir(tmp_path):
@@ -700,8 +699,8 @@ def door(tmp_path):
     return plan
 
 
-def landed(directory: Path, ticket: dict, door, *steps, flags=("--dest", "research/channels/tasks")):
-    return script("ledger", directory, ticket, *flags, env=door(ticket, *steps))
+def landed(directory: Path, ticket: dict, door, *steps):
+    return script("ledger", directory, ticket, env=door(ticket, *steps))
 
 
 def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on_stdin(tmp_path, door):
@@ -760,13 +759,13 @@ def test_an_item_with_no_line_of_this_units_own_keeps_its_task_title_and_says_so
 
 def test_a_day_with_nothing_to_render_is_ok_and_never_a_page(tmp_path, door):
     empty, empty_ticket = day_dir(tmp_path, slug="empty")
-    r = landed(empty, empty_ticket, door, (0, {}), flags=("--dest", "research/channels/empty"))
+    r = landed(empty, empty_ticket, door, (0, {}))
     assert r.returncode == 0 and report(empty)["status"] == "ok" and not (tmp_path / "seen.json").exists()
 
     junked, junked_ticket = day_dir(tmp_path, slug="junked")
     assert write(junked, junked_ticket, [task(1)]).returncode == 0
     (junked / "lines.json").write_text(json.dumps(lines(("0000aaaa-0001", None, "churn"))), encoding="utf-8")
-    r = landed(junked, junked_ticket, door, (0, {}), flags=("--dest", "research/channels/junked"))
+    r = landed(junked, junked_ticket, door, (0, {}))
     assert r.returncode == 0 and not (tmp_path / "seen.json").exists()
     assert report(junked)["status"] == "ok" and "junk rule" in report(junked)["reason"]
 
@@ -777,5 +776,6 @@ def test_the_ledger_refuses_a_dest_it_cannot_write(tmp_path, door):
     r = script("ledger", directory, ticket, env=door(ticket, (0, {})))
     assert r.returncode == 1 and report(directory)["status"] == "failed" and "no usable dest" in report(directory)["reason"]
     for bad in ("/etc", "../outside"):
-        assert script("ledger", directory, ticket, "--dest", bad, env=door(ticket, (0, {}))).returncode == 1
+        bad_ticket = {**ticket, "dest": bad}
+        assert script("ledger", directory, bad_ticket, env=door(bad_ticket, (0, {}))).returncode == 1
     assert not (tmp_path / "seen.json").exists()

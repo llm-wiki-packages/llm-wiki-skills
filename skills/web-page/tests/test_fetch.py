@@ -230,15 +230,11 @@ def test_a_redirecting_target_already_held_at_its_landed_url_is_known(tmp_path, 
     assert not (_capture_dir(tmp_path, ticket) / "capture.json").exists()
 
 
-def test_a_target_named_on_the_command_line_needs_no_ticket(tmp_path, served):
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--target", served, "--capture-dir", str(tmp_path / "hand")],
-        capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    out = json.loads(result.stdout)
-    assert out["status"] == "ok" and out["item"] == served
-    assert not (tmp_path / "update-calls.jsonl").exists(), "a hand run posts no update"
+def test_a_url_on_the_command_line_is_no_form_of_this_script(tmp_path, served):
+    for argv in (["--target", served, "--capture-dir", str(tmp_path / "hand")], []):
+        result = subprocess.run([sys.executable, str(SCRIPT), *argv], capture_output=True, text=True, check=False)
+        assert result.returncode != 0, (argv, result.stdout)
+    assert not (tmp_path / "hand").exists() and not (tmp_path / "update-calls.jsonl").exists()
 
 
 def test_no_target_on_the_ticket_is_a_report_and_not_a_traceback(tmp_path):
