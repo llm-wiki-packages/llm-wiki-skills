@@ -7,6 +7,7 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -36,6 +37,14 @@ def _closing_the_process_ticket_discards_the_scripts_own_ledger():
     pytest.skip("plugins main c284c4839: tickets_close.py's extract_ledger overwrites a ledger job's page on close, discarding write_items.py ledger's own lines.json curation — reported, not a harness gap")
 
 
+def _machine_fragment(text: str) -> dict:
+    """The one fenced json block under `## Machine`: the nono fragment `skills install` writes to `machine.allow`."""
+    match = re.search(r"^## Machine\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    assert match, "the reference has no `## Machine` block"
+    (fence,) = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
+    return json.loads(fence)
+
+
 def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
     text = (ROOT / "references" / "sandboxes" / "notion" / "notion.harvest.md").read_text(encoding="utf-8")
     profile = jsonc(snippet(text))["profile"]
@@ -43,16 +52,18 @@ def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
     assert "api.notion.com" in network["allow_domain"]
     assert not any("notion" in h and h != "api.notion.com" for h in network["allow_domain"])
     assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
+    # The committed `## Profile` is read straight, and refuses every credential key.
+    assert set(network) == {"allow_domain"} and "credential" not in json.dumps(profile)
     # A venue route is `credentials` plus `custom_credentials`, nothing else: compose
     # mints `credential_key` and the capture, so a wiki-written one is refused.
-    assert network["credentials"] == ["notion"]
-    assert network["custom_credentials"] == {
-        "notion": {"upstream": "https://api.notion.com", "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}"}
-    }
-    assert "credential_capture" not in json.dumps(profile) and "cmd://" not in json.dumps(profile)
+    assert _machine_fragment(text) == {"network": {
+        "credentials": ["notion"],
+        "custom_credentials": {"notion": {
+            "upstream": "https://api.notion.com", "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
+        }},
+    }}
     # The route is this stage's, resolved from the wiki's vault: no login, no harness-profile route.
-    assert "## Machine" not in text and "## Probe" not in text
-    assert "llm-wiki-ops credentials set notion" in text
+    assert "## Probe" not in text and "llm-wiki-ops credentials set notion" in text
     assert "never the harness profile's" in " ".join(text.split())
     assert "~/.config/llm-wiki" not in text
 

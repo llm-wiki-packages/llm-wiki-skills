@@ -27,18 +27,21 @@ harness`.
 
 ## Credential
 
-A venue route, `notion`, in this sandbox's `## Profile` below: `upstream`
-`https://api.notion.com`, `env_var` `NOTION_API_TOKEN`, `credential_format`
-`"Bearer {}"`. It is the stage's, never the harness profile's: a harness
-profile's routes ride every session jail of that harness, in every wiki on
-the machine, while this one reaches Notion only from this stage.
+A venue route, `notion`, in this sandbox's `## Machine` block below:
+`upstream` `https://api.notion.com`, `env_var` `NOTION_API_TOKEN`,
+`credential_format` `"Bearer {}"`. `sandboxes enable` asks the operator
+before it writes the fragment to this machine's allow file; a peer's commit
+grants nothing by itself. The route is the stage's, never the harness
+profile's: a harness profile's routes ride every session jail of that
+harness, in every wiki on the machine, while this one reaches Notion only
+from this stage.
 
 The route's token is the wiki's own, in its credential vault under the
 route's name. Mint nothing else: `llm-wiki-ops credentials set notion`, the
 Notion bot token on stdin, once per machine that harvests. `sandboxes
-compose` adds the capture that reads that name, so the profile carries none.
-`requires.credential` stays `false`: nothing is bound to a job and no
-payload file is granted.
+compose` adds the `credential_key` and the capture that read that name, so
+the fragment carries neither. `requires.credential` stays `false`: nothing
+is bound to a job and no payload file is granted.
 
 In the jail `NOTION_API_TOKEN` holds a phantom. The proxy adds the real
 token, as `Authorization: Bearer <token>`, only to requests bound for
@@ -69,29 +72,39 @@ token, as `Authorization: Bearer <token>`, only to requests bound for
   "profile": {
     "meta": {
       "name": "notion-harvest",
-      "description": "the Notion harvest slice: this venue's API host and route."
+      "description": "the Notion harvest slice: this venue's API host."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
         // The venue: Notion's public API, the one host `ntn` calls.
         "api.notion.com"
-      ],
-      // The route is named here and stated below; compose resolves its token
-      // from this wiki's vault entry of the same name.
-      "credentials": ["notion"],
-      "custom_credentials": {
-        "notion": {
-          "upstream": "https://api.notion.com",
-          "env_var": "NOTION_API_TOKEN",
-          "credential_format": "Bearer {}"
-        }
-      }
+      ]
     },
     "environment": {
       "set_vars": {
         // Pinned, so `ntn` never dials developers.notion.com for the latest.
         "NOTION_API_VERSION": "2025-09-03"
+      }
+    }
+  }
+}
+```
+
+## Machine
+
+The venue route, as a nono fragment `skills install` writes to the
+template's `machine.allow`. Nothing in it names a machine path.
+
+```json
+{
+  "network": {
+    "credentials": ["notion"],
+    "custom_credentials": {
+      "notion": {
+        "upstream": "https://api.notion.com",
+        "env_var": "NOTION_API_TOKEN",
+        "credential_format": "Bearer {}"
       }
     }
   }
