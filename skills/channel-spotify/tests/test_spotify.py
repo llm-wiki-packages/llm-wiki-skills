@@ -1068,6 +1068,10 @@ EMBED = {"props": {"pageProps": {"state": {"data": {"entity": {
 EMBED_ROUTES = {"https://open.spotify.com/embed/": {"text": f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(EMBED)}</script>'}}
 
 
+def spotify_ua() -> str:
+    return re.search(r'^UA = \{"User-Agent": "([^"]+)"\}$', SCRIPT.read_text(encoding="utf-8"), re.M).group(1)
+
+
 def _seen_requests(tmp_path: Path) -> list:
     path = tmp_path / "requests.jsonl"
     return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
@@ -1101,7 +1105,8 @@ def test_the_route_is_spent_on_the_token_request_alone_as_its_phantom(tmp_path):
     asked = _seen_requests(tmp_path)
     token, api = asked[0], asked[1:]
     assert token["url"] == "https://accounts.spotify.com/api/token" and token["auth"] is None
-    assert token["headers"]["Authorization"] == "Basic phantom-grant" and token["data"] == {"grant_type": "client_credentials"}
+    assert token["headers"] == {"Authorization": "Basic phantom-grant", "User-Agent": spotify_ua()}
+    assert token["data"] == {"grant_type": "client_credentials"}
     assert api and all(q["url"].startswith("https://api.spotify.com/") for q in api)
     assert all(q["headers"].get("Authorization") == "Bearer tok" for q in api)
     assert "phantom-grant" not in json.dumps(api)

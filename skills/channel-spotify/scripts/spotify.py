@@ -24,7 +24,7 @@ Subcommands:
                 capture.json naming meta.json as the body. No page, no facts
                 object. Reads the URL, slug, min_date and asset policy off
                 `tickets open`: --ticket is required.
-  process       PROCESS: meta.json -> the page, written under --dest through
+  process       PROCESS: meta.json -> the page, written under the ticket's dest through
                 `llm-wiki-ops page create` (or `page edit` when it is already
                 there), as a subprocess with an argv list. Prints the pages it
                 wrote; the caller passes them to `report --written-from`.
@@ -387,7 +387,10 @@ def get_token():
             break
         time.sleep(backoff_seconds(r))
     if r.status_code != 200:
-        die(f"token request failed ({r.status_code}): {r.text[:200]}")
+        die(
+            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is enabled and its grant "
+            f"is missing or wrong: `llm-wiki-ops credentials set spotify` (references/enable.md)"
+        )
     tok = r.json()
     _token_cache = {"token": tok["access_token"], "expires_at": time.time() + tok.get("expires_in", 3600)}
     return _token_cache["token"]
@@ -743,10 +746,7 @@ DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 
 
 def opened_ticket(ticket_id, stage=None):
-    """This worker's ticket through `tickets open` (A-1). Every input a step
-    reads is the ticket's: a run with no ticket is refused, never fed by hand."""
-    if not ticket_id:
-        die("no --ticket: a stage runs on its ticket, in its jail")
+    """This worker's ticket through `tickets open` (A-1): every input a step reads."""
     return open_ticket(ticket_id, stage)
 
 
@@ -1089,8 +1089,8 @@ def write_page(root, *, title, dest, body, keys):
 
 def cmd_process(a):
     # Same directory rule as `capture`: `llm-wiki-ops run` starts this script in
-    # the WIKI ROOT, so `--capture-dir` and `--dest` are both wiki-relative and
-    # verbatim off the ticket. The STEP is never read here — it is the `stage=`
+    # the WIKI ROOT, so `--capture-dir` is wiki-relative and verbatim off the
+    # ticket, as is the `dest` the ticket names. The STEP is never read here — it is the `stage=`
     # the prompt carries, and this subcommand is what that argument chose.
     cap = Path(a.capture_dir)
     ticket = opened_ticket(a.ticket, "process")
@@ -1212,8 +1212,6 @@ def cmd_report(a):
     2 refused (nothing posted)."""
     cap = Path(a.capture_dir)  # wiki-relative: `llm-wiki-ops run` starts this in the wiki root
     ticket_id = a.ticket
-    if not ticket_id:
-        die("no --ticket")
     # Read, then REMOVED, before anything below can refuse: a refusal that left
     # an earlier verdict in place would be read as this run's.
     try:
@@ -1441,7 +1439,7 @@ def main():
 
     c = sub.add_parser(
         "process",
-        help="build the page from a capture and write it under --dest (`page create`, or `page edit` when it is there)",
+        help="build the page from a capture and write it under the ticket's dest (`page create`, or `page edit` when it is there)",
     )
     c.add_argument(
         "--capture-dir", required=True,

@@ -175,6 +175,8 @@ gets no `published` key at all.
   phantom, `capture` sends it on the one token request, and the proxy puts the
   wiki's own grant there. You call no `credentials` verb and read no login.
   The operator stores the grant once per machine (`references/enable.md`).
+- With the route enabled and no grant stored, the token request fails and the
+  capture says so: nothing falls back to another account.
 - **Keyless degradation**: with no route, `meta`/`capture` fall back to the
   public embed endpoint — entity name and a possibly **truncated** item list,
   `"keyless": true`, and a warning callout on the page.

@@ -158,3 +158,33 @@ def test_the_route_installs_as_the_venue_templates_machine_widening(ops, env, wi
     }}]}, template.get("machine")
     script = (ROOT / "skills" / "channel-spotify" / "scripts" / "spotify.py").read_text(encoding="utf-8")
     assert re.search(r'^ROUTE_ENV = "SPOTIFY_TOKEN_AUTH"$', script, re.M), "the script reads another variable than the route names"
+
+
+def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
+    """Bound to the venue template `skills install` wrote, the stage's jail
+    carries the route's variable — holding a phantom, never the stored grant."""
+    job = declared_job(ops, env, wiki, "channel-spotify", "https://open.spotify.com/show/sh00000000000000000007",
+                       slug="harness-spotify-route")
+    ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    grant = "aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA=="
+
+    def bind(sandbox):
+        for verb in (["skills", "bind", "channel-spotify", "stage=harvest", f"sandbox={sandbox}", "--confirm"],
+                     ["git", "commit", f"{ops_dir}/skills/channel-spotify/manifest.json", f"message=harness: harvest on {sandbox}"],
+                     ["skills", "enable", "channel-spotify", "--confirm"]):
+            done = run(ops, attended, "--json", *verb)
+            assert done.returncode == 0, (verb, done.stdout + done.stderr)
+
+    for verb, stdin in ((["credentials", "set", "spotify"], grant), (["sandboxes", "enable", "spotify-harvest", "--confirm"], None)):
+        done = run(ops, attended, "--json", *verb, input=stdin)
+        assert done.returncode == 0, (verb, done.stdout + done.stderr)
+    bind("spotify-harvest")
+    try:
+        ticket_id, _cap = claimed(ops, env, wiki, job)
+        session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
+    finally:
+        bind("channel-spotify-harvest")  # every other case here runs on the reference's profile alone
+    phantom = session.step("route")
+    assert phantom.returncode == 0 and phantom.stdout.strip(), phantom
+    assert grant not in session.log and "harness-secret" not in session.log

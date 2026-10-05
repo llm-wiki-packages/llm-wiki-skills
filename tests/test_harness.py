@@ -3,9 +3,11 @@ rather than a red test."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from harness import NEUTRAL_CWD, ROOT, Session, _cli, _cli_python, claimed, declared_job, shown, staged
+from harness import NEUTRAL_CWD, ROOT, STEP_MARK, Result, Session, _cli, _cli_python, claimed, declared_job, shown, staged
 
 
 def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
@@ -23,11 +25,28 @@ def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
     assert shown(ops, env, wiki, ticket_id)["state"] == "done"  # the pass the slice's exit runs landed it
 
 
+def test_a_step_reports_its_own_exit_code_stdout_and_stderr_from_inside_the_jail(ops, env, wiki):
+    """No `tickets update` and no `run`: a plan's step is read back whole however the stage ends."""
+    job = declared_job(ops, env, wiki, "channel-frameio", "https://next.frame.io/share/00000000-0000-0000-0000-00000000bbbb",
+                       slug="harness-step")
+    ticket_id, _capture_dir = claimed(ops, env, wiki, job)
+    session = staged(ops, env, wiki, ticket_id, "step bad sh -c 'echo o; echo e >&2; exit 3'\nstep gone /no/such/command\n"
+                                               "step input sh -c 'cat' < /dev/null\n")
+    bad = session.step("bad")
+    assert (bad.returncode, bad.stdout, bad.stderr) == (3, "o\n", "e\n")
+    gone = session.step("gone")
+    assert gone.returncode == 127 and "/no/such/command" in gone.stderr
+    assert session.step("input") == Result(0, "", "")
+
+
 def test_a_step_is_read_back_off_the_log_between_the_runtimes_own_lines():
-    log = "nono: Executing\n@@out a\n{\"x\": 1}\n\n@@err a\nwarn\n@@rc a 0\nINFO proxy\n@@out b\n\n@@err b\nboom\n@@rc b 2\n"
+    log = ("nono: Executing\n"
+           f'{STEP_MARK}{json.dumps({"name": "a", "rc": 0, "out": chr(123) + chr(34) + "x" + chr(34) + ": 1}", "err": "warn"})}\n'
+           "INFO proxy request allowed host=x\n"
+           f'{STEP_MARK}{json.dumps({"name": "b", "rc": 2, "out": "", "err": "boom"})}\n')
     session = Session({}, log)
-    assert session.step("a").data == {"x": 1} and session.step("a").stderr.strip() == "warn"
-    assert session.step("b").returncode == 2 and session.step("b").stderr.strip() == "boom"
+    assert session.step("a").data == {"x": 1} and session.step("a").stderr == "warn"
+    assert session.step("b") == Result(2, "", "boom")
     with pytest.raises(AssertionError):
         session.step("c")
 

@@ -9,16 +9,20 @@
    terminal, once per machine that harvests:
 
    ```sh
-   tr -d '\n' | base64 | tr -d '\n' | llm-wiki-ops credentials set spotify
+   tr -d '\n' | base64 | tr -d '\n'; echo
+   llm-wiki-ops credentials set spotify
    ```
 
-   then types `<client_id>:<client_secret>`, Enter, and Ctrl-D. The value is
-   the client-credentials grant, base64 of that pair, read on stdin and never
-   an argument (argv is readable in `ps` and lands in shell history). In the harvest's jail the
+   The first line reads `<client_id>:<client_secret>` typed at the terminal
+   (Enter, then Ctrl-D) and prints the grant, base64 of that pair; the second
+   asks for the value without echo — paste the grant there. Neither puts it in
+   an argument (argv is readable in `ps` and lands in shell history), and
+   `credentials set` asks only at a terminal: its stdin is not a pipe. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
-   token request bound for `accounts.spotify.com`. Without it the capture
-   degrades to the keyless embed fallback: possibly-truncated item lists,
-   flagged `"keyless": true` and with a warning callout in the note.
+   token request bound for `accounts.spotify.com`. With the route enabled and
+   no grant stored, the token request fails and the harvest says so; with no
+   route the capture degrades to the keyless embed fallback: possibly-truncated
+   item lists, flagged `"keyless": true` and with a warning callout in the note.
 2. **Non-URL requests** ("add the Lex Fridman podcast episode 400"): ask the
    operator for the entity's Spotify URL, then watch that. Nothing in this
    unit searches the catalog.

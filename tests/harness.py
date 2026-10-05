@@ -398,47 +398,56 @@ class Session:
 
     def step(self, name: str) -> Result:
         """One `step` of the plan: its exit code, stdout and stderr."""
-        found = re.search(
-            rf"^@@out {re.escape(name)}\n(.*?)\n@@err {re.escape(name)}\n(.*?)\n@@rc {re.escape(name)} (\d+)$",
-            self.log, re.M | re.S,
-        )
-        assert found, f"the session ran no step {name!r}:\n{self.log[-4000:]}"
-        out, err, rc = found.groups()
-        return Result(int(rc), out, err)
+        for line in self.log.splitlines():
+            if line.startswith(STEP_MARK):
+                said = json.loads(line[len(STEP_MARK):])
+                if said["name"] == name:
+                    return Result(said["rc"], said["out"], said["err"])
+        raise AssertionError(f"the session ran no step {name!r}:\n{self.log[-4000:]}")
 
 
 # What every plan starts with. `step NAME CMD...` runs one command the way a
-# session types it and prints its stdout, then its stderr and exit code, each
-# behind a marker `Session.step` reads back off the log. No temporary file: a
-# jail may write `/tmp` and still not read it back. `OPS` is the CLI the spawn
-# hands the jail; `FIX` is the case's fixtures, under `AGENT_DIR`.
+# session types it and prints its exit code, stdout and stderr as ONE JSON
+# line behind `STEP_MARK`, in one write: the runtime logs into the same file,
+# and a line it writes cannot land inside a step's output. Run by the CLI's
+# own interpreter, which every jail is granted. No temporary file: a jail may
+# write `/tmp` and still not read it back. `OPS` is the CLI the spawn hands
+# the jail; `FIX` is the case's fixtures, under `AGENT_DIR`.
+STEP_MARK = "@@step "
+_STEP_PY = """\
+import json, subprocess, sys
+try:
+    done = subprocess.run(sys.argv[2:], capture_output=True)
+    rc, out, err = done.returncode, done.stdout, done.stderr
+except OSError as exc:
+    rc, out, err = 127, b"", str(exc).encode()
+line = {"name": sys.argv[1], "rc": rc, "out": out.decode("utf-8", "replace"), "err": err.decode("utf-8", "replace")}
+sys.stdout.write(%r + json.dumps(line) + "\\n")
+""" % STEP_MARK
 PLAN_HEAD = """\
 OPS="$LLM_WIKI_OPS"
+PY="$(dirname "$LLM_WIKI_OPS")/python"
 TICKET={ticket}
 CAP={capture}
 FIX={fixtures}
-export OPS TICKET CAP FIX
+export OPS PY TICKET CAP FIX
 step() {{
-    name=$1; shift
-    echo "@@out $name"
-    {{ err=$("$@" 2>&1 1>&3 3>&-); rc=$?; }} 3>&1
-    printf '\\n@@err %s\\n%s\\n@@rc %s %s\\n' "$name" "$err" "$name" "$rc"
+    "$PY" -c {step_py} "$@"
 }}
 cd "$LLM_WIKI_ROOT"
 """
 
-# The runner's own words where this machine cannot start a jail at all: no
-# sandbox runtime on PATH, or a platform that cannot hold the composed denies.
-NO_JAIL = ("no sandbox runtime", "no deny primitive")
+# The runner's own words where this machine has no sandbox runtime at all.
+# Nothing else skips: a jail the runner refuses to compose is a failure.
+NO_JAIL = "no sandbox runtime on this machine"
 
 
 def no_jail_here(answer: Result) -> None:
-    """Skip, quoting the runner, where it could not start a stage's jail."""
+    """Skip, quoting the runner, where this machine has no runtime to start a stage's jail with."""
     text = answer.stdout + answer.stderr
-    for words in NO_JAIL:
-        if words in text:
-            at = text.index(words)
-            pytest.skip(f"this machine cannot start a stage's jail, so no stage runs here: {text[at:at + 300]}")
+    if NO_JAIL in text:
+        at = text.index(NO_JAIL)
+        pytest.skip(f"this machine cannot start a stage's jail, so no stage runs here: {text[at:at + 300]}")
 
 
 # llm-wiki-plugins #3080: what stops a stage inside its slice on plugins main,
@@ -450,7 +459,8 @@ def no_jail_here(answer: Result) -> None:
 # has nothing left to prove on this box.
 def plugin_refused(wiki: Path, text: str) -> None:
     refusals = {
-        f"Permission denied: '{Path(wiki).resolve()}'": "a Linux slice cannot list the wiki root, so `tickets update` and `extract.py` die on it",
+        f"PermissionError: [Errno 13] Permission denied: '{Path(wiki).resolve()}'":
+            "a Linux slice cannot list the wiki root, so `tickets update` and `extract.py` die on it",
         "`git ls-files` failed (128) rather than saying whether .agents/ is tracked": "`run` refuses every unit script in a slice: `git ls-files` there answers 'not a git repository'",
     }
     for words, why in refusals.items():
@@ -472,7 +482,8 @@ def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict
         (fixtures / name).parent.mkdir(parents=True, exist_ok=True)
         (fixtures / name).write_bytes(data)
     capture = capture_of(ops, env, wiki, ticket).relative_to(wiki)
-    head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)))
+    head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)),
+                            step_py=shlex.quote(_STEP_PY))
     (AGENT_DIR / f"plan.{ticket}.sh").write_text(head + plan, encoding="utf-8")
     r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "run", ticket, f"wait={wait}")
     no_jail_here(r)

@@ -304,8 +304,7 @@ children AND the 5xx count hits 0. Probe with the bundled script
 llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py . --ticket <id> [--settle-ms 8000]
 ```
 
-It probes the ticket's own `target`, through `tickets open` (a url on the
-command line is for a run with no ticket). Always exits 0 and prints a JSON verdict;
+It probes the ticket's own `target`, through `tickets open`. Always exits 0 and prints a JSON verdict;
 `fixed` means auth is OK, no 5xx was seen, and the content wrapper has real
 children. Use it to gate a harvest behind an outage.
 
