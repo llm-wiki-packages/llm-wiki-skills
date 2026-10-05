@@ -162,8 +162,8 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
 - **This unit reads no secret** — `requires.credential: false`, so the
   ticket's own `credential` is null. What authenticates a capture is the
   persistent Chrome PROFILE the login helper minted for the domain;
-  `capture_lesson.py` asks `llm-wiki-ops --json credential profile-dir
-  <domain>` for it, and `exists: false` means no login has run on this machine.
+  `capture_lesson.py` asks `llm-wiki-ops --json credentials info
+  <domain>` for it; a `dir` no login has verified means none has run here.
 - One-time manual login, by a person at a browser, which the host arranges
   and a worker never does: `llm-wiki-ops credentials set <domain> kind=dir
   login=browser host=<domain>`, then `llm-wiki-ops credentials login <domain>`.
