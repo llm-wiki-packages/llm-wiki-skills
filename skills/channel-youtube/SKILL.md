@@ -43,7 +43,7 @@ it in the stage's jail as
 `llm-wiki-ops run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
 and `scripts/capture_video.py` is the whole worker. It reads the ticket (`item`, `capture_dir`,
 `known[]`, `refresh`), clears what an earlier run left in the capture
-directory, runs both `yt-dlp` commands (Capture, below) with the item as one
+directory (`enrich/` too: it was made from the old bytes), runs both `yt-dlp` commands (Capture, below) with the item as one
 argv element, writes the capture record, and posts `tickets update` itself:
 
 - `ok` — `metadata.json` landed; captions are process's question, not this one's.
@@ -90,9 +90,11 @@ llm-wiki-ops run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-
 It writes the body as `page.md` beside the bytes, then the page under `dest`
 through `page create` (or `page edit` for a title `dest` already holds), and
 leaves the paths in `written.json`. One JSON line out — `written`, `page`,
-`has_transcript`, `chapters`, `description`. A non-zero exit means NOTHING
-landed: post `failed` with its last stderr line. The page's shape is
-`references/note-shape.md`.
+`has_transcript`, `chapters`, `description`, `watch_notes`. A non-zero exit
+means NOTHING landed: post `failed` with its last stderr line. The page's shape
+is `references/note-shape.md`, which also says how an enrich unit's
+`enrich/watch.md` becomes the page's "Watch notes"; with none, the page is
+harvest's alone.
 
 **4. Post progress — last.**
 
@@ -144,7 +146,8 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   facts list, the description as a blockquote (URLs linkified, the creator's own
   TIMESTAMPS turned into a list, hashtag pile removed), and the transcript as
   chapter-headed timestamped sections.
-- **No summary.** An unfilled placeholder is worse than no section.
+- **No summary of its own.** An unfilled placeholder is worse than no section;
+  a summary exists only where an enrich unit wrote one.
 
 ### Media
 

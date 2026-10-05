@@ -342,3 +342,28 @@ def test_the_shared_title_rule_holds_what_the_host_refuses():
     assert safe("index") != "index" and safe("Index").casefold() != "index"
     assert safe("") == "Untitled" and safe("   ", fallback="x") == "x" and safe(None) == "Untitled"
 
+
+# Units that serve the enrich stage and nothing else: they write no page, so
+# they are not channel units, and the unit that writes the page names them.
+ENRICHERS = [n for n in SKILLS if list(unit_manifest(n).get("stages", {})) == ["enrich"]]
+
+
+@pytest.mark.parametrize("name", ENRICHERS)
+def test_an_enrich_unit_is_invoked_by_ticket_and_stage_and_pairs_with_a_unit_that_writes_the_page(name):
+    manifest = unit_manifest(name)
+    assert manifest["kind"] == "media" and manifest["usage"] == f"/{name} ticket=<id> stage=enrich", manifest
+    assert unit_manifest(manifest["uses"])["kind"] == "channel", f"{name}: `uses` names no unit that writes a page"
+    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    front = skill.split("---", 2)[1]
+    assert re.search(r'^argument-hint:\s*"ticket=<id> stage=enrich"\s*$', front, re.M), front
+
+
+def test_the_enrich_units_carry_one_copy_of_the_files_they_share():
+    """Two units install on their own, so the judgment they share — the files
+    an enrich step leaves and the question every video is asked — is carried
+    by each, byte for byte. A copy fixed in one and not the other is two
+    engines writing to two contracts."""
+    assert len(ENRICHERS) >= 2, ENRICHERS
+    for rel in ("references/watch-notes.md", "references/question.md"):
+        digests = {n: hashlib.sha256((ROOT / "skills" / n / rel).read_bytes()).hexdigest() for n in ENRICHERS}
+        assert len(set(digests.values())) == 1, f"{rel} differs between {sorted(digests)}"

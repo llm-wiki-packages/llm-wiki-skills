@@ -61,6 +61,16 @@
     },
     {
       "type": "skill",
+      "name": "channel-youtube-watch-gemini",
+      "path": "skills/channel-youtube-watch-gemini"
+    },
+    {
+      "type": "skill",
+      "name": "channel-youtube-watch-local",
+      "path": "skills/channel-youtube-watch-local"
+    },
+    {
+      "type": "skill",
       "name": "web-page",
       "path": "skills/web-page"
     }

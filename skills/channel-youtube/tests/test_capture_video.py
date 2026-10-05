@@ -83,6 +83,13 @@ def test_a_harvest_leaves_the_bytes_a_record_and_one_ok_update(tmp_path):
     assert all(c[-2] == "--" and c[-1] == ITEM for c in calls) and len(calls) == 2
 
 
+def test_a_pull_drops_the_notes_an_enrich_unit_made_of_the_old_bytes(tmp_path):
+    (tmp_path / CAP / "enrich").mkdir(parents=True)
+    (tmp_path / CAP / "enrich" / "watch.md").write_text("old notes")
+    harvest(tmp_path, fail="ERROR: something else")  # a failed pull never reaches `--record`, so this step's own clear is what runs
+    assert not (tmp_path / CAP / "enrich").exists()
+
+
 def test_a_known_item_is_ok_and_fetches_nothing(tmp_path):
     cp, calls, updates = harvest(tmp_path, known=[{"resource": ITEM}])
     assert cp.returncode == 0 and calls == []
@@ -126,3 +133,12 @@ def test_the_manifest_declares_the_script_beside_the_sandbox():
     assert manifest["stages"]["harvest"]["script"] == "scripts/capture_video.py"
     assert (UNIT_DIR / "scripts" / "capture_video.py").is_file() and "sandbox_ref" in manifest["stages"]["harvest"]
     assert "# /// script" not in SCRIPT.read_text()  # a block in a script stage is refused at install
+
+
+def test_a_pull_unlinks_a_symlinked_enrich_and_leaves_its_target(tmp_path):
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "keep.txt").write_text("keep")
+    (tmp_path / CAP).mkdir(parents=True)
+    (tmp_path / CAP / "enrich").symlink_to(tmp_path / "elsewhere", target_is_directory=True)
+    harvest(tmp_path, fail="ERROR: something else")  # a failed pull never reaches `--record`, so this step's own clear is what runs
+    assert not (tmp_path / CAP / "enrich").exists() and (tmp_path / "elsewhere" / "keep.txt").is_file()

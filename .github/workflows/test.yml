@@ -100,6 +100,8 @@ jobs:
       # stage's jail with: without it every staged harness case skips, saying so.
       - name: Install the binaries the manifests declare
         run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
           uv tool install yt-dlp
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install notion-cli nono

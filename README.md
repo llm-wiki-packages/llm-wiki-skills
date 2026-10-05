@@ -10,9 +10,10 @@ version = "latest"
 ```
 
 - `skills/<name>/` — a skill unit: `SKILL.md`, `manifest.json`, `references/enable.md`, `references/customize.md`, `scripts/`, `tests/`. A channel unit's manifest declares `harvest` and `process` as model-session stages; a unit like `web-page` declares a single `script` stage instead, a plain `.py` run with no model session.
+- An **enrich unit** serves the `enrich` stage and nothing else, and a job names it beside the unit that writes its page: `skill=channel-youtube enrich.skill=channel-youtube-watch-gemini`, never the enrich unit as `skill=`. `channel-youtube-watch-gemini` (Google's model watches the url; a script stage, needs a key) and `channel-youtube-watch-local` (frames and captions read on this machine; a model session) leave the same `enrich/watch.md` pair, which `channel-youtube`'s process step folds into the page as "Watch notes"
 - `skills/<name>/tests/` — the unit's own tests: its scripts against its fixtures, no CLI. They ship with the unit, so an agent in a wiki can run them from the enabled copy: `uv run --with pytest pytest <ops dir>/skills/<name>/tests -p no:cacheprovider` — one unit per invocation; the cache would read as drift
 - `tests/` — the package's: the harness (every unit installed and enabled through the real CLI, each stage run by the runner in its jail with the harness profile's fake agent as the session, `test_<venue>_harness.py`), the manifests, the docs gate, and what has to hold across every unit
-- `references/sandboxes/<venue>/<venue>.harvest.md` — the sandbox a unit's `stages.harvest.sandbox_ref` names: its hosts, bins, credential and profile snippet
+- `references/sandboxes/<venue>/<venue>.<stage>.md` — the sandbox a unit's `stages.<stage>.sandbox_ref` names: its hosts, bins, credential and profile snippet
 - `scripts/check-manifest.py` — the manifest agrees with the tree
 - `scripts/release.py` — cut a release: `bump patch|minor|major` in a PR, then `tag` on a synced main pushes `v<version>`. Wikis pin these tags; never cut one by hand
 
