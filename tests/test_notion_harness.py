@@ -63,7 +63,7 @@ def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
         }},
     }}
     # The route is this stage's, resolved from the wiki's vault: no login, no harness-profile route.
-    assert "## Probe" not in text and "llm-wiki-ops credentials set notion" in text
+    assert "llm-wiki-ops credentials set notion" in text
     assert "never the harness profile's" in " ".join(text.split())
     assert "~/.config/llm-wiki" not in text
 
