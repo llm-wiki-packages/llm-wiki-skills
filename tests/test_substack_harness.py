@@ -1,76 +1,77 @@
 """channel-substack, the harness tier: the unit installed and enabled through the REAL
-CLI, landing pages in the session wiki. Its helpers and constants are the
-unit's own tests' — `skills/channel-substack/tests/test_substack.py`, which ships with
-the unit — so a case here reads exactly as it did beside them.
+CLI, each stage started by the runner in the jail it composes, with the
+harness profile's fake agent typing what the unit's SKILL.md says. Its
+helpers and constants are the unit's own tests' —
+`skills/channel-substack/tests/test_substack.py`, which ships with the unit —
+so a case here reads exactly as it did beside them.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import pytest
 import shlex
-import shutil
 import subprocess
 
-from pathlib import Path
-
-from harness import RESOLVABLE_TEST_HOST, declared_job, landed, live_ticket, rooted, run, unit_tests
+from harness import RESOLVABLE_TEST_HOST, claimed, declared_job, pending, rooted, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-substack", "test_substack"))
 
-
-def _needs_run_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "run", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets run` (spawn=self) is plugins PR 2 (#2486)")
+SCRIPT = "ops/skills/channel-substack/scripts"
 
 
-def _script(name, *argv, cwd=None, env=None):
-    """A unit script from THIS working tree (the session wiki installs from
-    git HEAD), under `uv run` so its PEP 723 dependencies resolve. `cwd` is
-    the wiki root when a case drives the script the documented way."""
-    return subprocess.run(["uv", "run", "-q", str(SCRIPTS / name), *argv], capture_output=True, text=True, check=False, cwd=cwd, env=env)
+def harvested(ops, env, wiki, job, newsletter: str, leaves: list, pages: dict, reports: int = 1):
+    """The harvest stage, in its jail: step 1's `leaves.json` (the enumerator
+    reads the archive API, which nothing here reaches), each post's page as a
+    fetch leaves it, then `capture_posts.py` and its `--report`."""
+    ticket_id, cap = claimed(ops, env, wiki, job)
+    doc = {"v": 1, "slug": job.slug, "newsletter": newsletter, "capture_dir": str(cap.relative_to(wiki)),
+           "leaves": leaves, "summary": {"truncated": False}}
+    files = {"leaves.json": json.dumps(doc).encode()}
+    fetched = ""
+    for i, (directory, html) in enumerate(pages.items()):
+        files[f"page-{i}.html"] = html
+        fetched += f'mkdir -p {shlex.quote(directory)} && cp "$FIX/page-{i}.html" {shlex.quote(directory)}/page.html\n'
+    report = "".join(f'step report-{n} "$OPS" run {SCRIPT}/capture_posts.py --capture-dir "$CAP" --report --ticket "$TICKET"\n'
+                     for n in range(reports))  # a respawned worker reports again: same names
+    session = staged(ops, env, wiki, ticket_id, f"""\
+cp "$FIX/leaves.json" "$CAP/leaves.json"
+{fetched}step capture "$OPS" run {SCRIPT}/capture_posts.py --capture-dir "$CAP"
+{report}""", files=files)
+    for name in ("capture", *(f"report-{n}" for n in range(reports))):
+        done = session.step(name)
+        assert done.returncode == 0, (name, done.stdout + done.stderr)
+    assert session.update["status"] in ("ok", "partial"), session.update
+    return cap
 
 
-def _write_leaves(cap, wiki, newsletter, slug, leaves):
-    (cap / "leaves.json").write_text(json.dumps({
-        "v": 1, "slug": slug, "newsletter": newsletter,
-        "capture_dir": str(cap.relative_to(wiki)), "leaves": leaves, "summary": {"truncated": False}}), encoding="utf-8")
-
-
-def _paged(ops, env, wiki, capture_dir, dest, *keys, body=None):
-    """The process step exactly as SKILL.md prescribes it, against the REAL
-    CLI: convert the captured `page.html`, `page create` with that markdown on
-    stdin, then `page edit … extracted=true`. Returns the page."""
+def paged(ops, env, wiki, job, capture_dir):
+    """The process stage the harvest's landing minted for one post, in its
+    jail, exactly as SKILL.md prescribes it: convert the captured `page.html`
+    into `page create`'s stdin, `page edit … extracted=true`, then report.
+    Returns the page."""
     record = json.loads((capture_dir / "capture.json").read_text(encoding="utf-8"))
     said = json.loads((capture_dir / "leaf.json").read_text(encoding="utf-8"))
-    if body is None:
-        converted = _script(
-            "to_markdown.py", str(capture_dir / record["body"]), "--out", "-",
-            "--selector", ".available-content", "--base-url", record["item"], cwd=wiki,
-        )
-        assert converted.returncode == 0, converted.stderr
-        body = converted.stdout
-    page = f"{dest}/{record['title'].strip()}.md"
-    keys = [f"resource={record['item']}", "type=article", *keys]
+    page = f"{job.dest}/{record['title'].strip()}.md"
+    keys = [f"title={record['title']}", f"dest={job.dest}", f"resource={record['item']}", "type=article"]
     keys += [f"published={said['published']}"] if said.get("published") else []
     keys += [f"audience={said['audience']}"] if said.get("audience") else []
     # The documented lines, as a worker TYPES them: every venue value single-quoted,
     # so every content case is a quoting case too.
-    quoted = [f"'{k}'" for k in keys]
-
-    def sh(*words, stdin=body):
-        return subprocess.run(["/bin/sh", "-c", " ".join(words)], input=stdin, capture_output=True, text=True, cwd=wiki, env=env)
-
-    created = sh(shlex.join([*ops, "page", "create"]), f"'title={record['title']}'", f"'dest={dest}'", *quoted, "--stdin")
-    if created.returncode != 0:
-        # The one refusal SKILL.md names: that title is already filed, so edit its page.
-        assert created.returncode == 2 and "already exists" in created.stderr, created.stdout + created.stderr
-        created = sh(shlex.join([*ops, "page", "edit"]), f"'{page}'", *quoted, "--stdin")
-        assert created.returncode == 0, created.stdout + created.stderr
-    done = sh(shlex.join([*ops, "page", "edit"]), f"'{page}'", "extracted=true", stdin=None)
-    assert done.returncode == 0, done.stdout + done.stderr
+    quoted = " ".join(f"'{k}'" for k in keys)
+    create = (f"\"$OPS\" run {SCRIPT}/to_markdown.py \"$CAP/page.html\" --out - --selector .available-content "
+              f"--base-url '{record['item']}' | \"$OPS\" page create {quoted} --stdin")
+    process_id = pending(ops, env, wiki, job.slug)[str(capture_dir.relative_to(wiki))]
+    session = staged(ops, env, wiki, process_id, f"""\
+step create sh -c {shlex.quote(create)}
+step extracted sh -c {shlex.quote(f"\"$OPS\" page edit '{page}' extracted=true")}
+printf '%s' {shlex.quote(json.dumps([page]))} > "$CAP/written.json"
+step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+""")
+    for name in ("create", "extracted", "update"):
+        done = session.step(name)
+        assert done.returncode == 0, (name, done.stdout + done.stderr)
     return wiki / page
 
 
@@ -79,50 +80,26 @@ def _hostile_page():
     return html.replace('name="author" content="Ada Example"', 'name="author" content="Ada Example&#10;&#10;## Forged by the author&#10;&#10;```"')
 
 
-def test_one_ticket_lands_every_free_post_as_a_staged_page(ops, env, wiki, monkeypatch, capsys):
-    """The whole point of the rework: a live harvest ticket, planned by the
-    real enumerator, captured, and its `--report` posting `tickets update`
-    through the REAL CLI (no stub — `run` exports `LLM_WIKI_OPS`)."""
-    if shutil.which("uv") is None:
-        pytest.skip("no uv: to_markdown.py carries PEP 723 dependencies")
-    _needs_run_verb(ops, env, wiki)
-    # `spawn=self` refuses a ticket whose target host does not resolve to a
-    # public address (plugins main, post-#2487); `ARCHIVE`'s own
-    # (`example-newsletter.invalid`) never does. The job's OWN target (for
-    # the live dispatch) is `RESOLVABLE_TEST_HOST` instead — a real DNS name,
-    # not this box's own address (found failing on a NAT'd CI runner, whose
-    # own address is private); `_plan` below is a SEPARATE in-process call
-    # (`ticket=None`, no `--ticket`) that never reads the live ticket back,
-    # so its own `domain` argument keeps naming `ARCHIVE` — the host the
-    # fixture archive's posts are actually canonicalized under, which is
-    # what `in_scope` matches against.
+def _leaf_dir(job, item: str, name: str) -> str:
+    return f"_raw/{job.slug}/p-{name}--{hashlib.sha1(item.encode()).hexdigest()[:8]}"
+
+
+def test_one_ticket_lands_every_free_post_as_a_staged_page(ops, env, wiki, monkeypatch, capsys, tmp_path):
+    """The whole point of the rework: a harvest ticket planned by the real
+    enumerator, captured in its jail, and its `--report` posting `tickets
+    update` through the REAL CLI; one process ticket per post, each a page."""
+    # The runner refuses a ticket whose target host does not resolve to a public
+    # address; `ARCHIVE`'s own (`example-newsletter.invalid`) never does, so the
+    # job's target is `RESOLVABLE_TEST_HOST`. The enumerator runs here, in
+    # process, over the fixture archive with the API stubbed: its ticket names
+    # `ARCHIVE`, the host the fixture's posts are canonicalized under.
     job = declared_job(ops, env, wiki, UNIT, f"https://{RESOLVABLE_TEST_HOST}/archive")
     assert job.record["harvest"]["scope"] == "domain"  # the manifest's default, which the unit applies itself
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-
-    plan = _plan(monkeypatch, capsys, cap, None, ARCHIVE, "--slug", job.slug, "--out", "leaves.json")
+    plan = _plan(monkeypatch, capsys, tmp_path / "plan", _ticket(slug=job.slug), "--out", "leaves.json")
     assert set(_slugs(plan)) <= {"the-newest-one", "a-podcast-episode", "sponsored-roundup", "already-held", "ancient-history"}
-
-    # What the worker's fetch leaves: each post's rendered DOM in ITS leaf dir.
-    for leaf in plan["leaves"]:
-        directory = wiki / leaf["dir"]
-        directory.mkdir(parents=True, exist_ok=True)
-        fixture = FIX / f"post-{leaf['item'].rsplit('/', 1)[-1]}.html"
-        if fixture.is_file():
-            shutil.copy(fixture, directory / "page.html")
-
-    # THE DOCUMENTED WAY: cwd is the wiki root (what `llm-wiki-ops run` gives a
-    # script) and `--capture-dir` is the ticket's wiki-relative `capture_dir`.
-    rel = str(cap.relative_to(wiki))
-    done = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py", "--capture-dir", rel, cwd=wiki)
-    assert done.returncode == 0, done.stdout + done.stderr
-
-    wrote = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py",
-                "--capture-dir", rel, "--report", "--ticket", ticket_id, cwd=wiki)
-    assert wrote.returncode == 0, wrote.stdout + wrote.stderr
-
-    closed = landed(ops, env, wiki, ticket_id)
-    assert closed.get("status") in ("ok", "partial", None), closed
+    pages = {leaf["dir"]: (FIX / f"post-{leaf['item'].rsplit('/', 1)[-1]}.html").read_bytes() for leaf in plan["leaves"]
+             if (FIX / f"post-{leaf['item'].rsplit('/', 1)[-1]}.html").is_file()}
+    harvested(ops, env, wiki, job, plan.get("newsletter", ARCHIVE), plan["leaves"], pages)
 
     captured_dirs = [leaf["dir"] for leaf in plan["leaves"] if (wiki / leaf["dir"] / "capture.json").is_file()]
     assert captured_dirs, "nothing captured"
@@ -131,8 +108,9 @@ def test_one_ticket_lands_every_free_post_as_a_staged_page(ops, env, wiki, monke
     assert record["body"] == "page.html" and record["content_type"] == "text/html" and record["slug"] == job.slug
     assert set(record) == {"v", "slug", "item", "title", "body", "content_type", "fetched_at"}
 
-    # `close` mints one process ticket per captured dir; each is one build.
-    pages = [_paged(ops, env, wiki, wiki / d, job.dest) for d in captured_dirs]
+    # Landing mints one process ticket per captured dir; each is one build.
+    assert sorted(pending(ops, env, wiki, job.slug)) == sorted(captured_dirs)
+    pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert pages and len(set(pages)) == len(pages)
     assert all(page.is_relative_to(wiki / job.dest) and page.is_file() for page in pages)
 
@@ -141,41 +119,21 @@ def test_two_posts_with_one_title_land_as_two_pages(ops, env, wiki):
     """A page is filed under its title, and the second write of a name takes the
     first's file: before the report settled titles, a newsletter's second "Open
     Thread" WAS the first one's page, and both process tickets said ok."""
-    if shutil.which("uv") is None:
-        pytest.skip("no uv: to_markdown.py carries PEP 723 dependencies")
-    _needs_run_verb(ops, env, wiki)
-    # `spawn=self` refuses a ticket whose target host does not resolve to a
-    # public address (plugins main, post-#2487); nothing here ever fetches
-    # `host` for real — `capture_posts.py` reads the pre-seeded `leaves.json`
-    # and `page.html` fixtures below directly — so it only needs to be
-    # RESOLVABLE, not reachable: `RESOLVABLE_TEST_HOST`, a real DNS name,
-    # stands in for the old `.invalid` one, consistently, everywhere it was
-    # named (not this box's own address — found failing on a NAT'd CI runner).
+    # Nothing fetches `host` — `capture_posts.py` reads the `leaves.json` and
+    # `page.html` the plan hands it — so it need only resolve: `RESOLVABLE_TEST_HOST`.
     bare_host = RESOLVABLE_TEST_HOST
     host = f"https://{bare_host}"
     job = declared_job(ops, env, wiki, UNIT, f"{host}/archive-names", slug="port-channel-substack-names")
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    leaves = []
+    leaves, pages = [], {}
     for name, published, fixture in (("open-thread-2", "2026-09-10", "the-newest-one"), ("open-thread", "2026-08-13", "a-podcast-episode")):
         item = f"{host}/p/{name}"
-        rel = f"_raw/{job.slug}/p-{name}--{hashlib.sha1(item.encode()).hexdigest()[:8]}"
-        (wiki / rel).mkdir(parents=True, exist_ok=True)
-        shutil.copy(FIX / f"post-{fixture}.html", wiki / rel / "page.html")
+        rel = _leaf_dir(job, item, name)
+        pages[rel] = (FIX / f"post-{fixture}.html").read_bytes()
         leaves.append({"item": item, "dir": rel, "title": "Open Thread", "published": published, "audience": "everyone", "on_disk": False})
-    _write_leaves(cap, wiki, bare_host, job.slug, leaves)
-
-    rel = str(cap.relative_to(wiki))
-    done = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py", "--capture-dir", rel, cwd=wiki)
-    assert done.returncode == 0, done.stdout + done.stderr
-    for _ in range(2):  # a respawned worker reports again: same names
-        wrote = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py",
-                    "--capture-dir", rel, "--report", "--ticket", ticket_id, cwd=wiki)
-        assert wrote.returncode == 0, wrote.stdout + wrote.stderr
-    closed = landed(ops, env, wiki, ticket_id)
-    assert closed.get("status") in ("ok", None), closed
+    harvested(ops, env, wiki, job, bare_host, leaves, pages, reports=2)
 
     captured_dirs = [leaf["dir"] for leaf in leaves if (wiki / leaf["dir"] / "capture.json").is_file()]
-    pages = [_paged(ops, env, wiki, wiki / d, job.dest) for d in captured_dirs]
+    pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert len({page.resolve() for page in pages}) == 2 and all(page.is_relative_to(wiki / job.dest) for page in pages)
     assert sorted(page.name for page in pages) == ["Open Thread (2026-08-13).md", "Open Thread.md"]
 
@@ -185,33 +143,19 @@ def test_a_title_the_host_would_refuse_still_lands_and_forges_nothing(ops, env, 
     """Rule 1 + Rule 2, through the REAL `page create`. Before the fix the raw
     title went into `capture.json`, harvest said ok, and the process ticket was
     refused: "a title cannot carry ':'"."""
-    if shutil.which("uv") is None:
-        pytest.skip("no uv: to_markdown.py carries PEP 723 dependencies")
-    _needs_run_verb(ops, env, wiki)
     # See test_two_posts_with_one_title_land_as_two_pages: resolvable, not reachable.
     bare_host = RESOLVABLE_TEST_HOST
     host = f"https://{bare_host}"
     job = declared_job(ops, env, wiki, UNIT, f"{host}/archive-titles", slug="port-channel-substack-titles")
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    leaves = []
+    leaves, pages = [], {}
     # The second differs from the first ONLY in characters the host refuses:
     # they collide once both are made safe, which is why safe_title runs first.
     for name, title, published in (("lesson-3", HOSTILE_TITLE, "2026-09-10"), ("lesson-3b", 'Lesson 3: What is "A|B" testing*', "2026-09-03\n# Forged date")):
         item = f"{host}/p/{name}"
-        rel = f"_raw/{job.slug}/p-{name}--{hashlib.sha1(item.encode()).hexdigest()[:8]}"
-        (wiki / rel).mkdir(parents=True, exist_ok=True)
-        (wiki / rel / "page.html").write_text(_hostile_page(), encoding="utf-8")
+        rel = _leaf_dir(job, item, name)
+        pages[rel] = _hostile_page().encode()
         leaves.append({"item": item, "dir": rel, "title": title, "published": published, "audience": "everyone", "on_disk": False})
-    rel_cap = str(cap.relative_to(wiki))
-    _write_leaves(cap, wiki, bare_host, job.slug, leaves)
-
-    done = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py", "--capture-dir", rel_cap, cwd=wiki)
-    assert done.returncode == 0, done.stdout + done.stderr
-    wrote = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py",
-                "--capture-dir", rel_cap, "--report", "--ticket", ticket_id, cwd=wiki)
-    assert wrote.returncode == 0, wrote.stdout + wrote.stderr
-    closed = landed(ops, env, wiki, ticket_id)  # frees the harvest cap slot for every later case in this session
-    assert closed.get("status") in ("ok", None), closed
+    harvested(ops, env, wiki, job, bare_host, leaves, pages)
 
     record0 = json.loads((wiki / leaves[0]["dir"] / "capture.json").read_text(encoding="utf-8"))
     assert record0["title"] == "Lesson 3 - What is ’A-B’ testing # Forged heading ---"
@@ -221,7 +165,7 @@ def test_a_title_the_host_would_refuse_still_lands_and_forges_nothing(ops, env, 
     assert second["published"] is None  # `2026-09-03\n# Forged date` is no date: dropped, never passed on
 
     captured_dirs = [leaf["dir"] for leaf in leaves if (wiki / leaf["dir"] / "capture.json").is_file()]
-    pages = [_paged(ops, env, wiki, wiki / d, job.dest) for d in captured_dirs]
+    pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert pages and all(page.is_file() for page in pages)
     lines = pages[0].read_text(encoding="utf-8").splitlines()
     # the venue's title reaches the page QUOTED, opening no heading and no rule of its own
@@ -236,37 +180,24 @@ def test_a_hundred_cjk_characters_land_and_so_does_their_namesake(ops, env, wiki
     bytes and the write died `OSError: File name too long`. The cap is held in
     UTF-8 bytes — and the report's de-dup qualifier, added AFTER it, still
     fits: this unit's qualifiers are a date, a hash8 and a counter."""
-    if shutil.which("uv") is None:
-        pytest.skip("no uv: to_markdown.py carries PEP 723 dependencies")
-    _needs_run_verb(ops, env, wiki)
     # See test_two_posts_with_one_title_land_as_two_pages: resolvable, not reachable.
     bare_host = RESOLVABLE_TEST_HOST
     host = f"https://{bare_host}"
     job = declared_job(ops, env, wiki, UNIT, f"{host}/archive-cjk", slug="port-channel-substack-cjk")
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    leaves = []
+    leaves, pages = [], {}
     for name, published in (("cjk-2", "2026-09-10"), ("cjk-1", "2026-09-03")):
         item = f"{host}/p/{name}"
-        rel = f"_raw/{job.slug}/p-{name}--{hashlib.sha1(item.encode()).hexdigest()[:8]}"
-        (wiki / rel).mkdir(parents=True, exist_ok=True)
-        shutil.copy(FIX / "post-the-newest-one.html", wiki / rel / "page.html")
+        rel = _leaf_dir(job, item, name)
+        pages[rel] = (FIX / "post-the-newest-one.html").read_bytes()
         leaves.append({"item": item, "dir": rel, "title": "語" * 100, "published": published, "audience": "everyone", "on_disk": False})
-    rel_cap = str(cap.relative_to(wiki))
-    _write_leaves(cap, wiki, bare_host, job.slug, leaves)
-    done = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py", "--capture-dir", rel_cap, cwd=wiki)
-    assert done.returncode == 0, done.stdout + done.stderr
-    wrote = run(ops, env, "run", "ops/skills/channel-substack/scripts/capture_posts.py",
-                "--capture-dir", rel_cap, "--report", "--ticket", ticket_id, cwd=wiki)
-    assert wrote.returncode == 0, wrote.stdout + wrote.stderr
-    closed = landed(ops, env, wiki, ticket_id)  # frees the harvest cap slot for every later case in this session
-    assert closed.get("status") in ("ok", None), closed
+    harvested(ops, env, wiki, job, bare_host, leaves, pages)
 
     record0 = json.loads((wiki / leaves[0]["dir"] / "capture.json").read_text(encoding="utf-8"))
     record1 = json.loads((wiki / leaves[1]["dir"] / "capture.json").read_text(encoding="utf-8"))
     first, second = record0["title"], record1["title"]
     assert first.endswith("…") and len(first.encode()) <= 203 and second == f"{first} (2026-09-03)"
     captured_dirs = [leaf["dir"] for leaf in leaves]
-    pages = [_paged(ops, env, wiki, wiki / d, job.dest) for d in captured_dirs]
+    pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert [page.name for page in pages] == [f"{first}.md", f"{second}.md"] and all(page.is_file() for page in pages)
     assert max(len(page.name.encode()) for page in pages) <= 255  # what the write dies on
 

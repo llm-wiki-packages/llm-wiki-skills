@@ -14,10 +14,11 @@ import json
 import os
 import shutil
 import threading
+from pathlib import Path
 
 import pytest
 
-from harness import declared_job, is_globally_routable, outbound_ip, rooted, run, unit_tests
+from harness import declared_job, is_globally_routable, no_jail_here, outbound_ip, root_unlistable, rooted, run, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("web-page", "test_fetch"))
@@ -67,14 +68,6 @@ def page_server(tmp_path_factory, wiki):
         local.write_text(before, encoding="utf-8")
 
 
-def _no_jail_here(r):
-    """Skip, naming the machine's own refusal, where the runner could not compose or start the stage's jail."""
-    for entry in (r.data or {}).get("skipped") or []:
-        reason = entry.get("reason", "")
-        if "no deny primitive" in reason:
-            pytest.skip(f"this machine cannot start the stage's jail: {reason[:160]}")
-
-
 def test_a_harvested_url_becomes_a_staged_page_through_the_runner(ops, env, wiki, page_server):
     """The stage runs only in the jail the runner composes: `pipeline run` starts
     fetch.py behind it, the pass closes the harvest ticket, and the next pass
@@ -86,15 +79,18 @@ def test_a_harvested_url_becomes_a_staged_page_through_the_runner(ops, env, wiki
     pages: list = []
     for _ in range(3):  # harvest, then the process ticket its close mints
         r = run(ops, rooted(env, wiki), "--json", "pipeline", "run", f"job={job.slug}", "wait=60s")
+        no_jail_here(r)
         assert r.returncode == 0, r.stdout + r.stderr
-        _no_jail_here(r)
         pages = sorted((wiki / job.dest).glob("*.md")) if (wiki / job.dest).is_dir() else []
         if pages:
             break
-    reports = sorted((wiki / "_raw" / job.slug).glob("*/report.*.json"))
-    assert reports, "the harvest stage left no report"
-    report = json.loads(reports[0].read_text(encoding="utf-8"))
-    assert report["status"] == "ok" and report["stage"] == "harvest", report
+    mine = [t["id"] for t in run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "ls").data["tickets"] if t["slug"] == job.slug]
+    logs = [p for one in mine for p in Path(env["HOME"]).glob(f".local/state/llm-wiki/wikis/*/sessions/*/slices/{one}.log")]
+    root_unlistable(wiki, "".join(p.read_text(encoding="utf-8", errors="replace") for p in logs))
+    reports = [json.loads(path.read_text(encoding="utf-8")) for path in (wiki / "_raw" / job.slug).glob("*/report.*.json")]
+    harvest = [report for report in reports if report.get("stage") == "harvest"]
+    assert harvest, f"the harvest stage left no report: {reports}"
+    assert harvest[0]["status"] == "ok", harvest
     assert pages, f"no page landed under {job.dest}"
     assert "Hello from the venue" in pages[0].read_text(encoding="utf-8")
 

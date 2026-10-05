@@ -1,40 +1,57 @@
 """channel-notion-tasks, the harness tier: the unit installed and enabled through the REAL
-CLI, landing pages in the session wiki. Its helpers and constants are the
+CLI, each stage started by the runner in the jail it composes, with the
+harness profile's fake agent typing what the unit's SKILL.md says. Its helpers and constants are the
 unit's own tests' — `skills/channel-notion-tasks/tests/test_notion.py`, which ships with
 the unit — so a case here reads exactly as it did beside them.
 """
 
 from __future__ import annotations
 
+import datetime
 import json
 import re
 
 import pytest
 
-from harness import ROOT, declared_job, jsonc, landed, live_ticket, rooted, run, snippet, unit_tests
+from harness import ROOT, claimed, declared_job, jsonc, pending, snippet, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-notion-tasks", "test_notion"))
+
+TODAY = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
 
 def _bullets(text: str) -> list:
     return [line for line in text.splitlines() if line.startswith("- ")]
 
 
-def _needs_run_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "run", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets run` (spawn=self) is plugins PR 2 (#2486)")
+WRITE = "ops/skills/channel-notion-tasks/scripts/write_items.py"
 
 
-def _closing_the_process_ticket_discards_the_scripts_own_ledger():
-    """Same finding as `test_gmail_harness.py`'s: `tickets_close.py`
-    (~line 479-486), unconditionally, for any job whose `dest` is the
-    ledger route, regenerates the day's page straight from the raw
-    `items/*.json` files' own `subject`/`title` field — in-process, after
-    and OVER whatever this unit's own `ledger` subcommand, built from the
-    process step's judged `lines.json`, just wrote through `page create`.
-    Reported to the coordinator, not a harness gap to paper over."""
-    pytest.skip("plugins main c284c4839: tickets_close.py's extract_ledger overwrites a ledger job's page on close, discarding write_items.py ledger's own lines.json curation — reported, not a harness gap")
+def pulled(ops, env, wiki, job, pull: list, *flags: str):
+    """The harvest stage, in its jail: what `pull.py` left, handed to `write`."""
+    ticket_id, cap = claimed(ops, env, wiki, job)
+    session = staged(ops, env, wiki, ticket_id, f"""\
+cp "$FIX/pull.json" "$CAP/pull.json"
+step write "$OPS" run {WRITE} write "$CAP" --ticket "$TICKET" --from pull.json {' '.join(flags)}
+""", files={"pull.json": json.dumps(pull).encode()})
+    done = session.step("write")
+    assert done.returncode == 0, done.stdout + done.stderr
+    return cap
+
+
+def ledgered(ops, env, wiki, job, cap, rows: list):
+    """The process stage the harvest's landing minted, in its jail: the step's
+    own words handed to `ledger`, which writes the day's page."""
+    process_id = pending(ops, env, wiki, job.slug)[str(cap.relative_to(wiki))]
+    session = staged(ops, env, wiki, process_id, f"""\
+cp "$FIX/lines.json" "$CAP/lines.json"
+step ledger "$OPS" run {WRITE} ledger "$CAP" --ticket "$TICKET" --from lines.json
+""", files={"lines.json": json.dumps(rows).encode()})
+    done = session.step("ledger")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert session.update["status"] in ("ok", "partial"), session.update
+    return done
 
 
 def _machine_fragment(text: str) -> dict:
@@ -77,38 +94,25 @@ def test_enable_md_names_the_vault_not_a_login_or_a_harness_profile():
 
 
 @pytest.fixture
-def job(ops, env, wiki):
-    return declared_job(ops, env, wiki, UNIT, TARGET, "options.workspace=harness")
+def job(ops, env, wiki, request):
+    # A job's capture dir is keyed on TODAY: each case gets its own job, or one
+    # case's items would read back as another's.
+    own = request.node.name.replace("_", "-").lower()
+    return declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.workspace=harness",
+                        slug=f"harness-notion-{own}"[:60])
 
 
 def test_the_two_steps_make_the_days_ledger_out_of_what_the_pull_left(ops, env, wiki, job):
-    """The whole point of the rework: a live harvest ticket, `write` posting
-    `tickets update` through the REAL CLI (no stub — `run` exports
-    `LLM_WIKI_OPS`), then `ledger` — the process arm, on the SAME ticket, as
-    `channel-youtube`'s own `--record`-then-process reuse does — building the
-    day's page through the REAL `page create`."""
-    _closing_the_process_ticket_discards_the_scripts_own_ledger()
-    _needs_run_verb(ops, env, wiki)
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    rel = str(cap.relative_to(wiki))
-    day = cap.name
+    """The whole point of the rework: a harvest ticket whose `write` posts
+    `tickets update` through the REAL CLI from inside its jail, then `ledger` —
+    the process arm, on the process ticket the harvest's landing mints —
+    building the day's page through the REAL `page create`."""
     pull = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    (cap / "pull.json").write_text(json.dumps(pull), encoding="utf-8")
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-notion-tasks/scripts/write_items.py", "write",
-            rel, "--ticket", ticket_id, "--from", "pull.json", "--exclude-status", "Archived", cwd=wiki)
-    assert r.returncode == 0, r.stdout + r.stderr
-
+    cap = pulled(ops, env, wiki, job, pull, "--exclude-status", "Archived")
+    day = cap.name
     # The process step's own words, one row per item the day holds. The fixture's
     # hostile task carries none, so its bullet falls back to the task's own title.
-    (cap / "lines.json").write_text(
-        json.dumps([{"id": one["id"], "line": one["summary"], "junk": one["junk"]} for one in pull]), encoding="utf-8"
-    )
-    r2 = run(ops, rooted(env, wiki), "run", "ops/skills/channel-notion-tasks/scripts/write_items.py", "ledger",
-             rel, "--ticket", ticket_id, "--dest", job.dest, "--from", "lines.json", cwd=wiki)
-    assert r2.returncode == 0, r2.stdout + r2.stderr
-
-    closed = landed(ops, env, wiki, ticket_id)
-    assert closed.get("status") in ("ok", "partial", None), closed
+    r2 = ledgered(ops, env, wiki, job, cap, [{"id": one["id"], "line": one["summary"], "junk": one["junk"]} for one in pull])
     ledger = wiki / job.dest / f"{day}.md"
     assert json.loads(r2.stdout)["written"] == [f"{job.dest}/{day}.md"] and ledger.is_file()
 
@@ -136,32 +140,23 @@ def test_the_two_steps_make_the_days_ledger_out_of_what_the_pull_left(ops, env, 
 
 
 def test_a_second_pull_the_same_day_regenerates_the_one_ledger_whole(ops, env, wiki, job):
-    _closing_the_process_ticket_discards_the_scripts_own_ledger()
-    _needs_run_verb(ops, env, wiki)
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    rel = str(cap.relative_to(wiki))
-    day = cap.name
+    day = None
 
     def _write(pull):
-        (cap / "pull.json").write_text(json.dumps(pull), encoding="utf-8")
-        r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-notion-tasks/scripts/write_items.py", "write",
-                rel, "--ticket", ticket_id, "--from", "pull.json", cwd=wiki)
-        assert r.returncode == 0, r.stdout + r.stderr
+        nonlocal day
+        cap = pulled(ops, env, wiki, job, pull)
+        day = day or cap.name
+        assert cap.name == day, "a re-pull the same day lands in the same day's capture dir"
+        return cap
 
-    def _ledger(rows):
-        (cap / "lines.json").write_text(json.dumps(rows), encoding="utf-8")
-        r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-notion-tasks/scripts/write_items.py", "ledger",
-                rel, "--ticket", ticket_id, "--dest", job.dest, "--from", "lines.json", cwd=wiki)
-        assert r.returncode == 0, r.stdout + r.stderr
-
-    _write([task(21, last_edited=f"{day}T09:00:00.000Z")])
-    _ledger(lines(("0000aaaa-0021", "Task 21 moved to Doing, due 30 Sep")))
+    cap = _write([task(21, last_edited=f"{TODAY}T09:00:00.000Z")])
+    ledgered(ops, env, wiki, job, cap, lines(("0000aaaa-0021", "Task 21 moved to Doing, due 30 Sep")))
     ledger = wiki / job.dest / f"{day}.md"
     assert _bullets(ledger.read_text(encoding="utf-8")) == ["- Task 21 moved to Doing, due 30 Sep — notion:0000aaaa-0021"]
 
     # Later the same day: the same task edited again, and a new one.
-    _write([task(21, last_edited=f"{day}T14:00:00.000Z"), task(22, last_edited=f"{day}T13:00:00.000Z")])
-    _ledger(lines(("0000aaaa-0021", "Task 21 completed"), ("0000aaaa-0022", "Task 22 moved to Doing, due 30 Sep")))
+    cap = _write([task(21, last_edited=f"{day}T14:00:00.000Z"), task(22, last_edited=f"{day}T13:00:00.000Z")])
+    ledgered(ops, env, wiki, job, cap, lines(("0000aaaa-0021", "Task 21 completed"), ("0000aaaa-0022", "Task 22 moved to Doing, due 30 Sep")))
     assert len(list(ledger.parent.glob(f"{day}*"))) == 1
     body = ledger.read_text(encoding="utf-8").split("\n---\n", 1)[1]
     assert _bullets(body) == [

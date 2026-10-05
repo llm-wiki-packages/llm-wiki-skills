@@ -1,5 +1,6 @@
 """channel-circle, the harness tier: the unit installed and enabled through
-the REAL CLI, landing pages in the session wiki via a live ticket. Its
+the REAL CLI, each stage started by the runner in the jail it composes, with
+the harness profile's fake agent typing what the unit's SKILL.md says. Its
 helpers and constants are the unit's own tests' —
 `skills/channel-circle/tests/test_circle.py`, which ships with the unit —
 so a case here reads exactly as it did beside them.
@@ -11,88 +12,89 @@ import json
 import re
 import shlex
 import subprocess
-import sys
 
 from pathlib import Path
 
-import pytest
-
-from harness import declared_job, landed, live_ticket, rooted, run, unit_tests
+from harness import claimed, declared_job, pending, rooted, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-circle", "test_circle"))
 
 
-def _needs_run_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "run", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets run` (spawn=self) is plugins PR 2 (#2486)")
+SCRIPT = "ops/skills/channel-circle/scripts"
+
+# `capture_lesson.py --leaf <n>`'s stand-in: the venue's bytes for each planned
+# lesson, in the directory the plan gave it, and lesson 1's caption track.
+CAPTURED = """python3 - "$CAP" "$FIX" <<'PY'
+import json, os, shutil, sys
+cap, fix = sys.argv[1:]
+for leaf in json.load(open(os.path.join(cap, "plan.json")))["leaves"]:
+    os.makedirs(leaf["dir"], exist_ok=True)
+    for name in ("page.html", "meta.json"):
+        shutil.copy(os.path.join(fix, f"lesson-{leaf['order']}", name), os.path.join(leaf["dir"], name))
+    if leaf["order"] == 1:
+        os.makedirs(os.path.join(leaf["dir"], "captions"), exist_ok=True)
+        shutil.copy(os.path.join(fix, "en.vtt"), os.path.join(leaf["dir"], "captions", "en.vtt"))
+PY
+"""
 
 
-def to_markdown(directory: Path) -> str:
-    """SKILL.md's process step 1, over one capture's bytes."""
-    done = subprocess.run(["uv", "run", "--script", str(TO_MARKDOWN), str(directory / "page.html"),
-                           "--out", str(directory / "page.md")], capture_output=True, text=True, check=False)
-    assert done.returncode == 0, done.stderr
-    return (directory / "page.md").read_text(encoding="utf-8")
+def fixtures() -> dict:
+    files = {f"{d}/{n}": (FIX / d / n).read_bytes() for d in ("root", "lesson-1", "lesson-2") for n in ("page.html", "meta.json")}
+    return {**files, "en.vtt": VTT.encode()}
 
 
-def paged(ops, env, wiki, capture_dir: Path, dest: str, body: str, verb: str = "create") -> subprocess.CompletedProcess:
+def page_lines(cap: Path, dest: str, verb: str = "create") -> str:
     """SKILL.md's process step 3, as the shell line a worker TYPES: the title
     and the url off `capture.json`, each single-quoted as the documented line
     has them, the body on stdin — so every content case is a quoting case."""
-    record = json.loads((capture_dir / "capture.json").read_text(encoding="utf-8"))
-    where = [f"'title={record['title']}'", f"'dest={dest}'"] if verb == "create" else [f"'{dest}/{record['title']}.md'"]
-    line = " ".join([shlex.join([*ops, "--json", "page", verb]), *where, f"'resource={record['item']}'", "type=lesson", "extracted=true", "--stdin"])
-    return subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), input=body, capture_output=True, text=True, check=False)
+    record = json.loads((cap / "capture.json").read_text(encoding="utf-8"))
+    where = f"'title={record['title']}' 'dest={dest}'" if verb == "create" else f"'{dest}/{record['title']}.md'"
+    return f"""cat "$CAP/page.md" | "$OPS" --json page {verb} {where} 'resource={record['item']}' type=lesson extracted=true --stdin"""
 
 
-def written(ops, env, wiki, capture_dir: Path, dest: str, body: str) -> Path:
-    """`create`, and on the host's `already exists` refusal, `edit` — the page."""
-    done = paged(ops, env, wiki, capture_dir, dest, body)
-    if done.returncode == 2 and "already exists" in done.stdout:
-        done = paged(ops, env, wiki, capture_dir, dest, body, verb="edit")
-    assert done.returncode == 0, done.stdout + done.stderr
-    return wiki / json.loads(done.stdout)["path"]
+def processed(ops, env, wiki, ticket: str, cap: Path, dest: str, again: bool = False):
+    """The process stage, in its jail: convert, write the page (`create`, or
+    `edit` on the host's `already exists`), report what it wrote."""
+    title = json.loads((cap / "capture.json").read_text(encoding="utf-8"))["title"]
+    second = f"step again sh -c {shlex.quote(page_lines(cap, dest))}\nstep edit sh -c {shlex.quote(page_lines(cap, dest, 'edit'))}\n" if again else ""
+    return staged(ops, env, wiki, ticket, f"""\
+step md "$OPS" run {SCRIPT}/to_markdown.py "$CAP/page.html" --out "$CAP/page.md"
+step create sh -c {shlex.quote(page_lines(cap, dest))}
+{second}printf '%s' {shlex.quote(json.dumps([f"{dest}/{title}.md"]))} > "$CAP/written.json"
+step report "$OPS" run {SCRIPT}/section_plan.py report "$CAP" --ticket "$TICKET" --stage process --written-from written.json
+""")
 
 
 def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, wiki):
-    """The whole point of the rework: a live ticket, `section_plan.py plan`/
-    `record`/`report` posting `tickets update` through the REAL CLI, and the
-    process arm's `to_markdown.py` + `page create` writing real pages — no
-    `ticket.json`, no `report.json` anywhere on disk."""
-    _needs_run_verb(ops, env, wiki)
-    # `spawn=self` refuses a ticket whose target host does not resolve to a
-    # public address (plugins main, post-#2487). `TARGET`'s host is
-    # `example.com` (RFC 2606) — resolvable everywhere with DNS/internet
-    # egress, unlike the old `.invalid` host — and `test_circle.py`'s own
-    # fixtures and assertions are keyed to the SAME host throughout, so the
-    # plan's `harvest.scope=section` match still keeps the right leaves.
+    """The whole point of the rework: a harvest ticket whose session, in its
+    jail, runs `section_plan.py plan`/`record`/`report` posting `tickets
+    update` through the REAL CLI, and a process ticket per lesson whose
+    session runs `to_markdown.py` and `page create` — no `ticket.json`, no
+    `report.json` anywhere on disk."""
+    # `TARGET`'s host is `example.com` (RFC 2606): the runner refuses a ticket
+    # whose target does not resolve to a public address, and `test_circle.py`'s
+    # fixtures are keyed to that host, so `harvest.scope=section` keeps the leaves.
     job = declared_job(ops, env, wiki, UNIT, TARGET, slug="harness-circle")
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    rel = str(cap.relative_to(wiki))
-    for name in ("page.html", "meta.json"):
-        (cap / name).write_bytes((FIX / "root" / name).read_bytes())
+    ticket_id, cap = claimed(ops, env, wiki, job)
+    records = "".join(f'step record-{n}-{i} "$OPS" run {SCRIPT}/section_plan.py record "$CAP" --leaf {n}\n'
+                      for n in (1, 2) for i in (1, 2))  # a respawned worker records again: nothing may stack
+    session = staged(ops, env, wiki, ticket_id, f"""\
+cp "$FIX/root/page.html" "$FIX/root/meta.json" "$CAP/"
+step plan "$OPS" run {SCRIPT}/section_plan.py plan "$CAP" --ticket "$TICKET"
+{CAPTURED}{records}step report "$OPS" run {SCRIPT}/section_plan.py report "$CAP" --ticket "$TICKET"
+""", files=fixtures())
 
-    # Paths are wiki-relative with the wiki root as cwd — what `llm-wiki-ops run` gives a script.
-    planned = run(ops, rooted(env, wiki), "run", "ops/skills/channel-circle/scripts/section_plan.py", "plan", rel,
-                  "--ticket", ticket_id, cwd=wiki)
+    planned = session.step("plan")
     assert planned.returncode == 0, planned.stdout + planned.stderr
     plan = json.loads((cap / "plan.json").read_text(encoding="utf-8"))
     assert [leaf["url"] for leaf in plan["leaves"]] == [L1, L2]
-
-    for leaf, fixture in zip(plan["leaves"], ("lesson-1", "lesson-2")):
+    for leaf in plan["leaves"]:
         assert leaf["dir"].startswith(f"_raw/{job.slug}/") and len(leaf["dir"].split("/")) == 3
-        # THE DOCUMENTED WAY: a lesson is `--leaf N`, never a url on a command line.
-        directory = bytes_in(wiki / leaf["dir"], fixture)
-        if fixture == "lesson-1":  # the caption track the capture resolved in-browser
-            (directory / "captions").mkdir(exist_ok=True)
-            (directory / "captions" / "en.vtt").write_text(VTT, encoding="utf-8")
-        number = str(leaf["order"])
-        for _ in range(2):  # a respawned worker records again: nothing may stack
-            done = subprocess.run(
-                [sys.executable, str(PLAN), "record", str(rel), "--leaf", number], cwd=wiki, capture_output=True, text=True,
-            )
-            assert done.returncode == 0, done.stderr
+        for i in (1, 2):
+            done = session.step(f"record-{leaf['order']}-{i}")
+            assert done.returncode == 0, done.stdout + done.stderr
+        directory = wiki / leaf["dir"]
         record = json.loads((directory / "capture.json").read_text(encoding="utf-8"))
         assert (record["slug"], record["item"], record["body"], record["content_type"]) == (
             job.slug, leaf["url"], "page.html", "text/html")
@@ -101,27 +103,32 @@ def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, 
     assert json.loads((wiki / plan["leaves"][1]["dir"] / "facts.json").read_text(encoding="utf-8")) == {
         "course": "Course One | Example Community", "space": "course-one", "section": "Section One",
         "duration": "12:30", "source_title": "Reading the Room"}
-
-    reported = run(ops, rooted(env, wiki), "run", "ops/skills/channel-circle/scripts/section_plan.py", "report", rel,
-                   "--ticket", ticket_id, cwd=wiki)
+    reported = session.step("report")
     assert reported.returncode == 0, reported.stdout + reported.stderr
-    update = json.loads(reported.stdout)
-    assert update["status"] == "ok"
+    assert json.loads(reported.stdout)["status"] == "ok"
 
-    closed = landed(ops, env, wiki, ticket_id)
-    assert closed.get("status") in ("ok", None), closed
+    assert session.update["status"] == "ok", session.update
 
-    # `close` mints one process ticket per captured directory; each runs the
-    # process step over that leaf. Its own ticket is opened the same way.
+    # Landing the harvest mints one process ticket per captured directory.
+    by_dir = pending(ops, env, wiki, job.slug)
+    assert sorted(by_dir) == sorted(leaf["dir"] for leaf in plan["leaves"])
+
     texts = []
     for leaf in plan["leaves"]:
         directory = wiki / leaf["dir"]
-        body = to_markdown(directory)  # step 1; step 2 is the agent's, so only its inputs are asserted
         facts = json.loads((directory / "facts.json").read_text(encoding="utf-8"))
         assert facts["course"] == "Course One | Example Community" and facts["section"] == "Section One"
-        page = written(ops, env, wiki, directory, job.dest, body)
+        first = leaf["order"] == 1
+        session = processed(ops, env, wiki, by_dir[leaf["dir"]], directory, job.dest, again=first)
+        for name in ("md", "create", "report", *(("again", "edit") if first else ())):
+            done = session.step(name)
+            assert done.returncode == (2 if name == "again" else 0), (name, done.stdout + done.stderr)
+        if first:  # a second process run for one lesson EDITS the page the first one wrote
+            assert "already exists" in session.step("again").stdout
+        page = wiki / session.step("create").data["path"]
         assert page.is_relative_to(wiki / job.dest)
         texts.append(page.read_text(encoding="utf-8"))
+        assert session.update["status"] == "ok", session.update
     first, second = texts
     assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first and "status: draft" in first
     assert "extracted: 'true'" in first
@@ -131,10 +138,6 @@ def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, 
     for text in texts:
         assert len(re.findall(r"^---$", text, flags=re.M)) == 2, "one frontmatter block, the host's own"
         assert "Powered by a community platform" not in text and "logo123" not in text  # chrome stripped
-
-    # A second process run for one lesson EDITS the page the first one wrote.
-    directory = wiki / plan["leaves"][0]["dir"]
-    assert written(ops, env, wiki, directory, job.dest, to_markdown(directory)).name == "Getting the Frame Right.md"
     assert sorted(page.name for page in (wiki / job.dest).glob("*.md")) == [
         "Getting the Frame Right.md", "Reading the Room.md"]
 
