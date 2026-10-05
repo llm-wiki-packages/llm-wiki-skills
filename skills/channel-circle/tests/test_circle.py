@@ -607,8 +607,8 @@ def stub_front_door(tmp_path: Path, answer: dict, rc: int = 0) -> tuple[dict, Pa
 
 def stub_capture_front_door(tmp_path: Path, ticket_dict: dict, profile_answer: dict, rc: int = 0) -> tuple[dict, Path]:
     """`capture_lesson.py`'s own front door reaches two verbs: `tickets open`
-    (its `--ticket`'s target) and `credential profile-dir` (the auth
-    profile). This stub answers both for real and records the LAST argv."""
+    (its `--ticket`'s target) and `credentials info` (the auth
+    profile's dir credential). This stub answers both for real and records the LAST argv."""
     home = tmp_path / ".ops-stub"
     home.mkdir(exist_ok=True)
     stub, seen = home / "ops_stub.py", home / "seen.json"
@@ -622,7 +622,7 @@ def stub_capture_front_door(tmp_path: Path, ticket_dict: dict, profile_answer: d
         "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:2] == ['credential', 'profile-dir']:\n"
+        "if argv[:2] == ['credentials', 'info']:\n"
         f"    print(json.dumps(PROFILE))\n"
         f"    sys.exit({rc})\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -698,18 +698,18 @@ def test_capture_lesson_the_documented_way_reads_the_profile_answer(wiki_root, t
     root, rel = wiki_root
     t = ticket()
     env, seen = stub_capture_front_door(
-        tmp_path_factory.mktemp("door"), t, {"domain": "example.com", "path": "/nowhere/profile", "exists": False},
+        tmp_path_factory.mktemp("door"), t, {"name": "example.com", "kind": "dir", "state": "none", "path": "/nowhere/profile", "exists": False},
     )
     done = cli(CAPTURE, ".", "--out", rel, "--ticket", t["ticket"], cwd=root, env=env)
     assert done.returncode == 2 and "no auth profile" in done.stderr, done.stderr  # absent: a login is what fixes it
-    assert json.loads(seen.read_text(encoding="utf-8"))["argv"] == ["--json", "credential", "profile-dir", "example.com"]
+    assert json.loads(seen.read_text(encoding="utf-8"))["argv"] == ["--json", "credentials", "info", "example.com"]
     # The store unreachable — what a jail with no grant on it answers: 5, never 2.
     env, _ = stub_capture_front_door(tmp_path_factory.mktemp("door5"), t, {"error": "permission denied"}, rc=1)
     assert cli(CAPTURE, ".", "--out", rel, "--ticket", t["ticket"], cwd=root, env=env).returncode == 5
     # `--leaf`, the documented way.
     t = ticket()
     assert cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path_factory.mktemp("ticket-door"), ticket_dict=t).returncode == 0
-    env, seen = stub_front_door(tmp_path_factory.mktemp("door2"), {"domain": "example.com", "path": "/nowhere", "exists": False})
+    env, seen = stub_front_door(tmp_path_factory.mktemp("door2"), {"name": "example.com", "kind": "dir", "state": "none", "path": "/nowhere", "exists": False})
     plan = last_json_plan(cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path_factory.mktemp("ticket-door2"), ticket_dict=t))
     done = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 1, cwd=root, env=env)
     assert done.returncode == 2 and (root / plan["leaves"][0]["dir"]).is_dir()

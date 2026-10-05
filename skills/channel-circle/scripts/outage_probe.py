@@ -18,8 +18,8 @@ be empty. So the fix signal is: the wrapper gains real child content AND no
 5xx responses are seen.
 
 Loads the page with the persistent auth profile (channel="chrome" + the
-per-domain profile that earned cf_clearance; created by the plugin's
-`llm-wiki-ops run scripts/login.py`), records every >=500 response,
+per-domain profile that earned cf_clearance; created by
+`llm-wiki-ops credentials login <domain>`), records every >=500 response,
 and measures the wrapper's rendered size.
 
 Usage:
@@ -43,6 +43,8 @@ History:
               auth directory.
   2026-08-04  auth profile lookup moves through the credential store's
               `profile-dir` verb instead of a hardcoded path.
+  2026-10-05  the profile is the `dir` credential's directory (`credentials
+              info`); the `profile-dir` verb no longer exists.
   2026-09-19  `--ticket-dir`: the url comes off the ticket, never a command line.
   2026-09-25  `--ticket-dir` becomes `--ticket <id>`: the target comes off
               `tickets open` instead of a file beside the capture dir.
@@ -96,35 +98,37 @@ def _ops(root, *args):
 
 
 def profile_dir(root, domain):
-    """`(path, None)` for a profile a login has minted; else `(None, (kind,
+    """`(path, None)` for a profile a login has verified; else `(None, (kind,
     why))`, kind `absent` or `unreachable`.
 
-    `credential profile-dir` exits 0 whether or not the directory exists —
-    it reports, and creates nothing — so `exists` is the answer, never the
-    exit code. Launching a persistent context on a path that is not there
-    would MAKE it, and run the whole capture logged out without a word."""
-    proc = _ops(root, "credential", "profile-dir", domain)
+    The profile is the directory of the `dir` credential named for the domain
+    (`credentials info`). It answers exit 0 for a dir that is only SET: the
+    default directory exists, empty, from `credentials set` on. So `verified`
+    is the answer — what `credentials login` records — never the exit code or
+    `exists` alone. Launching a persistent context on an unlogged-in directory
+    would run the whole capture logged out without a word."""
+    proc = _ops(root, "credentials", "info", domain)
     try:
         answer = json.loads(proc.stdout)
     except ValueError:
         answer = None
+    detail = answer.get("error") if isinstance(answer, dict) else None
+    if proc.returncode != 0 and isinstance(detail, str) and detail.startswith("no credential named"):
+        return None, ("absent", f"no auth profile for {domain}")
     if proc.returncode != 0 or not isinstance(answer, dict) or not answer.get("path"):
-        detail = answer.get("error") if isinstance(answer, dict) else None
         detail = detail or (proc.stderr or proc.stdout or "").strip()
         return None, ("unreachable", f"credential store unreachable ({proc.returncode}): {detail[:200]}")
-    if answer.get("exists") is not True:
+    if answer.get("kind") != "dir" or answer.get("exists") is not True or not answer.get("verified"):
         return None, ("absent", f"no auth profile for {domain}")
     return Path(answer["path"]), None
 
 
 def domain_of(url: str) -> str:
-    # `.hostname` lowercases and drops the port, matching most of
-    # `credentials.normalize_name` — but unlike that function this does NOT
-    # IDNA-encode a non-ASCII host, so an internationalized community domain
-    # would derive a unicode key here while login.py's `normalize_name`
-    # wrote the ASCII `xn--…` form, and the two would never meet. No IDN
-    # Circle community has been observed; flagging the divergence rather
-    # than silently reproducing it.
+    # The domain is the dir credential's NAME, which the CLI validates against
+    # [a-z0-9][a-z0-9._-]*: `.hostname` already lowercases and drops the port,
+    # but a non-ASCII host is not IDNA-encoded here, so the CLI refuses the
+    # name (rc 2, "invalid credential name") and it reads as unreachable (5).
+    # No IDN Circle community has been observed.
     return urlsplit(url).hostname or ""
 
 
@@ -178,7 +182,7 @@ def main() -> int:
     if refused:
         kind, why = refused
         if kind == "absent":
-            why += " — run llm-wiki-ops run scripts/login.py first"
+            why += f" — run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, then credentials login {domain}"
         print(json.dumps({"fixed": False, "error": why}))
         return 0
 

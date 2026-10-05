@@ -1,13 +1,13 @@
 """The unit scripts that ask the front door a question read its ANSWER, not
 just its exit code.
 
-`llm-wiki-ops credential profile-dir` and `credentials get` print prose for a
-person unless asked for `--json`, and `profile-dir` exits 0 for a profile that
-does not exist. A caller that trusts the exit code and takes stdout for a
+`llm-wiki-ops credentials info` and `credentials get` print prose for a
+person unless asked for `--json`, and `credentials info` exits 0 for a dir that
+no login has verified. A caller that trusts the exit code and takes stdout for a
 path launches a browser on a directory named after three lines of prose —
-silently logged out. Each stub below answers in the real CLI's own shapes
-(captured from ops 1.88.3), prose included, so a caller that forgets `--json`
-fails here instead of on a wiki.
+silently logged out. Each stub below answers in the shape the real CLI's verb
+answers, prose included, so a caller that forgets `--json` fails here instead
+of on a wiki.
 """
 
 from __future__ import annotations
@@ -23,10 +23,11 @@ from pathlib import Path
 
 import pytest
 
+from harness import rooted, run
+
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 PROFILE = "/home/u/.config/llm-wiki/credentials/realm/profiles/community.example"
-PROFILE_PROSE = f"domain: community.example\npath: {PROFILE}\nexists: no\n"
 # The CLI's own no-wiki `error` (1.97.0 prints it on stdout under `--json`,
 # beside a `_cmd_` block, and exits 2). The scripts read the no-wiki arm off a
 # non-zero exit, so what this stub has to get right is refusing.
@@ -86,18 +87,21 @@ def front_door(tmp_path, monkeypatch):
 
 # --- channel-circle: both scripts carry the same `profile_dir` -----------------
 
+CIRCLE_INFO = {"name": "community.example", "kind": "dir", "login": "browser", "state": "verified", "host": "community.example",
+               "path": PROFILE, "exists": True, "verified": "2026-10-05T07:36:58Z"}
+
 
 @pytest.fixture(params=["capture_lesson.py", "outage_probe.py"])
 def circle(request):
     return _load("channel-circle", request.param)
 
 
-def test_a_minted_profile_is_the_path_the_cli_named(circle, front_door, tmp_path):
-    seen = front_door(0, {"domain": "community.example", "path": PROFILE, "exists": True}, PROFILE_PROSE)
+def test_a_logged_in_profile_is_the_path_the_cli_named(circle, front_door, tmp_path):
+    seen = front_door(0, CIRCLE_INFO, "name: community.example\n")
     path, refused = circle.profile_dir(tmp_path, "community.example")
     assert (path, refused) == (Path(PROFILE), None)
     got = seen()
-    assert got["argv"] == ["--json", "credential", "profile-dir", "community.example"], got
+    assert got["argv"] == ["--json", "credentials", "info", "community.example"], got
     assert Path(got["cwd"]) == tmp_path.resolve(), got
     # CLAUDE_PROJECT_DIR is the harness's project dir, never a wiki root; the
     # CLI does not read it, and the unit drops it so the nested call carries
@@ -105,11 +109,25 @@ def test_a_minted_profile_is_the_path_the_cli_named(circle, front_door, tmp_path
     assert got["inherited"] == [], got
 
 
-def test_a_profile_no_login_has_minted_is_absent_though_the_cli_exits_zero(circle, front_door, tmp_path):
-    """Exit 0, `exists: false`. Reading the exit code alone — or stdout as a
-    path — launches a persistent context that CREATES the directory and runs
-    the whole capture logged out, reporting nothing."""
-    front_door(0, {"domain": "community.example", "path": PROFILE, "exists": False}, PROFILE_PROSE)
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"exists": False, "state": "none"},
+        {"state": "unverified", "verified": None},
+        {"kind": "value", "login": "paste"},
+    ],
+    ids=["directory gone", "set but never logged in", "not a dir credential"],
+)
+def test_a_credential_no_login_has_verified_is_absent_though_the_cli_exits_zero(circle, front_door, tmp_path, overrides):
+    """Exit 0 for all of these. A default dir exists, empty, the moment it is
+    set, so `exists` alone would launch the whole capture logged out."""
+    front_door(0, {**CIRCLE_INFO, **overrides}, "prose\n")
+    path, refused = circle.profile_dir(tmp_path, "community.example")
+    assert path is None and refused[0] == "absent", (path, refused)
+
+
+def test_a_credential_the_wiki_never_declared_is_absent_not_unreachable(circle, front_door, tmp_path):
+    front_door(2, {"error": "no credential named 'community.example' in this wiki \u2014 exact names only:\nNAME  KIND"})
     path, refused = circle.profile_dir(tmp_path, "community.example")
     assert path is None and refused[0] == "absent", (path, refused)
 
@@ -125,10 +143,36 @@ def test_a_cli_that_could_not_answer_is_unreachable_not_absent(circle, front_doo
 
 def test_prose_on_stdout_is_never_taken_for_a_path(circle, front_door, tmp_path):
     """A CLI that answers prose even to `--json` — an older one — is an
-    unreachable store, never `Path("domain: …\\npath: …")`."""
-    front_door(0, {}, PROFILE_PROSE, honors_json=False)
+    unreachable store, never `Path("name: …\\npath: …")`."""
+    front_door(0, {}, f"name: community.example\npath: {PROFILE}\n", honors_json=False)
     path, refused = circle.profile_dir(tmp_path, "community.example")
     assert path is None and refused[0] == "unreachable", (path, refused)
+
+
+def test_the_real_cli_answers_what_circle_reads(circle, wiki, env, ops, monkeypatch):
+    """No stub: the verb exists, and a credential the documented `set` made
+    reads as set-but-not-logged-in until a login verifies it."""
+    attended = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
+    done = run(ops, rooted(attended, wiki), "credentials", "set", "circle-probe.example", "kind=dir", "login=browser",
+               "host=circle-probe.example", cwd=wiki)
+    assert done.returncode == 0, done.stdout + done.stderr
+    for key, value in attended.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("LLM_WIKI_ROOT", raising=False)
+    path, refused = circle.profile_dir(wiki, "circle-probe.example")
+    assert path is None and refused[0] == "absent", (path, refused)
+    path, refused = circle.profile_dir(wiki, "never-declared.example")
+    assert path is None and refused[0] == "absent", (path, refused)
+
+
+def test_no_circle_hint_names_a_login_script_the_unit_does_not_ship():
+    """The re-login step is `credentials login <domain>`; a hint naming a
+    script nobody ships sends an operator nowhere."""
+    for script in ("capture_lesson.py", "outage_probe.py"):
+        text = (SKILLS / "channel-circle" / "scripts" / script).read_text(encoding="utf-8")
+        assert "scripts/login.py" not in text, script
+    capture = (SKILLS / "channel-circle" / "scripts" / "capture_lesson.py").read_text(encoding="utf-8")
+    assert capture.count("credentials login") >= 3, "auth_expired, cloudflare_challenge and the absent hint"
 
 
 # --- channel-spotify: `credentials get|set spotify` ------------------------------
@@ -219,7 +263,7 @@ def _load_spawner(unit: str, script: str):
 
 
 def _reach_ops(mod, tmp_path, monkeypatch):
-    mod._ops(tmp_path, "credential", "profile-dir", "example.test")
+    mod._ops(tmp_path, "credentials", "info", "example.test")
 
 
 def _reach_section_plan(mod, tmp_path, monkeypatch):
