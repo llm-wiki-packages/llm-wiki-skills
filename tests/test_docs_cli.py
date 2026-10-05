@@ -125,8 +125,12 @@ def job_record(ops, env, wiki) -> dict:
     # job names no unit, and `jobs add` refuses one it cannot resolve to an
     # installed unit's own declared stage.
     enabled(ops, env, wiki, "web-page")
+    # A job record carries an `enrich` section only where a layer names its
+    # unit, and the docs spell `enrich.<key>=`: the probe names one.
+    enabled(ops, env, wiki, "channel-youtube-watch-gemini")
     r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "add", "https://example.invalid/docs",
-            f"slug={slug}", f"dest=sources/scrapes/{slug}", "every=once", "skill=web-page")
+            f"slug={slug}", f"dest=sources/scrapes/{slug}", "every=once", "skill=web-page",
+            "enrich.skill=channel-youtube-watch-gemini")
     assert r.returncode == 0, r.stdout + r.stderr
     return run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "show", slug).data["job"]
 

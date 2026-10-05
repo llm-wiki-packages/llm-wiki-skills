@@ -1,0 +1,12 @@
+{
+  "keywords": ["gemini", "watch", "summary", "summarize", "visual", "host:generativelanguage.googleapis.com"],
+  "kind": "media",
+  "name": "channel-youtube-watch-gemini",
+  "requires": {"credential": true, "ops": ">=0.1.0"},
+  "stages": {"enrich": {"sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gemini/gemini.enrich", "script": "scripts/watch_gemini.py"}},
+  "usage": "/channel-youtube-watch-gemini ticket=<id> stage=enrich",
+  "uses": "channel-youtube",
+  "v": 1,
+  "venue": "gemini",
+  "version": "0.1.0"
+}

@@ -248,6 +248,11 @@ def _reach_frameio(mod, tmp_path, monkeypatch):
         mod.write_page(tmp_path, "sources/scrapes/x", "Title", [], "body")
 
 
+def _reach_gemini(mod, tmp_path, monkeypatch):
+    with contextlib.suppress(SystemExit):
+        mod.open_ticket("0123456789ab", "enrich")
+
+
 def _reach_youtube(mod, tmp_path, monkeypatch):
     with contextlib.suppress(SystemExit):
         mod.write_page(tmp_path, "sources/youtube/x", "Title", {}, "body")
@@ -263,6 +268,7 @@ SPAWNERS = [
     ("channel-notion-tasks", "write_items.py", _reach_notion),
     ("channel-spotify", "spotify.py", _reach_ops),
     ("channel-youtube", "youtube_note.py", _reach_youtube),
+    ("channel-youtube-watch-gemini", "watch_gemini.py", _reach_gemini),
 ]
 
 

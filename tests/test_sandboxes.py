@@ -1,4 +1,4 @@
-"""The stage sandboxes the package ships: each harvest stage's `sandbox_ref`
+"""The stage sandboxes the package ships: each harvest or enrich stage's `sandbox_ref`
 resolves to one reference here, the reference's snippet reaches a model, and
 a credentialed unit can spend its credential somewhere. That the snippet's
 keys are admitted is `sandboxes enable`'s to say, in test_install.py."""
@@ -20,14 +20,19 @@ REFERENCES = ROOT / "references" / "sandboxes"
 # snippet.
 PARKED = {"circle", "substack", "teachable"}
 
-# A unit's harvest stage MAY carry no `sandbox_ref` at all — the ninth unit's
-# `script` stage runs the seeded `harvest` sandbox instead (A-5) — so only a
-# unit that DOES name one has a reference to check here.
+# The stages that dispatch a slice and so may name a sandbox.
+STAGES = ("harvest", "enrich")
+
+# A unit's stage MAY carry no `sandbox_ref` at all — the ninth unit's `script`
+# stage runs the seeded `harvest` sandbox instead (A-5) — so only a unit that
+# DOES name one has a reference to check here.
 SANDBOXED = [n for n in SKILLS if "sandbox_ref" in unit_manifest(n).get("stages", {}).get("harvest", {})]
+ENRICHED = [n for n in SKILLS if "sandbox_ref" in unit_manifest(n).get("stages", {}).get("enrich", {})]
+REFERENCED = [(n, stage) for n in SKILLS for stage in STAGES if "sandbox_ref" in unit_manifest(n).get("stages", {}).get(stage, {})]
 
 
-def _reference(name: str) -> tuple[str, dict]:
-    ref = unit_manifest(name)["stages"]["harvest"]["sandbox_ref"]
+def _reference(name: str, stage: str = "harvest") -> tuple[str, dict]:
+    ref = unit_manifest(name)["stages"][stage]["sandbox_ref"]
     package, rel = ref.rsplit(":", 1)
     assert package == SOURCE, f"{name}: {ref} names a package other than this one"
     path = REFERENCES / f"{rel}.md"
@@ -40,11 +45,11 @@ def _hosts(name: str) -> list[str]:
 
 
 @pytest.mark.parametrize("name", SKILLS)
-def test_only_harvest_names_a_sandbox_and_requires_names_no_network(name):
+def test_only_harvest_and_enrich_name_a_sandbox_and_requires_names_no_network(name):
     manifest = unit_manifest(name)
     assert "network" not in manifest["requires"], name
     for stage, spec in manifest.get("stages", {}).items():
-        assert stage == "harvest" or "sandbox_ref" not in spec, (name, stage, spec)
+        assert stage in STAGES or "sandbox_ref" not in spec, (name, stage, spec)
         assert not {"sandbox", "reviewed"} & set(spec), f"{name}: a package manifest carries no binding"
 
 
@@ -63,9 +68,27 @@ def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name):
 
 @pytest.mark.parametrize("name", [n for n in SKILLS if unit_manifest(n)["requires"].get("credential")])
 def test_a_credentialed_unit_claims_an_exact_host_its_snippet_reaches(name):
-    _, doc = _reference(name)
+    stage = "harvest" if name in SANDBOXED else "enrich"
+    _, doc = _reference(name, stage)
     claims = [h for h in _hosts(name) if not h.startswith("*")]
     assert set(claims) & set(doc["profile"]["network"]["allow_domain"]), f"{name}: no exact host: claim is reached, so dispatch refuses a job with no host"
+
+
+@pytest.mark.parametrize("name", ENRICHED)
+def test_an_enrich_reference_is_the_units_venue_and_its_snippet_is_one_policy(name):
+    rel, doc = _reference(name, "enrich")
+    assert rel == f"{unit_manifest(name)['venue']}/{unit_manifest(name)['venue']}.enrich", rel
+    assert set(doc) == {"v", "profile"} and doc["v"] == 1, doc
+    allow = doc["profile"]["network"]["allow_domain"]
+    assert allow and not MODEL & set(allow), f"{name}: an enrich snippet names its venue's hosts, never a model endpoint"
+
+
+def test_two_units_of_one_venue_never_share_a_stage_sandbox_name():
+    """`skills install` names the wiki sandbox `<venue>-<stage>`, and refuses to
+    overwrite one a different reference wrote: two units of one venue and stage
+    cannot both be installed in one wiki."""
+    names = [f"{unit_manifest(n)['venue']}-{stage}" for n, stage in REFERENCED]
+    assert len(names) == len(set(names)), sorted(n for n in names if names.count(n) > 1)
 
 
 def _section_json(text: str, heading: str):
@@ -107,7 +130,7 @@ def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name):
 
 
 def test_every_reference_is_one_a_unit_names():
-    named = {_reference(n)[0] for n in SANDBOXED}
+    named = {_reference(n, stage)[0] for n, stage in REFERENCED}
     shipped = {str(p.relative_to(REFERENCES).with_suffix("")) for p in REFERENCES.rglob("*.md")}
     assert shipped == named, shipped ^ named
 

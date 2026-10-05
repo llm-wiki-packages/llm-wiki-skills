@@ -136,6 +136,40 @@ fill, and a summary over a transcript this long is a judgment nothing in the
 slice has the reading for. A job with `process.embeds: false` gets the same
 page without the `<iframe>`; the builder reads the key off the ticket.
 
+## Watch notes
+
+Written beside the bytes by an enrich unit — `channel-youtube-watch-gemini` or
+`channel-youtube-watch-local` — and folded in at PROCESS, between the
+description and the transcript. Harvest never writes them, and a fresh harvest
+removes `enrich/`: what an enrich unit made from old bytes does not outlive
+them.
+
+```
+<capture_dir>/enrich/watch.md      the notes, markdown, bullets and bold only
+<capture_dir>/enrich/watch.json    {"v": 1, "engine": "gemini"|"local", "model": ..., ...}
+```
+
+The two units' own `references/watch-notes.md` is the writer's side of these
+files and holds what a good note contains; the reader is `scripts/watch_notes.py`.
+A page folds them in only where both files are present, `v` is `1`, `engine` is
+one of the two, and `watch.md` is not empty. Anything else is no notes: no
+heading, no placeholder.
+
+```markdown
+## Watch notes
+
+*Google's Gemini watched the video (gemini-3.7-flash). Its timestamps are its own and are not checked against the video.*
+
+> **Overview** A short lesson.
+> - [00:10] Progressive overload is defined.
+```
+
+The provenance line is built from the validated `engine` and `model`; the notes
+never write it. The notes are a model's words about the venue's video, so they
+are held to the description's rule: every line quoted, a leading heading, fence,
+rule or callout marker escaped, `<`, `[[`, `%%`, `$$` and non-http links
+neutralized, bare urls autolinked, control characters dropped.
+
 ## Why deterministic
 
 Video metadata belongs in structured fields (so it's queryable and

@@ -1,0 +1,20 @@
+{
+  "keywords": ["watch", "frames", "summary", "summarize", "visual"],
+  "kind": "media",
+  "name": "channel-youtube-watch-local",
+  "requires": {
+    "bins": [
+      {"bin": "yt-dlp", "source": "https://github.com/yt-dlp/yt-dlp", "installers": {"brew": "yt-dlp", "pip": "yt-dlp"}},
+      {"bin": "ffmpeg", "source": "https://ffmpeg.org", "installers": {"brew": "ffmpeg"}},
+      {"bin": "ffprobe", "source": "https://ffmpeg.org", "installers": {"brew": "ffmpeg"}}
+    ],
+    "credential": false,
+    "ops": ">=0.1.0"
+  },
+  "stages": {"enrich": {"sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube-local/youtube-local.enrich"}},
+  "usage": "/channel-youtube-watch-local ticket=<id> stage=enrich",
+  "uses": "channel-youtube",
+  "v": 1,
+  "venue": "youtube-local",
+  "version": "0.1.0"
+}

@@ -20,7 +20,9 @@ writes the page under the ticket's `dest`.
 
 Reads, in the capture dir: `metadata.json` (`yt-dlp --dump-json`), the subtitle
 file yt-dlp fetched (.vtt or .srt, under `captions/` or beside the metadata),
-and `tickets open <id>` when `--ticket` names one (`slug`, `item`).
+`enrich/watch.md` and `enrich/watch.json` when an enrich unit left them (see
+`watch_notes.py`), and `tickets open <id>` when `--ticket` names one (`slug`,
+`item`).
 `--slug`/`--item` override it. Given no `--ticket` at all, refused unless
 `--item` says what the directory holds (a hand run): `run` starts this script
 at the wiki root, so a mistyped `--capture-dir` is otherwise a page built from
@@ -28,8 +30,8 @@ the wrong directory. The slug then defaults to the capture dir's parent
 (`_raw/<slug>/<leaf>`).
 
 FIRST, before it reads anything, it removes what an earlier run left in the
-capture dir — `page.md` and `written.json`, and `capture.json` on the harvest
-arm — because a capture dir is stable across pulls and a respawn that fails
+capture dir — `page.md` and `written.json`, and on the harvest arm `capture.json`
+and `enrich/` — because a capture dir is stable across pulls and a respawn that fails
 must not be read as the success the run before it had. The process arm leaves
 `capture.json` alone: that is harvest's answer, not this run's.
 
@@ -49,7 +51,8 @@ The process arm writes:
   the page `dest` already holds under that title. The body is the video's TRUE
   title as the `# H1`, thumbnail, embed, a compact facts list, the description
   as a blockquote (bare URLs linkified, the creator's own TIMESTAMPS block
-  turned into a list, hashtag soup collapsed), and the transcript as
+  turned into a list, hashtag soup collapsed), the enrich unit's notes as a
+  blockquote under "Watch notes" where there are any, and the transcript as
   timestamped, chapter-headed sections, noise-stripped and de-duplicated.
   `frontmatter.source_title` is the true title, when the filename rule made
   the page's differ from it. `extracted=true` is set, so the stage records
@@ -99,6 +102,11 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# `watch_notes.py` sits beside this script; a load by spec does not put this
+# directory on `sys.path`, as `run` starting the script by its path does.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import watch_notes  # noqa: E402
 
 # The front door, by the bare name every SKILL.md already runs this script
 # under — never a path.
@@ -503,6 +511,10 @@ def yt_date(d):
     return f"{d[:4]}-{d[4:6]}-{d[6:8]}" if d and d.isdigit() and len(d) == 8 else ""
 
 
+# Every break a renderer may treat as one, not just `\n`.
+_LINE_BREAKS = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+
+
 def _linkified(line):
     """Bare urls as autolinks, the prose between them neutralised."""
     out, at = [], 0
@@ -525,7 +537,7 @@ def description_to_md(desc):
     DESCRIPTION either, and the words read as typed."""
     if not isinstance(desc, str) or not desc.strip():
         return ""
-    lines = re.split(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]", desc)
+    lines = _LINE_BREAKS.split(desc)
     out, in_ts = [], False
     for raw in lines:
         line = "".join(ch if ch.isprintable() else " " for ch in raw).rstrip()   # tabs, control characters
@@ -552,6 +564,26 @@ def description_to_md(desc):
         out.append(unblocked(_linkified(line)))
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
     return "\n".join(f"> {line}" if line.strip() else ">" for line in text.split("\n"))
+
+
+WATCH_SOURCES = {
+    "gemini": "Google's Gemini watched the video",
+    "local": "A model read sampled frames and the captions",
+}
+
+
+def watch_notes_to_md(watch):
+    """The enrich unit's notes as the body's "Watch notes" block. They are a
+    model's words about the venue's video, so they are held to the description's
+    rule: every line a blockquote line, a leading block marker and inline
+    markup escaped, and bare urls autolinked — nothing in them can open a
+    heading or a fence that swallows the transcript below. The provenance line
+    is built here from validated fields; the notes never write it."""
+    model = f" ({plain(fold(watch['model']))})" if watch.get("model") else ""
+    head = f"*{WATCH_SOURCES[watch['engine']]}{model}. Its timestamps are its own and are not checked against the video.*"
+    lines = [unblocked(_linkified("".join(ch if ch.isprintable() else " " for ch in raw).rstrip())) for raw in _LINE_BREAKS.split(watch["text"])]
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    return head + "\n\n" + "\n".join(f"> {line}" if line.strip() else ">" for line in text.split("\n"))
 
 
 # The plugin formatter's own section heads: `#### [mm:ss] Chapter title`.
@@ -721,12 +753,15 @@ def facts_block(front, item):
     return "\n".join(lines)
 
 
-def build_body(meta, front, item, transcript_md, embeds=True):
+def build_body(meta, front, item, transcript_md, embeds=True, watch=None):
     """`page.md`: body only. It opens with the `# H1` — the video's TRUE title,
     which the filename rule may have kept out of `capture.json`'s — and every
     block after it opens with markup of its own, so the body can never open
     with a `---` line. `front` is where the validated id and urls come from:
     nothing is interpolated into the embed or a link straight off `meta`.
+
+    `watch` is `watch_notes.load`'s answer: the enrich unit's notes, between
+    the description and the transcript, or nothing where there are none.
 
     `embeds` is the ticket's `process.embeds`. False takes the iframe out and
     leaves everything else: no extractor sees this page, so this is the only
@@ -749,6 +784,8 @@ def build_body(meta, front, item, transcript_md, embeds=True):
     desc = description_to_md(meta.get("description", ""))
     if desc:
         parts.append("## Description\n\n" + desc + "\n")
+    if watch:
+        parts.append("## Watch notes\n\n" + watch_notes_to_md(watch) + "\n")
     if transcript_md:
         parts.append(
             "## Transcript\n\n*Auto-generated captions, cleaned "
@@ -813,6 +850,13 @@ def main():
     # `tickets update`'s, which does not check whose ticket a report answers.
     for name in (*STALE, *((CAPTURE_NAME,) if args.record else ())):
         (cap_dir / name).unlink(missing_ok=True)
+    if args.record:
+        # What an enrich unit made from the bytes this harvest is replacing.
+        notes = cap_dir / watch_notes.NOTES_DIR
+        if notes.is_symlink():
+            notes.unlink()
+        else:
+            shutil.rmtree(notes, ignore_errors=True)
 
     metadata_path = cap_dir / "metadata.json"
     if not metadata_path.is_file():
@@ -857,7 +901,8 @@ def main():
         finally:
             chapters_path.unlink(missing_ok=True)
 
-    body, has_desc = build_body(meta, front, item, transcript_md, embeds=embeds_of(ticket))
+    watch = watch_notes.load(cap_dir)
+    body, has_desc = build_body(meta, front, item, transcript_md, embeds=embeds_of(ticket), watch=watch)
     # Kept beside the capture as well as written to the page: a process ticket
     # can be retried over the same bytes, and this is what the run produced.
     (cap_dir / BODY_NAME).write_text(body, encoding="utf-8")
@@ -873,6 +918,7 @@ def main():
                 "has_transcript": bool(captions),
                 "chapters": len(safe_chapters(meta)),
                 "description": has_desc,
+                "watch_notes": bool(watch),
             }
         )
     )

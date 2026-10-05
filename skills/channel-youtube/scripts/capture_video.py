@@ -10,7 +10,7 @@ through `tickets open`, writes into the ticket's `capture_dir` and nowhere
 else, and posts `tickets update` itself. It never closes the ticket.
 
 Steps: clear what an earlier run left (`capture.json`, `page.md`,
-`written.json`: a capture dir is stable across pulls); an `item` already a
+`written.json` and `enrich/`: a capture dir is stable across pulls); an `item` already a
 `resource` in `known[]`, with no `refresh`, is `ok` with a reason naming
 `known` and fetches nothing; `yt-dlp --dump-json --no-download` into
 `metadata.json` (required); `yt-dlp --skip-download --write-sub
@@ -154,6 +154,12 @@ def run_ticketed(ticket_id: str) -> int:
     directory.mkdir(parents=True, exist_ok=True)
     for name in STALE:
         (directory / name).unlink(missing_ok=True)
+    # An enrich unit's notes were made from the bytes this pull replaces.
+    enrich = directory / "enrich"
+    if enrich.is_symlink():
+        enrich.unlink()
+    else:
+        shutil.rmtree(enrich, ignore_errors=True)
 
     item = ticket.get("item")
     if not isinstance(item, str) or not item:
