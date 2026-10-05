@@ -4,19 +4,21 @@
    lists (public catalog only; no user login exists in this skill). Have
    the operator create an app at developer.spotify.com → Dashboard, then
    store per machine — the OPERATOR runs this, at a terminal:
-   `llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py auth --client-id <id>`
-   It prompts for the client secret without echo (with no terminal it reads
-   one line of stdin), then writes + tests the `spotify` credential,
-   machine-local and never synced. Never pass the secret as an argument: argv
-   is readable in `ps` and lands in shell history. Without credentials the
+   `llm-wiki-ops credentials set spotify`
+   It reads the payload from stdin: one JSON object,
+   `{"client_id": "<id>", "client_secret": "<secret>"}`, typed or pasted at
+   the prompt, never as an argument (argv is readable in `ps` and lands in
+   shell history). The `spotify` credential is machine-local and never
+   synced. The unit's `spotify.py` is run only by a stage's own session in
+   its jail, never by hand from a session or a terminal. Without credentials the
    capture degrades to the keyless embed fallback: possibly-truncated item
    lists, flagged `"keyless": true` and with a warning callout in the note.
    **Read "Credentials under a confined harvest" below** — stored
    credentials alone do not reach a scheduled, confined run.
-2. **Non-URL requests** ("add the Lex Fridman podcast episode 400")
-   resolve through the skill's search before anything is watched:
-   `llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py search "lex fridman #400" --type episode`
-   — confirm the match with the operator, then watch the chosen URL.
+2. **Non-URL requests** ("add the Lex Fridman podcast episode 400"): ask the
+   operator for the entity's Spotify URL, then watch that. `spotify.py search`
+   runs only inside a stage's jail, so no session resolves a name before the
+   job exists.
 3. **Declare the job**: one per entity URL.
    `llm-wiki-ops pipeline jobs add <entity-url> slug=<content-name>
    description="<what this is>" skill=channel-spotify
@@ -63,4 +65,3 @@ its ticket, and the capture uses the API: full item lists, dates,
 `min_date`. The manifest's exact `host:spotify.com` keyword is the
 credential's claim. Unverified live.
 
-Hand runs outside a slice read the store directly and need neither.

@@ -147,8 +147,8 @@ llm-wiki-ops run ops/skills/channel-frameio/scripts/harvest_share.py <capture_di
   again — or `"done"` / `"slice"` — stop. A leaf already captured is counted,
   never re-fetched; a leaf THIS SPAWN failed is left alone unless you pass
   `--retry-failed` (a genuine new spawn — the next pull, retry or widen
-  respawn — retries it on its own; see the script's own docstring). Outside
-  any slice — a hand run continuing an old plan — pass `--slice-seconds 0`.
+  respawn — retries it on its own; see the script's own docstring). The script
+  runs only in a stage's jail, so the slice clock always applies.
 - **Outcomes.** `ok`: every planned leaf landed, or nothing new was in scope
   (P-4: known/excluded/reference — never a worker's `skipped`). `partial`:
   some leaves did, and the rest are the job's next spawn's (unverified:

@@ -26,25 +26,28 @@
    `research/channels/`. `pipeline jobs edit` refuses `dest`, but re-running `add`
    with the same target and slug moves it and keeps every other key:
    `llm-wiki-ops pipeline jobs add <its target> slug=<slug> dest=research/channels/<slug>`.
-2. **The login and the route.** Harvest runs `ntn`, so the pulling machine
-   needs it installed and logged in to the workspace the job names: `ntn
-   login` there, by the operator, then `ntn whoami` to confirm it. The jail
-   never sees the token: a harvest needs a `notion` route in this machine's
-   harness profile. The sandbox reference's `## Credential` section spells
-   out the route's fields, and how a profile scoped to this wiki alone
-   differs from the machine-wide fallback:
+2. **The credential: the wiki's vault, never a login.** Harvest reaches Notion
+   through the `notion` route in its sandbox (the sandbox reference's
+   `## Credential` section spells it out), and the route's token is the
+   wiki's own. On each machine that pulls, store the Notion bot token for
+   the workspace the job names, on stdin and never on a command line:
+
+   ```sh
+   llm-wiki-ops credentials set notion
+   ```
+
+   No `ntn login`, and no route in a harness profile: the jail holds a
+   phantom and the proxy supplies the token to `api.notion.com` alone.
+   Without the token a harvest reports `failed`, `auth`, on
+   `api.notion.com`.
 
    ```sh
    llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
    ```
-
-   Without the route a harvest reports `failed`, `auth`, on
-   `api.notion.com`.
 3. **No credential to bind, and why.** `requires.credential` stays `false`:
-   `true` asks each machine to `credentials set` and `credentials bind` a
-   payload the slice is handed, and this skill reads none. Its credential is
-   the harness-profile route above, held by whichever machine (or wiki-scoped
-   profile) runs the harness — never by the enabled sandbox, which carries no
-   route at all. Where more than one machine has the skill enabled, pin the
-   job to the one that holds the route: `llm-wiki-ops pipeline jobs edit
+   `true` asks each machine to `credentials bind` a payload the slice is
+   handed, and this skill reads none. Its credential is the sandbox's
+   `notion` route, resolved from the wiki's vault on whichever machine runs
+   the harvest. Where more than one machine has the skill enabled, pin the
+   job to one that holds the token: `llm-wiki-ops pipeline jobs edit
    <slug> harvest.machine=<machine id>`.

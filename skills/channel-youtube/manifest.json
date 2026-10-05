@@ -28,7 +28,8 @@
   },
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube/youtube.harvest"
+      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube/youtube.harvest",
+      "script": "scripts/capture_video.py"
     },
     "process": {}
   },

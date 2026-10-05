@@ -1498,7 +1498,7 @@ def cmd_auth(a):
 def cmd_search(a):
     token = get_token(wiki_root())
     if not token:
-        die("search needs API credentials — run: spotify.py auth --client-id <id> (the secret is prompted for)", 3)
+        die("search needs API credentials — the operator stores them with `llm-wiki-ops credentials set spotify` (references/enable.md)", 3)
     types = a.type or "episode,show,playlist,album,audiobook"
     d = api_get(token, "/search", {"q": a.query, "type": types, "limit": a.limit, "market": a.market})
     rows = []

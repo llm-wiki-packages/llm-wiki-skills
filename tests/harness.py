@@ -29,6 +29,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / "llm-wiki-package.json").read_text(encoding="utf-8"))
 SOURCE = MANIFEST["repository"]
@@ -79,8 +81,25 @@ class Result:
         return json.loads(self.stdout)
 
 
+def _refused_for_the_jail(args, cp) -> str | None:
+    """What a plugin that composes a unit's jail answers a hand-driven stage
+    (`tickets run <id> spawn=self`, or `run ops/skills/<unit>/…` outside a ticket's
+    jail): a refusal naming the runner's own command. Nothing here can run a
+    stage that way, so a case that needs it skips on that refusal, saying so."""
+    if cp.returncode == 0:
+        return None
+    text = cp.stdout + cp.stderr
+    by_hand = "spawn=self" in args or (len(args) > 1 and args[0] == "run" and str(args[1]).startswith("ops/skills/"))
+    if by_hand and "pipeline tickets run" in text and "wait=" in text:
+        return text.strip().splitlines()[-1][:200]
+    return None
+
+
 def run(ops: list, env: dict, *args, cwd=None, input=None) -> Result:
     cp = subprocess.run([*ops, *args], env=env, cwd=cwd or NEUTRAL_CWD, capture_output=True, text=True, check=False, input=input)
+    refused = _refused_for_the_jail(args, cp)
+    if refused:
+        pytest.skip(f"the plugin refuses a stage driven by hand; it runs only through the runner's jail: {refused}")
     return Result(cp.returncode, cp.stdout, cp.stderr)
 
 

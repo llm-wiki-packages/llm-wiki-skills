@@ -27,39 +27,23 @@ harness`.
 
 ## Credential
 
-Not a venue route. `ntn` owns its own login — its bot token needs no
-refresh — so it is never stored in a wiki's vault, and this reference
-carries no machine-owned block, no `network.custom_credentials`, no
-`credential_capture`. This wiki writes no route for it at all.
+A venue route, `notion`, in this sandbox's `## Profile` below: `upstream`
+`https://api.notion.com`, `env_var` `NOTION_API_TOKEN`, `credential_format`
+`"Bearer {}"`. It is the stage's, never the harness profile's: a harness
+profile's routes ride every session jail of that harness, in every wiki on
+the machine, while this one reaches Notion only from this stage.
 
-Reaching Notion is the harness profile's job instead: this machine's admin
-hand-writes a `notion` route into it — nothing mints this one, so every
-field is theirs to type. Its own facts, whatever shape the profile takes:
-named `notion`; `upstream` `https://api.notion.com`; `env_var`
-`NOTION_API_TOKEN`; `credential_format` `"Bearer {}"`; `credential_key`
-`cmd://notion`; a capture whose command begins with `ntn`'s own absolute
-path on this machine — never the bare name — then `auth`, `token`; and a
-`timeout_secs` of its own. The profile's shape — where a route nests, and
-what else a complete profile must carry — is `llm-wiki-ops reference
-harness`, not restated here.
+The route's token is the wiki's own, in its credential vault under the
+route's name. Mint nothing else: `llm-wiki-ops credentials set notion`, the
+Notion bot token on stdin, once per machine that harvests. `sandboxes
+compose` adds the capture that reads that name, so the profile carries none.
+`requires.credential` stays `false`: nothing is bound to a job and no
+payload file is granted.
 
-A route added to the harness profile that this machine falls back to
-reaches every session jail of that harness, in every wiki on this machine.
-
-A profile scoped to this wiki alone is never merged with that fallback —
-it replaces it outright — so it must be a complete profile in its own
-right, per that same reference; a file holding only the `notion` route
-refuses every spawn. Once it is complete, its routes reach every session
-jail of that harness in this wiki — not harvest's alone — and none of
-another wiki's.
-
-Once the route exists, a spawned harvest session's environment always
-holds a phantom `NOTION_API_TOKEN` value; the proxy adds the real token,
-as `Authorization: Bearer <token>`, only to requests bound for
-`api.notion.com` — everywhere else the phantom stands. The token itself
-never enters the jail, and the jail reads no `~/.config/notion`. Until the
-admin adds the route, this unit's harvest has no way to reach Notion under
-the proxy.
+In the jail `NOTION_API_TOKEN` holds a phantom. The proxy adds the real
+token, as `Authorization: Bearer <token>`, only to requests bound for
+`api.notion.com`. The token never enters the jail, and the jail reads no
+`~/.config/notion` and runs no `ntn login`.
 
 ## Customize
 
@@ -71,8 +55,10 @@ the proxy.
 - Add no `notion.so` or `www.notion.so` host: `api.notion.com` is the only
   source, and fetching a page's web view is improvising another.
 - Add no `developers.notion.com`: set the version instead.
-- Add no `~/.config/notion` read: the route carries the token, and the
-  login stays outside the jail.
+- Add no `~/.config/notion` read: the route carries the token, and no login
+  is read from the host.
+- Add no route to the harness profile for this venue: a route written there
+  reaches this machine's account from every wiki.
 
 ## Profile
 
@@ -83,14 +69,24 @@ the proxy.
   "profile": {
     "meta": {
       "name": "notion-harvest",
-      "description": "the Notion harvest slice: this venue's API host."
+      "description": "the Notion harvest slice: this venue's API host and route."
     },
     "network": {
       // Allow-list mode: naming any host denies every other.
       "allow_domain": [
         // The venue: Notion's public API, the one host `ntn` calls.
         "api.notion.com"
-      ]
+      ],
+      // The route is named here and stated below; compose resolves its token
+      // from this wiki's vault entry of the same name.
+      "credentials": ["notion"],
+      "custom_credentials": {
+        "notion": {
+          "upstream": "https://api.notion.com",
+          "env_var": "NOTION_API_TOKEN",
+          "credential_format": "Bearer {}"
+        }
+      }
     },
     "environment": {
       "set_vars": {

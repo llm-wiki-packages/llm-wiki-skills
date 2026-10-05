@@ -174,9 +174,9 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
   per-domain profile clears it, because the profile carries the `cf_clearance`
   the human's login earned and that clearance is fingerprint-bound. Never
   attempt to solve a challenge.
-- **A spawned slice's jail is granted no profile directory**, so this unit is
-  expected to capture only where the worker itself is unjailed
-  (`llm-wiki-ops whereami` reporting `jail: none`). `capture_lesson.py` then
+- **A spawned slice's jail is granted no profile directory**, so an
+  authenticated capture is expected to fail in the jail the runner composes;
+  a stage has no unjailed form. `capture_lesson.py` then
   exits 5, or a browser that cannot write its profile dies on launch: report
   `--missing-leaf <n> error`, or for the root `--reason "profile_dir
   unreachable inside the slice"` — `error`, **never `auth`**, because `auth`

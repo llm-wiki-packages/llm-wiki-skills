@@ -9,34 +9,22 @@ argument-hint: "ticket=<id>"
 You are the plain-url harvest ticket's unit. Unlike every channel unit,
 your one stage runs with no model session at all: the pass starts
 `scripts/fetch.py` directly — `llm-wiki-ops run ops/skills/web-page/scripts/fetch.py
-ticket=<id>` (G2) — under the harvest sandbox, and that script reads the
-ticket, fetches, and posts `tickets update` itself. You are read only when a
-session hand-runs this ticket instead of leaving it to the pass — because
-nothing spawned a slice, or an operator is debugging one by hand.
+ticket=<id>` (G2) — in the harvest stage's jail, and that script reads the
+ticket, fetches, and posts `tickets update` itself. There is no hand-run
+form: the script runs only through the runner, and `tickets run <id>
+spawn=self` is refused for this unit's ticket.
 
-## Hand run
-
-```sh
-llm-wiki-ops --json pipeline tickets run <id> spawn=self
-```
-
-This prints the worker's own invocation (G2): run exactly that line,
-unjailed, in this session —
+## Running a ticket
 
 ```sh
-llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>
+llm-wiki-ops --json pipeline run job=<slug> wait=<s>
+llm-wiki-ops --json pipeline tickets run <id> wait=<s>
 ```
 
-— then land it:
-
-```sh
-llm-wiki-ops --json pipeline tickets close <id>
-```
-
-`close` reads whatever `tickets update` the script posted and routes it:
-`ok` mints the process ticket the plugin's own `scripts/extract.py` runs;
-`failed` with attempts left re-queues; `gone` (a refresh only) lands the
-page as gone. The script never closes its own ticket.
+Either starts the stage jailed. The host's `close` (`pipeline tickets close <id>`) reads whatever `tickets update` the
+script posted and routes it: `ok` mints the process ticket the plugin's own
+`scripts/extract.py` runs; `failed` with attempts left re-queues; `gone` (a
+refresh only) lands the page as gone. The script never closes its own ticket.
 
 ## What it does
 

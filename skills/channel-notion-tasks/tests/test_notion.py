@@ -220,30 +220,115 @@ def test_times_are_iso_in_and_iso_out():
 # ------------------------------------------------------------------ the pull's commands
 
 
-# Every `ntn` call harvest may make. `auth token` prints the raw token, and the
-# rest write to the venue.
-NTN_READS = {("whoami",), ("datasources", "resolve"), ("api",), ("pages", "get")}
+PULL = UNIT_DIR / "scripts" / "pull.py"
+
+# A stand-in `ntn`: logs argv and stdin, answers what the real one would for the
+# calls the pull makes. `FAKE_NTN_WORKSPACE` picks the token's workspace;
+# `FAKE_NTN_FAIL` names the subcommand that exits 1 with that text on stderr.
+FAKE_NTN = r"""#!/usr/bin/env python3
+import json, os, sys
+argv = sys.argv[1:]
+stdin = sys.stdin.read()
+with open(os.environ["FAKE_NTN_LOG"], "a") as log:
+    log.write(json.dumps({"argv": argv, "stdin": stdin}) + "\n")
+fail = os.environ.get("FAKE_NTN_FAIL", "")
+if fail and argv[0] == fail.split(":", 1)[0]:
+    print(fail.split(":", 1)[1], file=sys.stderr)
+    sys.exit(1)
+def page(n, edited):
+    return {"id": f"page-{n}", "last_edited_time": edited, "url": f"https://www.notion.so/page-{n}", "properties": {
+        "Name": {"type": "title", "title": [{"plain_text": "Task "}, {"plain_text": str(n)}]},
+        "Status": {"type": "status", "status": {"name": "Doing"}},
+        "Due": {"type": "date", "date": {"start": "2026-09-30"}},
+        "Owner": {"type": "people", "people": [{"name": "Operator"}, {"name": "Peer"}]}}}
+if argv[0] == "whoami":
+    print(json.dumps({"bot": {"workspace_name": os.environ.get("FAKE_NTN_WORKSPACE", "harness")}}))
+elif argv[:2] == ["datasources", "resolve"]:
+    print(json.dumps({"data_sources": [{"id": f"ds-{argv[2]}"}]}))
+elif argv[0] == "api":
+    body = json.loads(stdin)
+    if "start_cursor" in body:
+        print(json.dumps({"results": [page(1, "2026-09-18T10:01:00.000Z")], "has_more": False}))
+    else:
+        print(json.dumps({"results": [page(2, "2026-09-18T10:02:00.000Z")], "has_more": True, "next_cursor": "c2"}))
+elif argv[:2] == ["pages", "get"]:
+    print("---\ntitle: x\n---\nnotes for " + argv[2])
+else:
+    sys.exit(9)
+"""
 
 
-def ntn_calls() -> list[str]:
-    """Each `ntn` command in SKILL.md's shell blocks, joined across `\\` continuations."""
+def run_pull(tmp_path, *extra, workspace="harness", fail=""):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    fake = bin_dir / "ntn"
+    fake.write_text(FAKE_NTN, encoding="utf-8")
+    fake.chmod(0o755)
+    log = tmp_path / "ntn.log"
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_NTN_LOG": str(log),
+           "FAKE_NTN_WORKSPACE": workspace, "FAKE_NTN_FAIL": fail}
+    cp = subprocess.run(
+        [sys.executable, str(PULL), str(tmp_path / "cap"), "--workspace", "harness", "--since", "2026-09-01T00:00:00Z", *extra],
+        capture_output=True, text=True, env=env, check=False,
+    )
+    calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    return cp, calls
+
+
+def test_the_pull_reads_every_page_of_every_data_source_oldest_first(tmp_path):
+    cp, calls = run_pull(tmp_path, "--database", "db-a")
+    assert cp.returncode == 0, cp.stderr
+    answer = json.loads(cp.stdout)
+    assert answer["status"] == "ok" and answer["count"] == 2 and answer["partial"] is None
+    pulled = json.loads((tmp_path / "cap" / "pull.json").read_text())
+    assert [t["id"] for t in pulled] == ["page-1", "page-2"]  # sorted oldest first across the two result pages
+    assert pulled[0] == {"id": "page-1", "last_edited": "2026-09-18T10:01:00.000Z", "database": "db-a", "title": "Task 1",
+                         "status": "Doing", "due": "2026-09-30", "assignee": "Operator, Peer",
+                         "url": "https://www.notion.so/page-1", "body": "notes for page-1"}
+    queries = [json.loads(c["stdin"]) for c in calls if c["argv"][0] == "api"]
+    assert [q.get("start_cursor") for q in queries] == [None, "c2"]
+    assert queries[0]["filter"]["last_edited_time"] == {"on_or_after": "2026-09-01T00:00:00Z"}
+    assert queries[0]["sorts"] == [{"timestamp": "last_edited_time", "direction": "ascending"}]
+
+
+def test_the_pull_only_reads_and_gives_every_call_stdin(tmp_path):
+    cp, calls = run_pull(tmp_path, "--database", "db-a")
+    assert cp.returncode == 0, cp.stderr
+    reads = {("whoami",), ("datasources", "resolve"), ("api",), ("pages", "get")}
+    for call in calls:
+        argv = call["argv"]
+        assert any(tuple(argv[: len(read)]) == read for read in reads), argv  # never auth, login, create, edit
+    (api,) = {tuple(c["argv"][:2]) for c in calls if c["argv"][0] == "api"}
+    assert api == ("api", "v1/data_sources/ds-db-a/query")
+
+
+def test_a_workspace_that_is_not_the_jobs_is_auth_and_nothing_is_queried(tmp_path):
+    cp, calls = run_pull(tmp_path, "--database", "db-a", workspace="someone-else")
+    assert cp.returncode == 3, cp.stdout
+    answer = json.loads(cp.stdout)
+    assert answer["status"] == "failed" and answer["why"] == "auth" and "someone-else" in answer["reason"]
+    assert [c["argv"][0] for c in calls] == ["whoami"] and not (tmp_path / "cap" / "pull.json").exists()
+
+
+@pytest.mark.parametrize("stderr, why", [("401 Unauthorized", "auth"), ("request timed out", "timeout"), ("boom", "error")])
+def test_a_failed_ntn_call_names_why(tmp_path, stderr, why):
+    cp, _ = run_pull(tmp_path, "--database", "db-a", fail=f"whoami:{stderr}")
+    assert cp.returncode == 3 and json.loads(cp.stdout)["why"] == why
+
+
+def test_a_pull_past_its_deadline_stops_and_says_partial(tmp_path):
+    cp, _ = run_pull(tmp_path, "--database", "db-a", "--deadline-seconds", "0")
+    assert cp.returncode == 0, cp.stderr
+    answer = json.loads(cp.stdout)
+    assert answer["status"] == "partial" and "deadline" in answer["partial"]
+
+
+def test_skill_md_runs_no_ntn_of_its_own():
     text = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
     blocks = re.findall(r"^```sh\n(.*?)^```$", text, re.M | re.S)
-    lines = [line for block in blocks for line in block.replace("\\\n", " ").splitlines()]
-    return [line for line in lines if re.search(r"(^|\|)\s*ntn\s", line)]
-
-
-def test_every_ntn_call_is_a_read_and_is_given_stdin():
-    calls = ntn_calls()
-    assert len(calls) == 4, calls
-    for line in calls:
-        words = shlex.split(line.split("|")[-1])
-        assert words[0] == "ntn", line
-        assert any(tuple(words[1 : 1 + len(read)]) == read for read in NTN_READS), line
-        # With no stdin `ntn` waits on it until the slice dies.
-        assert "< /dev/null" in line or "|" in line, line
-    (query,) = [line for line in calls if " api " in line]
-    assert "/query" in query and '"direction": "ascending"' in query and '"on_or_after": "<since>"' in query
+    bare = [line for block in blocks for line in block.replace("\\\n", " ").splitlines() if re.search(r"(^|\|)\s*ntn\s", line)]
+    assert not bare, f"a venue command belongs in a script: {bare}"
+    assert "scripts/pull.py" in text
 
 
 # ------------------------------------------------------------------ the writer

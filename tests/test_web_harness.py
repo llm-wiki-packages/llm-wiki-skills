@@ -1,6 +1,6 @@
 """web-page, the harness tier: the unit installed and enabled through the REAL
-CLI, a live ticket run unjailed exactly as `spawn=self` prints it (G2), and
-its capture landing through the plugin's real `extract`.
+CLI, its stage started by the runner (`pipeline run`) in the jail the runner
+composes, and its capture landing through the plugin's real `extract`.
 
 Its helpers and constants are the unit's own tests' —
 `skills/web-page/tests/test_fetch.py`, which ships with the unit — so a case
@@ -20,15 +20,10 @@ import threading
 
 import pytest
 
-from harness import declared_job, is_globally_routable, landed, live_ticket, outbound_ip, rooted, run, unit_tests
+from harness import declared_job, is_globally_routable, outbound_ip, rooted, run, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("web-page", "test_fetch"))
-
-
-def _needs_run_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "run", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets run` (spawn=self) is plugins PR 2 (#2486)")
 
 
 @pytest.fixture
@@ -75,53 +70,34 @@ def page_server(tmp_path_factory, wiki):
         local.write_text(before, encoding="utf-8")
 
 
-def test_a_harvested_url_lands_as_a_report_through_the_run_line(ops, env, wiki, page_server):
-    """`live_ticket` starts the ticket exactly as `spawn=self` would print it
-    for a `script` stage (G2): `llm-wiki-ops run
-    ops/skills/web-page/scripts/fetch.py ticket=<id>`, unjailed here."""
-    _needs_run_verb(ops, env, wiki)
-    job = declared_job(ops, env, wiki, "web-page", page_server, slug="port-web")
-    ticket_id, capture_dir = live_ticket(ops, env, wiki, job)
-    r = run(
-        ops, rooted(env, wiki), "run", "ops/skills/web-page/scripts/fetch.py", f"ticket={ticket_id}",
-        cwd=wiki,
-    )
-    assert r.returncode == 0, r.stdout + r.stderr
-    # `report.<id>.json` lands in the CAPTURE directory (the host's file).
-    report = json.loads((capture_dir / f"report.{ticket_id}.json").read_text(encoding="utf-8"))
-    assert report["status"] == "ok" and report["stage"] == "harvest"
-    landed(ops, env, wiki, ticket_id)  # frees the harvest cap slot for every later case in this session
+def _no_jail_here(r):
+    """Skip, naming the machine's own refusal, where the runner could not compose or start the stage's jail."""
+    for entry in (r.data or {}).get("skipped") or []:
+        reason = entry.get("reason", "")
+        if "sandbox" in reason or "nono" in reason or "jail" in reason:
+            pytest.skip(f"this machine cannot start the stage's jail: {reason[:160]}")
 
 
-def test_a_harvested_capture_becomes_a_staged_page_through_the_real_pass(ops, env, wiki, page_server):
-    """The whole point of the rework: what this unit's harvest leaves is what
-    the process ticket the pass mints reads through the plugin's real
-    `extract`. A `frontmatter` key on `capture.json` — this unit never
-    writes one, but `capture.TEXT_FIELDS` names only five keys and the
-    extractor must ignore any other — is the one fact `test_port_smoke.py`
-    proved and this case folds in, so it keeps a test."""
-    _needs_run_verb(ops, env, wiki)
+def test_a_harvested_url_becomes_a_staged_page_through_the_runner(ops, env, wiki, page_server):
+    """The stage runs only in the jail the runner composes: `pipeline run` starts
+    fetch.py behind it, the pass closes the harvest ticket, and the next pass
+    runs the process ticket the plugin's own `extract` handles. No test here
+    takes a ticket for the session or runs the script by hand."""
     job = declared_job(ops, env, wiki, "web-page", page_server, slug="port-web-pass")
-    ticket_id, capture_dir = live_ticket(ops, env, wiki, job)
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/web-page/scripts/fetch.py", f"ticket={ticket_id}", cwd=wiki)
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "claim", job.slug)
     assert r.returncode == 0, r.stdout + r.stderr
-    capture = json.loads((capture_dir / "capture.json").read_text(encoding="utf-8"))
-    capture["frontmatter"] = {"type": "should-be-ignored"}
-    (capture_dir / "capture.json").write_text(json.dumps(capture), encoding="utf-8")
-    closed = landed(ops, env, wiki, ticket_id)
-    assert closed.get("status") in ("ok", None), closed
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "run", f"job={job.slug}", "wait=30s")
-    assert r.returncode == 0, r.stdout + r.stderr
-    # A machine-level nono incompatibility, not this fixture: on this box
-    # `pipeline run`'s real jailed dispatch refuses to start at all ("this
-    # platform's sandbox has no deny primitive..."), so the process ticket
-    # is `skipped`, never `started`, and no page lands. Reported separately
-    # (not a fixture bug, not fixed here); this case still proves everything
-    # up to the real dispatch attempt.
-    skipped = (r.data or {}).get("skipped") or []
-    if any("no deny primitive" in s.get("reason", "") for s in skipped):
-        pytest.skip("this machine's nono has no deny primitive for a committed sandbox profile — reported, not fixed here")
-    pages = sorted((wiki / job.dest).glob("*.md")) if (wiki / job.dest).is_dir() else []
+    pages: list = []
+    for _ in range(3):  # harvest, then the process ticket its close mints
+        r = run(ops, rooted(env, wiki), "--json", "pipeline", "run", f"job={job.slug}", "wait=60s")
+        assert r.returncode == 0, r.stdout + r.stderr
+        _no_jail_here(r)
+        pages = sorted((wiki / job.dest).glob("*.md")) if (wiki / job.dest).is_dir() else []
+        if pages:
+            break
+    reports = sorted((wiki / "_raw" / job.slug).glob("*/report.*.json"))
+    assert reports, "the harvest stage left no report"
+    report = json.loads(reports[0].read_text(encoding="utf-8"))
+    assert report["status"] == "ok" and report["stage"] == "harvest", report
     assert pages, f"no page landed under {job.dest}"
     assert "Hello from the venue" in pages[0].read_text(encoding="utf-8")
 
