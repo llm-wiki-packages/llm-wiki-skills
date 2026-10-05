@@ -51,10 +51,10 @@ you pass — and `--ticket <id>`, opened for the rest of their inputs.
 llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py capture --capture-dir <capture_dir> --ticket <id>
 ```
 
-Reads the entity URL, `slug`, `min_date` and `harvest.assets` off the ticket
-(flags override), clears what an earlier run left there, and writes bytes
+Reads the entity URL, `slug`, `min_date` and `harvest.assets` off the ticket,
+clears what an earlier run left there, and writes bytes
 only: `meta.json` (entity + items + feeds + `drm_refs` + counts +
-`unreachable`, plus `truncated` and `auth` when either happened),
+`unreachable`, plus `truncated` when the list was cut),
 `items.json`, `assets.json` (pending cover image + matched MP3 enclosures),
 and a flat `capture.json` — `{slug, item, title, body: "meta.json",
 content_type, fetched_at}`, nothing else. `title` names the page's FILE, so it
@@ -89,8 +89,8 @@ llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py report --capture-
 `captured[]` is the capture dir; `missing[]` is every failed asset plus every
 feed lookup the capture could not reach, `host,url,why` with `why` one of
 `denied | timeout | auth | error`. The status is `ok` (a full capture, or a
-lasting shortfall — a missing asset, a keyless capture, an unreadable
-credential — named in `reason` and `missing[]`), `partial` (ONLY the item
+lasting shortfall — a missing asset, a keyless capture — named in `reason`
+and `missing[]`), `partial` (ONLY the item
 list itself was truncated by a page the API could not fetch — a re-run picks
 up where it left off), or `failed` (exit 1) with no capture. Add a URL the
 script could not see with `--missing <url>=<why>`.
@@ -100,12 +100,12 @@ script could not see with `--missing <url>=<why>`.
 No network, no credential — everything this step needs is under `capture_dir`.
 
 ```
-llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id> --dest <dest>
+llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id>
 ```
 
-`<dest>` is the ticket's, wiki-relative. It renders `meta.json` into the page
+It renders `meta.json` into the page
 — H1, creator line, the capture's warnings, the description as quoted data,
-the item table with each item's audio route — and writes it under `dest`
+the item table with each item's audio route — and writes it under the ticket's `dest`
 itself with `llm-wiki-ops page create`, falling back to `page edit` when the
 title is there. The entity's facts ride as frontmatter keys, plus `resource`
 (the ticket's `item`) and `extracted=true`.
@@ -151,10 +151,9 @@ which the host mints for a page older than the job's `harvest.refresh` period
 — so declare the job with a cadence and a refresh period.
 
 **Search-driven adds.** When the operator names content instead of pasting a
-URL ("add the Lex Fridman podcast episode 400"), ask for the URL: `search`
-(`spotify.py search <query> --type episode`, rows of name/by/date/duration/url,
-API credentials required) is run only by a stage's own session in its jail, and
-no session has a ticket before the job exists.
+URL ("add the Lex Fridman podcast episode 400"), ask for the URL. Nothing here
+searches the catalog: a script runs only as a ticket's stage, and no ticket
+exists before the job.
 
 ## Dates
 
@@ -171,19 +170,14 @@ gets no `published` key at all.
 
 ## Access / auth
 
-- **API credentials** (client-credentials flow; public catalog only): the
-  `spotify` credential, machine-local, never synced. Set up once per machine,
-  by the operator at a terminal: `llm-wiki-ops credentials set spotify`, the
-  JSON payload `{"client_id": ..., "client_secret": ...}` on stdin — never in
-  argv. Get credentials at developer.spotify.com → create an app; no user
-  login.
-- **Keyless degradation**: with no credentials, `meta`/`capture` fall back to
-  the public embed endpoint — entity name and a possibly **truncated** item
-  list, `"keyless": true`, and a warning callout on the page.
-- **A confined harvest cannot read the store as shipped**: the capture goes
-  keyless and reports `partial` with a `missing[]` entry `why: auth`. The two
-  ways to give it the API are the operator's — `references/enable.md`, "Credentials under
-  a confined harvest". A ticket naming a `credential` is honored.
+- **API access** (client-credentials flow; public catalog only) is the
+  harvest sandbox's `spotify` route: in the jail `SPOTIFY_TOKEN_AUTH` holds a
+  phantom, `capture` sends it on the one token request, and the proxy puts the
+  wiki's own grant there. You call no `credentials` verb and read no login.
+  The operator stores the grant once per machine (`references/enable.md`).
+- **Keyless degradation**: with no route, `meta`/`capture` fall back to the
+  public embed endpoint — entity name and a possibly **truncated** item list,
+  `"keyless": true`, and a warning callout on the page.
 - **Rate limits.** A 429 waits the venue's `Retry-After` (+1 s; sixty seconds
   when it names none, capped at five minutes), four tries.
 - **Out of scope**: private playlists and the user library (they need user
@@ -213,22 +207,17 @@ gets no `published` key at all.
 All in `scripts/spotify.py` (PEP 723; run from the wiki root, paths
 wiki-relative). `-h` after the script path for the rest.
 
-- `auth --client-id <id>` — prompt for the secret (no echo; one line of stdin
-  when there is no terminal), store + test. `auth` alone re-tests.
-- `search <query> [--type …] [--limit N] [--market US]` — catalog search.
 - `meta <url> [--keyless]` — normalized entity JSON, full item pagination.
 - `resolve-feed <show-or-episode-url> | --show-name <name>` — public RSS feed
   + episode list, no credentials needed.
-- `capture [<url>] --capture-dir <dir> [--ticket ID] [--slug S] [--market US]
-  [--min-date D] [--assets reference|download|download-audio] [--keyless]
-  [--no-audio] [--entity-json FILE]` — the harvest step. Naming the URL marks
-  a run with no ticket; `--no-audio` skips the feed lookup, `--keyless` forces the
+- `capture --capture-dir <dir> --ticket ID [--market US] [--keyless]
+  [--no-audio] [--entity-json FILE]` — the harvest step; every other input is
+  the ticket's. `--no-audio` skips the feed lookup, `--keyless` forces the
   embed fallback, `--entity-json` captures an already-fetched entity. Exit 4
   = no audio resolved; exit 3 = not found, its verdict handed to `report`.
-- `process --capture-dir <dir> [--ticket ID] [--dest REL] [--min-date D]` —
-  the process step; prints the page it wrote. Exit 0 with `"skipped": true`
-  when an exclude rule matched.
-- `report --capture-dir <dir> --ticket ID [--dir REL] [--missing URL=WHY]…
+- `process --capture-dir <dir> --ticket ID` — the process step; prints the
+  page it wrote. Exit 0 with `"skipped": true` when an exclude rule matched.
+- `report --capture-dir <dir> --ticket ID [--missing URL=WHY]…
   [--written-from FILE]` — posts `tickets update`; run it last in either
   step. Exit 1 = posted `failed`; exit 2 = refused (nothing posted).
 

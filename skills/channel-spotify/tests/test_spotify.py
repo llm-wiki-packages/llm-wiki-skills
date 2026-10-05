@@ -13,7 +13,6 @@ lookup is either replaced in-process or switched off with `--no-audio`.
 from __future__ import annotations
 
 import importlib.util
-import io
 import json
 import os
 import re
@@ -87,6 +86,9 @@ class Response:
             raise RuntimeError(f"{self.status_code} Client Error")
 
 def _answer(url, **kw):
+    if os.environ.get("STUB_SEEN"):
+        with open(os.environ["STUB_SEEN"], "a") as seen:
+            seen.write(json.dumps({"url": url, "headers": kw.get("headers") or {}, "auth": kw.get("auth"), "data": kw.get("data")}) + "\\n")
     routes = json.load(open(os.environ["STUB_ROUTES"])) if os.environ.get("STUB_ROUTES") else {}
     for prefix in sorted(routes, key=len, reverse=True):
         if url.startswith(prefix):
@@ -148,6 +150,7 @@ def cli(tmp_path: Path, *args: str, cwd=None, routes=None, env=None, stdin=None,
     if routes is not None:
         (tmp_path / "routes.json").write_text(json.dumps(routes), encoding="utf-8")
         environ["STUB_ROUTES"] = str(tmp_path / "routes.json")
+        environ["STUB_SEEN"] = str(tmp_path / "requests.jsonl")
     argv = list(args)
     active = ticket if ticket is not None else _LAST_TICKET
     if active and argv and argv[0] in ("capture", "process", "report") and "--ticket" not in argv:
@@ -473,17 +476,16 @@ def test_capture_reads_everything_off_the_ticket(tmp_path):
     assert _kv(_updates(tmp_path)[-1])["status"] == "ok"
 
 
-def test_flags_override_the_ticket(tmp_path):
+@pytest.mark.parametrize("step", ["capture", "process"])
+def test_a_step_with_no_ticket_is_refused_and_takes_no_input_by_hand(tmp_path, step):
+    """Every input is the ticket's: no url, slug, date or dest stands in for one."""
     cap = tmp_path / "cap"
-    ticket(cap, min_date="2026-06-15")
-    r = cli(
-        tmp_path, "capture", PLAYLIST_URL, "--capture-dir", str(cap), "--entity-json", str(FIXTURES / "playlist.json"),
-        "--no-audio", "--min-date", "1900-01-01", "--slug", "by-hand", "--assets", "reference",
-    )
-    assert r.returncode == 0, r.stderr
-    summary = json.loads(r.stdout)
-    assert summary["items"] == 3 and summary["assets_args"] == ["--mode", "reference"]
-    assert read(cap, "capture.json")["slug"] == "by-hand"
+    r = cli(tmp_path, step, "--capture-dir", str(cap), ticket=False)
+    assert r.returncode == 2 and "--ticket" in r.stderr, r.stderr
+    for flag in (["--slug", "x"], ["--min-date", "2026-01-01"], ["--dest", "x"], ["--assets", "reference"], [PLAYLIST_URL]):
+        r = cli(tmp_path, step, "--capture-dir", str(cap), "--ticket", "0123456789ab", *flag, ticket=False)
+        assert r.returncode == 2 and "unrecognized arguments" in r.stderr, (flag, r.stderr)
+    assert not cap.exists()
 
 
 def test_a_known_entity_is_skipped_without_a_fetch(tmp_path):
@@ -560,14 +562,14 @@ def recording_ops(spotify, monkeypatch, *answers) -> list:
     return calls
 
 
-def process(spotify, cap, monkeypatch, dest=None, min_date=None):
+def process(spotify, cap, monkeypatch):
     """`cmd_process`, direct — `open_ticket` stubbed to the last `ticket()`
     built (or `process_ticket()`, which is one), since this bypasses the
     front door entirely."""
     if _LAST_TICKET is not None:
         monkeypatch.setattr(spotify, "open_ticket", lambda tid, stage=None: _LAST_TICKET)
     spotify.cmd_process(types.SimpleNamespace(
-        capture_dir=str(cap), ticket=_LAST_TICKET["ticket"] if _LAST_TICKET else None, dest=dest, min_date=min_date,
+        capture_dir=str(cap), ticket=_LAST_TICKET["ticket"] if _LAST_TICKET else None,
     ))
 
 
@@ -693,7 +695,7 @@ def test_a_process_report_with_no_page_written_and_nothing_captured_is_failed(tm
     assert _kv(_updates(tmp_path)[-1])["status"] == "failed"
 
 
-# --- respawns, the wiki root, and a hand run ----------------------------------
+# --- respawns, and the wiki root ------------------------------------------------
 
 
 def test_a_respawn_does_not_report_the_last_attempts_capture(tmp_path):
@@ -732,25 +734,14 @@ def test_a_directory_with_no_ticket_is_refused_not_created(tmp_path):
     root = fake_wiki(tmp_path)
     # `.` is what a worker standing in its capture dir would guess; from the wiki root it is the wiki.
     for wrong in (".", "_raw/typo/leaf"):
-        r = cli(tmp_path, "capture", "--capture-dir", wrong, "--entity-json", "fx/playlist.json", "--no-audio", cwd=root, ticket=False)
-        assert r.returncode == 2 and "WIKI-RELATIVE" in r.stderr, r.stderr
-        # `--ticket` alone, with no `--dir` and no real ticket behind the id
-        # (no front door here), cannot resolve — refused, nothing posted.
+        # A ticket id with no real ticket behind it (no front door here)
+        # cannot resolve — refused, nothing created, nothing posted.
+        r = cli(tmp_path, "capture", "--capture-dir", wrong, "--ticket", "0123456789ab", "--entity-json", "fx/playlist.json",
+                "--no-audio", cwd=root, ticket=False)
+        assert r.returncode != 0, r.stderr
         r = cli(tmp_path, "report", "--capture-dir", wrong, "--ticket", "0123456789ab", cwd=root, ticket=False)
         assert r.returncode != 0 and not (tmp_path / "update-calls.jsonl").exists(), r.stderr
     assert not (root / "_raw").exists() and not (root / "capture.json").exists()
-
-
-def test_a_hand_run_needs_no_ticket_when_it_names_everything(tmp_path):
-    root = fake_wiki(tmp_path)
-    r = cli(tmp_path, "capture", PLAYLIST_URL, "--capture-dir", "scratch/probe", "--entity-json", "fx/playlist.json", "--no-audio", cwd=root, ticket=False)
-    assert r.returncode == 0, r.stderr
-    # `--dir` means `report` never calls `tickets open` — but it still posts
-    # `tickets update` unconditionally, so this needs its own front door.
-    r = cli(tmp_path, "report", "--capture-dir", "scratch/probe", "--ticket", "0123456789ab", "--dir", "_raw/s/probe",
-            cwd=root, env={"LLM_WIKI_OPS": _stub_ops(tmp_path, None)})
-    assert r.returncode == 0
-    assert _kv(_updates(tmp_path)[-1])["captured"] == "_raw/s/probe"
 
 
 # ------------------------------------------- Rule 4: a respawn, a skip, a claim of ok
@@ -941,14 +932,15 @@ def test_a_missing_entity_raises_not_found_for_every_type(spotify, monkeypatch, 
 
 
 TOKEN = {"https://accounts.spotify.com/api/token": {"json": {"access_token": "tok", "expires_in": 3600}}}
-CREDS = {"SPOTIFY_CLIENT_ID": "cid", "SPOTIFY_CLIENT_SECRET": "sec"}
+# The route's variable, as the jail holds it: a phantom the proxy replaces.
+ROUTE = {"SPOTIFY_TOKEN_AUTH": "phantom-grant"}
 
 
 def test_a_404_on_a_refresh_ticket_reports_gone(tmp_path):
     cap = tmp_path / "cap"
     ticket(cap, refresh=True, resource=PLAYLIST_URL, known=[{"resource": PLAYLIST_URL, "harvested_at": "x"}])
     (cap / "meta.json").write_text(json.dumps({"unreachable": [{"host": "h", "url": "https://h/x", "why": "denied"}]}), encoding="utf-8")
-    r = cli(tmp_path, "capture", "--capture-dir", str(cap), env=CREDS, routes={**TOKEN, "https://api.spotify.com/": {"status": 404}})
+    r = cli(tmp_path, "capture", "--capture-dir", str(cap), env=ROUTE, routes={**TOKEN, "https://api.spotify.com/": {"status": 404}})
     assert r.returncode == 0, r.stderr
     assert "Traceback" not in r.stderr and json.loads(r.stdout)["gone"] is True
     verdict = read(cap, "verdict.json")
@@ -964,7 +956,7 @@ def test_a_404_on_a_first_pull_is_failed_with_the_reason(tmp_path, keyless):
     cap = tmp_path / "cap"
     ticket(cap)
     routes = {**TOKEN, "https://api.spotify.com/": {"status": 404}, "https://open.spotify.com/embed/": {"status": 410}}
-    r = cli(tmp_path, "capture", "--capture-dir", str(cap), *(["--keyless"] if keyless else []), env=CREDS, routes=routes)
+    r = cli(tmp_path, "capture", "--capture-dir", str(cap), *(["--keyless"] if keyless else []), env=ROUTE, routes=routes)
     assert r.returncode == 3 and "Traceback" not in r.stderr, r.stderr
     verdict = read(cap, "verdict.json")
     assert verdict["status"] == "failed" and ("410" if keyless else "404") in verdict["reason"] and "market" in verdict["reason"]
@@ -974,7 +966,7 @@ def test_a_404_on_a_first_pull_is_failed_with_the_reason(tmp_path, keyless):
 
 
 def test_meta_on_a_missing_entity_exits_3_without_a_traceback(tmp_path):
-    r = cli(tmp_path, "meta", PLAYLIST_URL, env=CREDS, routes={**TOKEN, "https://api.spotify.com/": {"status": 404}})
+    r = cli(tmp_path, "meta", PLAYLIST_URL, env=ROUTE, routes={**TOKEN, "https://api.spotify.com/": {"status": 404}})
     assert r.returncode == 3 and "not found" in r.stderr and "Traceback" not in r.stderr
 
 
@@ -1039,17 +1031,15 @@ def test_the_bearer_token_is_never_sent_to_a_next_page_off_spotify(spotify, monk
     assert fake.calls == [] and items == [1] and cut["url"] == "https://evilspotify.com/v1/next"
 
 
-# ------------------------------------------- credentials: a slice cannot read the store
+# ------------------------------------------- credentials: the route, never a verb
 
 
-def ops_stub(tmp_path: Path, rc: int, answer: dict) -> tuple:
-    """An `llm-wiki-ops` first on PATH: ticket-aware for `pipeline tickets
-    open`/`update` like `_stub_ops` (open answers the last built `ticket()`,
-    update is recorded to `update-calls.jsonl` so `_updates`/`_kv` read it
-    same as any other test here) — and for anything else, here always
-    `credentials get <name>`, answers `answer`/`rc` and records ITS argv to
-    `seen`."""
-    bin_dir, seen, updates = tmp_path / "stub-bin", tmp_path / "seen.json", tmp_path / "update-calls.jsonl"
+def ops_stub(tmp_path: Path) -> tuple:
+    """An `llm-wiki-ops` front door that answers `pipeline tickets open`/
+    `update` like `_stub_ops` (open answers the last built `ticket()`, update
+    is recorded to `update-calls.jsonl`) and records every OTHER call's argv
+    to `seen`, refusing it."""
+    bin_dir, seen, updates = tmp_path / "stub-bin", tmp_path / "seen.jsonl", tmp_path / "update-calls.jsonl"
     bin_dir.mkdir(exist_ok=True)
     stub = bin_dir / "llm-wiki-ops"
     ticket_json = json.dumps(json.dumps(_LAST_TICKET))
@@ -1064,21 +1054,13 @@ def ops_stub(tmp_path: Path, rc: int, answer: dict) -> tuple:
         "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
-        f"json.dump(sys.argv[1:], open({str(seen)!r}, 'w'))\n"
-        f"sys.stdout.write({json.dumps(answer)!r})\n"
-        f"sys.exit({rc})\n"
+        f"pathlib.Path({str(seen)!r}).open('a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "sys.exit(2)\n"
     )
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
-    # `LLM_WIKI_OPS` named explicitly, not just PATH: `cli()` only auto-injects
-    # its own ticket stub when the env it is handed names no front door yet,
-    # and this one must be it, so both the ticket-open call `open_ticket`
-    # makes ahead of `credentials get` and the credential call itself land here.
     return {"PATH": f"{bin_dir}:/usr/bin:/bin", "LLM_WIKI_OPS": str(stub)}, seen
 
 
-# What `credentials get` answers inside a slice for a payload that is THERE and ungranted
-# (common/wiki/secrets.py::get), exit 1 — as against "no credential 'spotify' on this machine".
-UNREADABLE = {"error": "cannot read credential 'spotify': [Errno 13] Permission denied: '/home/u/.config/llm-wiki/credentials/r/spotify.json'"}
 EMBED = {"props": {"pageProps": {"state": {"data": {"entity": {
     "name": "Fixture Money Models", "subtitle": "Fixture Curator", "coverArt": {"sources": [{"url": "https://image-cdn-ak.spotifycdn.com/image/x"}]},
     "trackList": [{"uri": "spotify:episode:ep0000000000000000001", "title": "Part 1", "subtitle": "The Fixture Show", "duration": 3600000}],
@@ -1086,42 +1068,44 @@ EMBED = {"props": {"pageProps": {"state": {"data": {"entity": {
 EMBED_ROUTES = {"https://open.spotify.com/embed/": {"text": f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(EMBED)}</script>'}}
 
 
-def test_an_unreadable_store_under_a_ticket_is_keyless_ok_and_says_auth(tmp_path):
-    """The manifest declares `requires.credential: false`, so a slice is granted
-    no payload and `credentials get spotify` answers "cannot read" on every box
-    that HAS credentials. That used to exit 2: the capture failed every time."""
+def _seen_requests(tmp_path: Path) -> list:
+    path = tmp_path / "requests.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+
+def test_with_no_route_the_capture_is_keyless_and_asks_no_credentials_verb(tmp_path):
+    """No `SPOTIFY_TOKEN_AUTH` here: the documented keyless degradation, said
+    out loud — and no `credentials` verb, no token request, on the way."""
     root, rel = fake_wiki(tmp_path), "_raw/money-models/playlist--deadbeef"
-    ticket(root / rel)
-    path, seen = ops_stub(tmp_path, 1, UNREADABLE)
+    ticket(root / rel, credential="spotify-work")  # a ticket naming one changes nothing: the route is the one way
+    path, seen = ops_stub(tmp_path)
     r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
     assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify"]
-    summary = json.loads(r.stdout)
-    assert summary["keyless"] is True and summary["credential_unreadable"] is True
+    assert json.loads(r.stdout)["keyless"] is True and "credential_unreadable" not in r.stdout
+    assert not seen.exists(), seen.read_text()
+    assert [q["url"] for q in _seen_requests(tmp_path)] == [f"https://open.spotify.com/embed/playlist/{PLAYLIST_URL.rsplit('/', 1)[1]}"]
     assert cli(tmp_path, "report", "--capture-dir", rel, cwd=root, env=path).returncode == 0
     kv = _kv(_updates(tmp_path)[-1])
-    # P-5: an unreadable credential is a LASTING fact about this pull — `ok`, not `partial`.
-    assert kv["status"] == "ok" and kv["captured"] == rel
-    assert kv["missing"] == "api.spotify.com,https://api.spotify.com/v1/playlists/4rprjH5cIR72vskqa6RhpC,auth"
-    assert "could not be read" in kv["reason"] and "references/enable.md" in kv["reason"]
-    meta = read(root / rel, "meta.json")
-    assert meta["auth"]["why"] == "auth" and meta["keyless"] is True  # the page the process step builds says both
+    assert kv["status"] == "ok" and kv["captured"] == rel and "keyless" in kv["reason"]
 
 
-def test_an_unreadable_store_on_a_hand_run_is_still_an_error(tmp_path):
-    root = fake_wiki(tmp_path)
-    path, _ = ops_stub(tmp_path, 1, UNREADABLE)
-    r = cli(tmp_path, "capture", PLAYLIST_URL, "--capture-dir", "scratch/probe", "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
-    assert r.returncode == 2 and "cannot read credential" in r.stderr
-    assert not (root / "scratch/probe/capture.json").exists()
-
-
-def test_any_other_store_failure_under_a_ticket_is_still_an_error(tmp_path):
+def test_the_route_is_spent_on_the_token_request_alone_as_its_phantom(tmp_path):
+    """The route's variable holds a phantom; it rides the token request's Basic
+    `Authorization` and nothing else, and no client id or secret is anywhere."""
     root, rel = fake_wiki(tmp_path), "_raw/money-models/playlist--deadbeef"
     ticket(root / rel)
-    path, _ = ops_stub(tmp_path, 1, {"error": "no wiki here — run `llm-wiki-cli wiki <key> ...` to reach one, or `llm-wiki-cli init <dir>` to make one"})
-    r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
-    assert r.returncode == 2 and "no wiki here" in r.stderr and not (root / rel / "capture.json").exists()
+    path, seen = ops_stub(tmp_path)
+    routes = {**TOKEN, "https://api.spotify.com/": {"status": 404}}
+    r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env={**path, **ROUTE}, routes=routes)
+    assert r.returncode == 3, r.stderr  # the entity 404s: what matters here is how it was asked for
+    asked = _seen_requests(tmp_path)
+    token, api = asked[0], asked[1:]
+    assert token["url"] == "https://accounts.spotify.com/api/token" and token["auth"] is None
+    assert token["headers"]["Authorization"] == "Basic phantom-grant" and token["data"] == {"grant_type": "client_credentials"}
+    assert api and all(q["url"].startswith("https://api.spotify.com/") for q in api)
+    assert all(q["headers"].get("Authorization") == "Bearer tok" for q in api)
+    assert "phantom-grant" not in json.dumps(api)
+    assert not seen.exists(), seen.read_text()
 
 
 def test_the_front_door_a_hosted_run_names_wins_over_the_bare_name(tmp_path):
@@ -1130,69 +1114,18 @@ def test_the_front_door_a_hosted_run_names_wins_over_the_bare_name(tmp_path):
     nothing at all is on PATH under that name."""
     root, rel = fake_wiki(tmp_path), "_raw/money-models/playlist--deadbeef"
     ticket(root / rel)
-    _path, seen = ops_stub(tmp_path, 1, {"error": "no credential 'spotify' on this machine"})
+    ops_stub(tmp_path)
     r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root,
             env={"LLM_WIKI_OPS": str(tmp_path / "stub-bin" / "llm-wiki-ops")}, routes=EMBED_ROUTES)
     assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify"]
+    assert cli(tmp_path, "report", "--capture-dir", rel, cwd=root,
+               env={"LLM_WIKI_OPS": str(tmp_path / "stub-bin" / "llm-wiki-ops")}).returncode == 0
+    assert _kv(_updates(tmp_path)[-1])["captured"] == rel
 
 
-def test_a_ticket_that_names_a_credential_is_asked_for_that_one(tmp_path):
-    root, rel = fake_wiki(tmp_path), "_raw/money-models/playlist--deadbeef"
-    ticket(root / rel, credential="spotify-work")
-    path, seen = ops_stub(tmp_path, 1, {"error": "no credential 'spotify-work' on this machine"})
-    r = cli(tmp_path, "capture", "--capture-dir", rel, "--no-audio", cwd=root, env=path, routes=EMBED_ROUTES)
-    assert r.returncode == 0, r.stderr
-    assert json.loads(seen.read_text()) == ["--json", "credentials", "get", "spotify-work"]
-    assert read(root / rel, "meta.json").get("auth") is None  # absent is the documented degradation, not an auth problem
-
-
-# ------------------------------------------------ the secret never rides a command line
-
-
-def auth_run(spotify, monkeypatch, tmp_path, **ns):
-    stored = {}
-
-    def fake_ops(root, *args, **kw):
-        stored["argv"], stored["stdin"] = args, kw.get("input")
-        return 0, {}
-
-    monkeypatch.setattr(spotify, "wiki_root", lambda: tmp_path)
-    monkeypatch.setattr(spotify, "load_auth", lambda root: {})
-    monkeypatch.setattr(spotify, "get_token", lambda root: None)
-    monkeypatch.setattr(spotify, "_ops", fake_ops)
-    spotify.cmd_auth(types.SimpleNamespace(**ns))
-    return stored
-
-
-def test_auth_reads_the_secret_from_stdin_when_there_is_no_terminal(spotify, monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "stdin", io.StringIO("s3cret\n"))
-    stored = auth_run(spotify, monkeypatch, tmp_path, client_id="cid", client_secret=None)
-    assert stored["argv"] == ("credentials", "set", "spotify")
-    assert json.loads(stored["stdin"]) == {"client_id": "cid", "client_secret": "s3cret"}
-
-
-def test_auth_prompts_without_echo_on_a_terminal(spotify, monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "stdin", types.SimpleNamespace(isatty=lambda: True, readline=lambda: pytest.fail("read the tty raw")))
-    monkeypatch.setattr(spotify.getpass, "getpass", lambda prompt: " s3cret ")
-    stored = auth_run(spotify, monkeypatch, tmp_path, client_id="cid", client_secret=None)
-    assert json.loads(stored["stdin"])["client_secret"] == "s3cret"
-
-
-def test_the_argv_secret_still_works_and_says_it_is_deprecated(spotify, monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(sys, "stdin", types.SimpleNamespace(isatty=lambda: pytest.fail("prompted"), readline=lambda: pytest.fail("read")))
-    stored = auth_run(spotify, monkeypatch, tmp_path, client_id="cid", client_secret="sec")
-    assert json.loads(stored["stdin"])["client_secret"] == "sec" and "deprecated" in capsys.readouterr().err
-
-
-def test_an_empty_secret_is_refused_not_stored(spotify, monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
-    with pytest.raises(SystemExit):
-        auth_run(spotify, monkeypatch, tmp_path, client_id="cid", client_secret=None)
-
-
-def test_the_docs_never_tell_anyone_to_put_the_secret_on_a_command_line():
-    for doc in ("SKILL.md", "references/enable.md"):
-        for line in (UNIT / doc).read_text(encoding="utf-8").splitlines():
-            if "--client-secret" in line:
-                assert "deprecated" in line.lower(), f"{doc}: {line}"
+def test_no_subcommand_reaches_the_credential_store():
+    """The script spends a route; it stores, reads and binds nothing."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert '"credentials"' not in text and "SPOTIFY_CLIENT_ID" not in text and "getpass" not in text
+    for gone in ("auth", "search"):
+        assert f'sub.add_parser("{gone}"' not in text, gone
