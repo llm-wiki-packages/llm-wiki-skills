@@ -19,12 +19,14 @@ jail, and the proxy puts the wiki's own token on the request.
 
 Answers one JSON object on stdout and exits 0 when it wrote `pull.json`
 (`ok`, or `partial` with the reason to pass on as `write --partial`), 3 when
-nothing was pulled (`failed`, naming `why`: `denied`, `timeout`, `auth` or
-`error`), 2 on a bad argument. A workspace that is not `--workspace` is `auth`.
+nothing usable was pulled (`failed`, naming `why`: `denied`, `timeout`, `auth`
+or `error`), 2 on a bad argument. A workspace that is not `--workspace` is
+`auth`. Only the proxy's own refusal is `denied`.
 
-Tasks are written oldest first. `--deadline-seconds` bounds the whole pull so a
-slice's own kill never lands mid-write: past it the run stops, keeps what it
-has, and says `partial`.
+Tasks are written oldest first. A call that fails after some were read, or
+`--deadline-seconds` (counted from this script's start, so leave room for what
+the session already spent of its slice), stops the pull: it keeps what is
+contiguous from the old end across every data source, and says `partial`.
 
 Wiki-owned, stdlib only, imports nothing from the plugin.
 """
@@ -40,10 +42,11 @@ from pathlib import Path
 NTN = "ntn"
 PAGE_SIZE = 100
 CALL_TIMEOUT = 120
-DEADLINE_SECONDS = 1500  # a slice dies at 30 minutes; leave room to write
+DEADLINE_SECONDS = 900  # counted from this script's start, and the session spent part of the 30-minute slice before it
 FRONTMATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
-AUTH_WORDS = ("401", "unauthorized", "unauthenticated", "invalid token", "api token is invalid", "restricted")
-DENIED_WORDS = ("403", "forbidden", "denied", "proxy")
+AUTH_WORDS = ("401", "403", "unauthorized", "unauthenticated", "invalid token", "api token is invalid", "restricted", "forbidden")
+# Only the proxy's own wording is `denied`, which is never retried; a 403 from the venue is a token's reach.
+DENIED_WORDS = ("tunnel connection failed", "not in the allowlist")
 TIMEOUT_WORDS = ("timed out", "timeout")
 
 
@@ -56,7 +59,7 @@ class Failed(Exception):
 
 def why_of(text):
     low = text.lower()
-    for why, words in (("auth", AUTH_WORDS), ("denied", DENIED_WORDS), ("timeout", TIMEOUT_WORDS)):
+    for why, words in (("denied", DENIED_WORDS), ("auth", AUTH_WORDS), ("timeout", TIMEOUT_WORDS)):
         if any(word in low for word in words):
             return why
     return "error"
@@ -158,33 +161,61 @@ def query(source_id, since, deadline):
 
 
 def pull(args, deadline):
+    """The tasks, oldest first, and why the pull stopped early (None when it did not).
+
+    A stop leaves only what is contiguous from the old end: every data source is cut at the
+    earliest point any one of them was, so the watermark `write` moves to the newest task
+    never passes a task that was not read."""
     who = ntn_json("whoami", "--json")
     workspace = ((who.get("bot") or {}).get("workspace_name")) if isinstance(who, dict) else None
     if workspace != args.workspace:
         raise Failed("auth", f"the token reaches workspace {workspace!r}, not {args.workspace!r}")
-    tasks, partial = [], None
+    tasks, partial, cut, failure = [], None, None, None  # cut: None (no cut), "" (keep nothing), else the newest last_edited to keep
     for database in args.database:
-        for source in data_source_ids(ntn_json("datasources", "resolve", database, "--json")):
-            for page in query(source, args.since, deadline):
-                if page is None:
-                    partial = f"the {args.deadline_seconds}s deadline came before every data source was read"
-                    break
-                if time.monotonic() > deadline:
-                    partial = f"the {args.deadline_seconds}s deadline came before every page was read"
-                    break
-                fields = fields_of(page.get("properties"))
-                notes = body_of(ntn("pages", "get", page["id"]))
-                tasks.append({
-                    "id": page["id"], "last_edited": page.get("last_edited_time"), "database": database,
-                    "title": fields["title"], "status": fields["status"], "due": fields["due"],
-                    "assignee": fields["assignee"], "url": page.get("url"), "body": notes,
-                })
-            if partial:
-                break
         if partial:
+            cut = ""  # never queried: nothing newer than `since` is safe to keep
             break
+        try:
+            sources = data_source_ids(ntn_json("datasources", "resolve", database, "--json"))
+        except Failed as exc:
+            partial, cut = exc.reason, ""
+            failure = exc
+            continue
+        for source in sources:
+            read = []
+            try:
+                for page in query(source, args.since, deadline):
+                    if page is None or time.monotonic() > deadline:
+                        partial = f"the {args.deadline_seconds:g}s deadline came before every page was read"
+                        break
+                    fields = fields_of(page.get("properties"))
+                    notes = body_of(ntn("pages", "get", page["id"]))
+                    read.append({
+                        "id": page["id"], "last_edited": page.get("last_edited_time"), "database": database,
+                        "title": fields["title"], "status": fields["status"], "due": fields["due"],
+                        "assignee": fields["assignee"], "url": page.get("url"), "body": notes,
+                    })
+            except Failed as exc:
+                partial = exc.reason
+                failure = exc
+            tasks.extend(read)
+            if partial:
+                newest = read[-1]["last_edited"] if read else None
+                cut = _earlier(cut, newest or "")
+                break
+    if cut is not None:
+        tasks = [t for t in tasks if cut and (t["last_edited"] or "") <= cut]
+    if partial and not tasks and failure is not None:
+        raise failure
     tasks.sort(key=lambda t: t["last_edited"] or "")
+    if partial:
+        partial += f"; kept {len(tasks)} task(s), the ones contiguous from the old end"
     return tasks, partial
+
+
+def _earlier(cut, newest):
+    """The earlier of two cuts, `""` keeping nothing."""
+    return newest if cut is None else min(cut, newest)
 
 
 def main(argv=None):
@@ -196,13 +227,17 @@ def main(argv=None):
     ap.add_argument("--deadline-seconds", type=float, default=DEADLINE_SECONDS)
     args = ap.parse_args(argv)
     directory = Path(args.capture_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "pull.json").unlink(missing_ok=True)  # an earlier pull's file is never this one's answer
     deadline = time.monotonic() + args.deadline_seconds
     try:
         tasks, partial = pull(args, deadline)
     except Failed as exc:
         print(json.dumps({"status": "failed", "why": exc.why, "reason": exc.reason, "url": "https://api.notion.com"}))
         return 3
-    directory.mkdir(parents=True, exist_ok=True)
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:  # an answer shape this script did not expect
+        print(json.dumps({"status": "failed", "why": "error", "reason": f"unexpected `ntn` answer: {exc!r}"[:200], "url": "https://api.notion.com"}))
+        return 3
     (directory / "pull.json").write_text(json.dumps(tasks, indent=1), encoding="utf-8")
     print(json.dumps({"status": "partial" if partial else "ok", "count": len(tasks), "pull": "pull.json", "partial": partial}))
     return 0

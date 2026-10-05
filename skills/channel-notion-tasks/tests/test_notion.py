@@ -226,11 +226,11 @@ PULL = UNIT_DIR / "scripts" / "pull.py"
 # calls the pull makes. `FAKE_NTN_WORKSPACE` picks the token's workspace;
 # `FAKE_NTN_FAIL` names the subcommand that exits 1 with that text on stderr.
 FAKE_NTN = r"""#!/usr/bin/env python3
-import json, os, sys
+import json, os, stat, sys, time
 argv = sys.argv[1:]
 stdin = sys.stdin.read()
 with open(os.environ["FAKE_NTN_LOG"], "a") as log:
-    log.write(json.dumps({"argv": argv, "stdin": stdin}) + "\n")
+    log.write(json.dumps({"argv": argv, "stdin": stdin, "stdin_is_pipe": stat.S_ISFIFO(os.fstat(0).st_mode)}) + "\n")
 fail = os.environ.get("FAKE_NTN_FAIL", "")
 if fail and argv[0] == fail.split(":", 1)[0]:
     print(fail.split(":", 1)[1], file=sys.stderr)
@@ -241,10 +241,15 @@ def page(n, edited):
         "Status": {"type": "status", "status": {"name": "Doing"}},
         "Due": {"type": "date", "date": {"start": "2026-09-30"}},
         "Owner": {"type": "people", "people": [{"name": "Operator"}, {"name": "Peer"}]}}}
+data = json.loads(os.environ.get("FAKE_NTN_DATA", "null"))  # {data source: {"pages": [[n, edited]...], "sleep": s}}
 if argv[0] == "whoami":
     print(json.dumps({"bot": {"workspace_name": os.environ.get("FAKE_NTN_WORKSPACE", "harness")}}))
 elif argv[:2] == ["datasources", "resolve"]:
     print(json.dumps({"data_sources": [{"id": f"ds-{argv[2]}"}]}))
+elif argv[0] == "api" and data:
+    spec = data[argv[1].split("/")[2]]
+    time.sleep(spec.get("sleep", 0))
+    print(json.dumps({"results": [page(n, e) for n, e in spec["pages"]], "has_more": False}))
 elif argv[0] == "api":
     body = json.loads(stdin)
     if "start_cursor" in body:
@@ -252,13 +257,16 @@ elif argv[0] == "api":
     else:
         print(json.dumps({"results": [page(2, "2026-09-18T10:02:00.000Z")], "has_more": True, "next_cursor": "c2"}))
 elif argv[:2] == ["pages", "get"]:
+    if os.environ.get("FAKE_NTN_PAGE_FAIL") == argv[2]:
+        print("boom", file=sys.stderr)
+        sys.exit(1)
     print("---\ntitle: x\n---\nnotes for " + argv[2])
 else:
     sys.exit(9)
 """
 
 
-def run_pull(tmp_path, *extra, workspace="harness", fail=""):
+def run_pull(tmp_path, *extra, workspace="harness", fail="", data=None, page_fail=""):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     fake = bin_dir / "ntn"
@@ -266,7 +274,8 @@ def run_pull(tmp_path, *extra, workspace="harness", fail=""):
     fake.chmod(0o755)
     log = tmp_path / "ntn.log"
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_NTN_LOG": str(log),
-           "FAKE_NTN_WORKSPACE": workspace, "FAKE_NTN_FAIL": fail}
+           "FAKE_NTN_WORKSPACE": workspace, "FAKE_NTN_FAIL": fail, "FAKE_NTN_PAGE_FAIL": page_fail,
+           "FAKE_NTN_DATA": json.dumps(data)}
     cp = subprocess.run(
         [sys.executable, str(PULL), str(tmp_path / "cap"), "--workspace", "harness", "--since", "2026-09-01T00:00:00Z", *extra],
         capture_output=True, text=True, env=env, check=False,
@@ -298,6 +307,7 @@ def test_the_pull_only_reads_and_gives_every_call_stdin(tmp_path):
     for call in calls:
         argv = call["argv"]
         assert any(tuple(argv[: len(read)]) == read for read in reads), argv  # never auth, login, create, edit
+        assert call["stdin_is_pipe"], argv  # `ntn` waits on an inherited stdin until the slice dies
     (api,) = {tuple(c["argv"][:2]) for c in calls if c["argv"][0] == "api"}
     assert api == ("api", "v1/data_sources/ds-db-a/query")
 
@@ -310,7 +320,10 @@ def test_a_workspace_that_is_not_the_jobs_is_auth_and_nothing_is_queried(tmp_pat
     assert [c["argv"][0] for c in calls] == ["whoami"] and not (tmp_path / "cap" / "pull.json").exists()
 
 
-@pytest.mark.parametrize("stderr, why", [("401 Unauthorized", "auth"), ("request timed out", "timeout"), ("boom", "error")])
+@pytest.mark.parametrize("stderr, why", [
+    ("401 Unauthorized", "auth"), ("403 Forbidden", "auth"), ("request timed out", "timeout"),
+    ("Tunnel connection failed: host not in the allowlist", "denied"), ("boom", "error"),
+])
 def test_a_failed_ntn_call_names_why(tmp_path, stderr, why):
     cp, _ = run_pull(tmp_path, "--database", "db-a", fail=f"whoami:{stderr}")
     assert cp.returncode == 3 and json.loads(cp.stdout)["why"] == why
@@ -321,6 +334,35 @@ def test_a_pull_past_its_deadline_stops_and_says_partial(tmp_path):
     assert cp.returncode == 0, cp.stderr
     answer = json.loads(cp.stdout)
     assert answer["status"] == "partial" and "deadline" in answer["partial"]
+
+
+def test_a_pull_cut_in_one_data_source_keeps_only_what_is_contiguous_from_the_old_end(tmp_path):
+    """The watermark `write` leaves is the newest kept task: it must not pass one that was never read."""
+    data = {
+        "ds-db-a": {"pages": [[10, "2026-09-18T10:30:00.000Z"]]},
+        "ds-db-b": {"pages": [[1, "2026-09-18T10:01:00.000Z"], [2, "2026-09-18T10:02:00.000Z"]], "sleep": 2},
+    }
+    cp, _ = run_pull(tmp_path, "--database", "db-a", "--database", "db-b", "--deadline-seconds", "1", data=data)
+    assert cp.returncode == 0, cp.stdout
+    answer = json.loads(cp.stdout)
+    assert answer["status"] == "partial" and "deadline" in answer["partial"]
+    assert [t["id"] for t in json.loads((tmp_path / "cap" / "pull.json").read_text())] == []  # db-b was cut before a page came back
+
+
+def test_a_failed_page_read_keeps_the_prefix_and_says_partial(tmp_path):
+    data = {"ds-db-a": {"pages": [[1, "2026-09-18T10:01:00.000Z"], [2, "2026-09-18T10:02:00.000Z"], [3, "2026-09-18T10:03:00.000Z"]]}}
+    cp, _ = run_pull(tmp_path, "--database", "db-a", data=data, page_fail="page-3")
+    assert cp.returncode == 0, cp.stdout
+    assert json.loads(cp.stdout)["status"] == "partial"
+    assert [t["id"] for t in json.loads((tmp_path / "cap" / "pull.json").read_text())] == ["page-1", "page-2"]
+
+
+def test_a_failure_with_nothing_read_is_failed_and_leaves_no_stale_pull(tmp_path):
+    (tmp_path / "cap").mkdir()
+    (tmp_path / "cap" / "pull.json").write_text("[]")  # an earlier pull's file
+    cp, _ = run_pull(tmp_path, "--database", "db-a", data={"ds-db-a": {"pages": [[1, "2026-09-18T10:01:00.000Z"]]}}, page_fail="page-1")
+    assert cp.returncode == 3 and json.loads(cp.stdout)["status"] == "failed"
+    assert not (tmp_path / "cap" / "pull.json").exists()
 
 
 def test_skill_md_runs_no_ntn_of_its_own():
