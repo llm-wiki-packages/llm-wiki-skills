@@ -59,12 +59,13 @@ It writes `enrich/watch.md` and `enrich/watch.json` (the shape is
 - **`ok`, `produced=0`, reason `gemini rejected`** — Gemini refused this
   video (private, unsupported, too long): a lasting fact, so no retry.
 - **`failed`** — no key bound, or the key, quota, network or service failed
-  (`gemini auth|quota|network|service|response`): a later attempt could fix
-  it, and nothing is left in `enrich/`. The reason never carries the key.
+  (`gemini auth|quota|network|service|request|response`; `request` is a 404 or a
+  400 naming the model, so check `enrich.options.model`): a later attempt could
+  fix it, and nothing is left in `enrich/`. The reason never carries the key.
 
 A `failed` enrich is retried, and past its attempts it holds the capture back
-from process: the page waits until the key or the service is fixed or the job
-drops its enrich unit. An `ok` that produced nothing lets process run, and the
+from process: the page waits until the key or the service is fixed and the
+ticket is retried, or the job drops its enrich unit. An `ok` that produced nothing lets process run, and the
 page reads as harvest alone built it.
 
 ## Reference

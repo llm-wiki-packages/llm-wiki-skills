@@ -151,7 +151,8 @@ def ask(url: str, question: str, *, model: str, key: str, api_base: str = API, t
         message = _error_message(exc.read())
         # A malformed key answers 400 "API key not valid", not 401. A 400 that names
         # the model, or a 404, is a config fault every capture would hit, so it
-        # is a visible failure and never a quiet lasting fact about one video.
+        # is a visible failure and never a quiet lasting fact about one video. A
+        # 3xx is never followed (OPENER), so it lands here as a failed response.
         category = (
             "auth" if exc.code in (401, 403) or "api key" in message.lower()
             else "quota" if exc.code == 429
