@@ -35,8 +35,8 @@ Usage:
          [--headed] [--timeout-ms 45000]
 
 `<root>` is the wiki root (`.` under `llm-wiki-ops run`, which starts a script
-there) — auth profiles are reached through the credential store's
-`profile-dir` lookup, keyed by domain. `--out` and `--plan` are WIKI-RELATIVE:
+there) — auth profiles are reached through the `dir` credential
+named for the domain (`credentials info`). `--out` and `--plan` are WIKI-RELATIVE:
 a relative one is resolved against `<root>`, not against wherever the caller
 stands. A worker never types a url — a lesson's address is venue data and a
 command line is a shell: with no url, `--ticket <id>`'s own `target` is
@@ -61,6 +61,8 @@ History:
               auth directory.
   2026-08-04  auth profile lookup moves through the credential store's
               `profile-dir` verb instead of a hardcoded path.
+  2026-10-05  the profile is the `dir` credential's directory (`credentials
+              info`); the `profile-dir` verb no longer exists.
   2026-09-19  the url may come off the capture dir's `ticket.json`; sidebar
               links are what `section_plan.py` plans a section from — no
               host queues them any more.
@@ -129,23 +131,27 @@ def _ops(root, *args):
 
 
 def profile_dir(root, domain):
-    """`(path, None)` for a profile a login has minted; else `(None, (kind,
+    """`(path, None)` for a profile a login has verified; else `(None, (kind,
     why))`, kind `absent` or `unreachable`.
 
-    `credential profile-dir` exits 0 whether or not the directory exists —
-    it reports, and creates nothing — so `exists` is the answer, never the
-    exit code. Launching a persistent context on a path that is not there
-    would MAKE it, and run the whole capture logged out without a word."""
-    proc = _ops(root, "credential", "profile-dir", domain)
+    The profile is the directory of the `dir` credential named for the domain
+    (`credentials info`). It answers exit 0 for a dir that is only SET: the
+    default directory exists, empty, from `credentials set` on. So `verified`
+    is the answer — what `credentials login` records — never the exit code or
+    `exists` alone. Launching a persistent context on an unlogged-in directory
+    would run the whole capture logged out without a word."""
+    proc = _ops(root, "credentials", "info", domain)
     try:
         answer = json.loads(proc.stdout)
     except ValueError:
         answer = None
+    detail = answer.get("error") if isinstance(answer, dict) else None
+    if proc.returncode != 0 and isinstance(detail, str) and detail.startswith("no credential named"):
+        return None, ("absent", f"no auth profile for {domain}")
     if proc.returncode != 0 or not isinstance(answer, dict) or not answer.get("path"):
-        detail = answer.get("error") if isinstance(answer, dict) else None
         detail = detail or (proc.stderr or proc.stdout or "").strip()
         return None, ("unreachable", f"credential store unreachable ({proc.returncode}): {detail[:200]}")
-    if answer.get("exists") is not True:
+    if answer.get("kind") != "dir" or answer.get("exists") is not True or not answer.get("verified"):
         return None, ("absent", f"no auth profile for {domain}")
     return Path(answer["path"]), None
 
@@ -301,7 +307,7 @@ def main() -> int:
     if refused:
         kind, why = refused
         if kind == "absent":
-            why += f". Run the plugin's login helper: llm-wiki-ops run scripts/login.py {domain}"
+            why += f". Run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, then llm-wiki-ops credentials login {domain}"
         print(f"error: {why}", file=sys.stderr)
         return 2 if kind == "absent" else 5
 
