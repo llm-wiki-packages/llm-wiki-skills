@@ -441,15 +441,21 @@ def no_jail_here(answer: Result) -> None:
             pytest.skip(f"this machine cannot start a stage's jail, so no stage runs here: {text[at:at + 300]}")
 
 
-# llm-wiki-plugins #3080: `tickets update` and the plugin's own `extract.py`
-# open the wiki root, and each directory on the way to the capture, for
-# listing, and a Linux slice jail grants neither, so a stage dies there on its
-# first update. Read off the slice log, the root by its own path: a case that
-# meets it has nothing left to prove on this box.
-def root_unlistable(wiki: Path, text: str) -> None:
-    if f"Permission denied: '{Path(wiki).resolve()}'" in text:
-        pytest.skip("llm-wiki-plugins #3080: a Linux slice jail cannot list the wiki root, so the stage's "
-                    "`tickets update` (and `extract.py`) die on it; the case runs where that is fixed")
+# llm-wiki-plugins #3080: what stops a stage inside its slice on plugins main,
+# each in the plugin's own words, read off the slice log. `tickets update` and
+# the plugin's `extract.py` open the wiki root for listing, which a Linux slice
+# is not granted (the root by its own path, so no other refusal matches); and
+# since #3072 `run` asks `git ls-files` about `.agents/` with the slice's own
+# `GIT_DIR`, and git answers "not a git repository". A case that meets either
+# has nothing left to prove on this box.
+def plugin_refused(wiki: Path, text: str) -> None:
+    refusals = {
+        f"Permission denied: '{Path(wiki).resolve()}'": "a Linux slice cannot list the wiki root, so `tickets update` and `extract.py` die on it",
+        "`git ls-files` failed (128) rather than saying whether .agents/ is tracked": "`run` refuses every unit script in a slice: `git ls-files` there answers 'not a git repository'",
+    }
+    for words, why in refusals.items():
+        if words in text:
+            pytest.skip(f"llm-wiki-plugins #3080: {why}; the case runs where that is fixed")
 
 
 def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict | None = None, wait: str = "120s") -> Session:
@@ -474,7 +480,7 @@ def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict
     waited = r.data.get("wait") or {}
     assert waited.get("event") == "exit", f"{ticket}: the stage did not exit within {wait}: {r.stdout}"
     log = Path(waited["table"][0]["log"]).read_text(encoding="utf-8", errors="replace")
-    root_unlistable(wiki, log)
+    plugin_refused(wiki, log)
     # `wait=` answers at the worker's exit; the pass that exit runs lands the
     # ticket (and mints the next stage's) a moment later.
     deadline = time.monotonic() + 60
