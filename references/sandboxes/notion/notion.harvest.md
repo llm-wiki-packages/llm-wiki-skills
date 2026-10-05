@@ -110,3 +110,12 @@ template's `machine.allow`. Nothing in it names a machine path.
   }
 }
 ```
+
+## Probe
+
+Confirms the route inside the composed jail: exit 0 names the bot and its
+workspace. It spends the wiki's vault entry `notion`, so store it first.
+
+```json
+["{bin:ntn}", "whoami"]
+```
