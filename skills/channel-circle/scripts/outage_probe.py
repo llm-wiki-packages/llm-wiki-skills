@@ -18,8 +18,8 @@ be empty. So the fix signal is: the wrapper gains real child content AND no
 5xx responses are seen.
 
 Loads the page with the persistent auth profile (channel="chrome" + the
-per-domain profile that earned cf_clearance; created by the plugin's
-`llm-wiki-ops run scripts/login.py`), records every >=500 response,
+per-domain profile that earned cf_clearance; created by
+`llm-wiki-ops credentials login <domain>`), records every >=500 response,
 and measures the wrapper's rendered size.
 
 Usage:
@@ -124,13 +124,11 @@ def profile_dir(root, domain):
 
 
 def domain_of(url: str) -> str:
-    # `.hostname` lowercases and drops the port, matching most of
-    # `credentials.normalize_name` — but unlike that function this does NOT
-    # IDNA-encode a non-ASCII host, so an internationalized community domain
-    # would derive a unicode key here while login.py's `normalize_name`
-    # wrote the ASCII `xn--…` form, and the two would never meet. No IDN
-    # Circle community has been observed; flagging the divergence rather
-    # than silently reproducing it.
+    # The domain is the dir credential's NAME, which the CLI validates against
+    # [a-z0-9][a-z0-9._-]*: `.hostname` already lowercases and drops the port,
+    # but a non-ASCII host is not IDNA-encoded here, so the CLI refuses the
+    # name (rc 2, "invalid credential name") and it reads as unreachable (5).
+    # No IDN Circle community has been observed.
     return urlsplit(url).hostname or ""
 
 

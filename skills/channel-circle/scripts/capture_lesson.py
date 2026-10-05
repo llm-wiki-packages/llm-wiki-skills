@@ -11,8 +11,8 @@ as an arg, or `--ticket <id>`'s own `target` (A-1), through `tickets open`.
 
 Circle is a React SPA behind Cloudflare, with lesson bodies and video
 players rendered client-side. So we drive a real Chrome via Playwright
-using the persistent per-domain profile that the plugin's login helper
-(`llm-wiki-ops run scripts/login.py`) created — channel="chrome" plus
+using the persistent per-domain profile that `llm-wiki-ops credentials
+login <domain>` created — channel="chrome" plus
 the profile that earned cf_clearance — wait for the lesson content to
 render, then dump:
   - page.html         rendered DOM (asset-discovery ground truth)
@@ -157,13 +157,11 @@ def profile_dir(root, domain):
 
 
 def domain_of(url: str) -> str:
-    # `.hostname` lowercases and drops the port, matching most of
-    # `credentials.normalize_name` — but unlike that function this does NOT
-    # IDNA-encode a non-ASCII host, so an internationalized community domain
-    # would derive a unicode key here while login.py's `normalize_name`
-    # wrote the ASCII `xn--…` form, and the two would never meet. No IDN
-    # Circle community has been observed; flagging the divergence rather
-    # than silently reproducing it.
+    # The domain is the dir credential's NAME, which the CLI validates against
+    # [a-z0-9][a-z0-9._-]*: `.hostname` already lowercases and drops the port,
+    # but a non-ASCII host is not IDNA-encoded here, so the CLI refuses the
+    # name (rc 2, "invalid credential name") and it reads as unreachable (5).
+    # No IDN Circle community has been observed.
     return urlsplit(url).hostname or ""
 
 
@@ -361,7 +359,7 @@ def main() -> int:
 
         if re.search(r"/sign_in|/users/sign_in|/login", final_url):
             print(
-                f"auth_expired: landed on {final_url} — re-run llm-wiki-ops run scripts/login.py for this domain",
+                f"auth_expired: landed on {final_url} — re-run llm-wiki-ops credentials login <domain>",
                 file=sys.stderr,
             )
             context.close()
@@ -383,7 +381,7 @@ def main() -> int:
         if re.search(r"just a moment|cf-challenge|turnstile|checking your browser", html, re.I) and len(html) < 20000:
             print(
                 "cloudflare_challenge: page did not clear — re-run "
-                "llm-wiki-ops run scripts/login.py for this domain "
+                "llm-wiki-ops credentials login <domain> "
                 "(the persistent profile carries cf_clearance)",
                 file=sys.stderr,
             )

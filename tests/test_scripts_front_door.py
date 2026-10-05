@@ -5,9 +5,9 @@ just its exit code.
 person unless asked for `--json`, and `credentials info` exits 0 for a dir that
 no login has verified. A caller that trusts the exit code and takes stdout for a
 path launches a browser on a directory named after three lines of prose —
-silently logged out. Each stub below answers in the real CLI's own shapes
-(captured from ops 1.88.3), prose included, so a caller that forgets `--json`
-fails here instead of on a wiki.
+silently logged out. Each stub below answers in the shape the real CLI's verb
+answers, prose included, so a caller that forgets `--json` fails here instead
+of on a wiki.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from harness import rooted, run
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 PROFILE = "/home/u/.config/llm-wiki/credentials/realm/profiles/community.example"
-PROFILE_PROSE = f"domain: community.example\npath: {PROFILE}\nexists: no\n"
 # The CLI's own no-wiki `error` (1.97.0 prints it on stdout under `--json`,
 # beside a `_cmd_` block, and exits 2). The scripts read the no-wiki arm off a
 # non-zero exit, so what this stub has to get right is refusing.
@@ -164,6 +163,16 @@ def test_the_real_cli_answers_what_circle_reads(circle, wiki, env, ops, monkeypa
     assert path is None and refused[0] == "absent", (path, refused)
     path, refused = circle.profile_dir(wiki, "never-declared.example")
     assert path is None and refused[0] == "absent", (path, refused)
+
+
+def test_no_circle_hint_names_a_login_script_the_unit_does_not_ship():
+    """The re-login step is `credentials login <domain>`; a hint naming a
+    script nobody ships sends an operator nowhere."""
+    for script in ("capture_lesson.py", "outage_probe.py"):
+        text = (SKILLS / "channel-circle" / "scripts" / script).read_text(encoding="utf-8")
+        assert "scripts/login.py" not in text, script
+    capture = (SKILLS / "channel-circle" / "scripts" / "capture_lesson.py").read_text(encoding="utf-8")
+    assert capture.count("credentials login") >= 3, "auth_expired, cloudflare_challenge and the absent hint"
 
 
 # --- channel-spotify: `credentials get|set spotify` ------------------------------
