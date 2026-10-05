@@ -95,7 +95,6 @@ Usage:
       [--budget-seconds N] [--slice-seconds N] [--kill-seconds N] [--pause-seconds N]
       [--retry-failed] [--title-strip S] [--author A] [--group G]
       [--group-type T] [--timeout-ms N] --ticket ID
-      [--target URL --slug SLUG]     # no --ticket: hand run
 
 `<capture_dir>` is the ticket's capture dir — `_raw/<slug>/<one>` from the
 wiki root, which is where the front door's `run` starts a script. The manifest
@@ -352,9 +351,7 @@ def spawn_of(ticket: dict):
     failure stays put across a continuation of the SAME spawn (`--retry-failed`
     reopens it by hand), and a later, genuine spawn — a new `worker` — owes
     every leaf a fresh attempt automatically, the way a killed slice's
-    respawn always has. None is a hand run with no `--ticket` (no `open`, so
-    no `worker`): one open-ended "spawn", whose recorded failures
-    `--retry-failed` reopens the same way.
+    respawn always has.
     """
     return ticket.get("worker")
 
@@ -464,17 +461,14 @@ def wiki_root_of(directory: Path, capture_dir: str) -> Path:
 
 
 def load_ticket(directory: Path, args) -> dict:
-    """The ticket (A-1): `tickets open`, given `--ticket` — the one command
-    that opens it (every later pass over the same spawn reads it back off
-    `plan.json`, per P-8). Explicit flags override either way, for a hand
-    run."""
-    ticket = open_ticket(args.ticket, "harvest") if args.ticket else {}
-    for key, value in (("target", args.target), ("slug", args.slug), ("ticket", args.ticket)):
-        if value:
-            ticket[key] = value
+    """The ticket (A-1): `tickets open` — the one command that opens it (every
+    later pass over the same spawn reads it back off `plan.json`, per P-8).
+    Every input is the ticket's; nothing on the command line stands in."""
+    ticket = open_ticket(args.ticket, "harvest")
+    ticket["ticket"] = args.ticket
     for key in ("target", "slug"):
         if not isinstance(ticket.get(key), str) or not ticket[key]:
-            raise Unusable(f"no `{key}`: no --ticket and none on the command line")
+            raise Unusable(f"no `{key}` on ticket {args.ticket}")
     if not isinstance(ticket.get("capture_dir"), str):
         resolved = directory.resolve()
         ticket["capture_dir"] = f"{RAW_DIRNAME}/{ticket['slug']}/{resolved.name}"
@@ -545,9 +539,7 @@ def main() -> int:
     ap.add_argument("--group", default=None)
     ap.add_argument("--group-type", dest="group_type", default=None)
     ap.add_argument("--timeout-ms", type=int, default=None, help="passed through to capture_asset.py")
-    ap.add_argument("--target", default=None, help="the share URL, for a hand run with no --ticket")
-    ap.add_argument("--slug", default=None, help="the job's slug, for a hand run with no --ticket")
-    ap.add_argument("--ticket", default=None, help="the ticket id, opened for the rest of these defaults; REQUIRED unless every other flag names a hand run's inputs")
+    ap.add_argument("--ticket", required=True, help="the ticket id, opened for the share, the slug and the job's harvest rules")
     args = ap.parse_args()
 
     started = time.monotonic()

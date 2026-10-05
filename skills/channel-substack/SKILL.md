@@ -37,15 +37,12 @@ llm-wiki-ops policy get <stage> channel-substack
 script at the wiki root, not where you stand.** Pass `--ticket <id>` and the
 scripts read the rest themselves, through `tickets open`: `min_date`,
 `harvest.scope`, `harvest.access`, `harvest.exclude_urls`, `known[]` and a
-refresh's `resource`. Either way you never touch a queue.
+refresh's `resource`; no flag stands in for them. You never touch a queue.
 
 #### 1. Plan the leaves
 
 ```
-llm-wiki-ops run ops/skills/channel-substack/scripts/enumerate_archive.py --capture-dir <capture_dir> --ticket <id>
-llm-wiki-ops run ops/skills/channel-substack/scripts/enumerate_archive.py <domain-or-archive-url> \
-    --capture-dir <capture_dir> --ticket <id> --slug <slug> [--min-date <YYYY-MM-DD>] [--access free|licensed] \
-    [--scope domain] [--exclude-url <url|path-prefix|*-glob>] [--max-leaves <n>] --out leaves.json
+llm-wiki-ops run ops/skills/channel-substack/scripts/enumerate_archive.py --capture-dir <capture_dir> --ticket <id> [--max-leaves <n>]
 ```
 
 One ticket captures the whole archive: nothing filters after you, so the

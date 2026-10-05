@@ -102,11 +102,13 @@ def _section_json(text: str, heading: str):
 
 
 def _strings(value):
+    """Every string leaf, but a route's `endpoint_rules`: URL paths, not machine paths."""
     if isinstance(value, str):
         yield value
     elif isinstance(value, dict):
-        for one in value.values():
-            yield from _strings(one)
+        for key, one in value.items():
+            if key != "endpoint_rules":
+                yield from _strings(one)
     elif isinstance(value, list):
         for one in value:
             yield from _strings(one)
@@ -119,14 +121,18 @@ def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name):
     machine, probe = _section_json(text, "Machine"), _section_json(text, "Probe")
     if machine is None and probe is None:
         return
-    assert machine is not None and probe is not None, f"{name}: a machine block and its probe come together"
     bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
-    assert isinstance(probe, list) and probe and all(isinstance(a, str) for a in probe), probe
-    for value in [*_strings(machine), *probe]:
+    # A probe runs one of the unit's bins: a machine block comes with one
+    # exactly where the unit declares a bin to run it with.
+    assert machine is not None, f"{name}: a probe with no machine block probes nothing"
+    assert (probe is not None) == bool(bins), f"{name}: a machine block and its probe come together where the unit has bins"
+    for value in [*_strings(machine), *(probe or [])]:
         assert not value.startswith(("/", "~")), f"{name}: {value!r} is a machine path"
         for placeholder in re.findall(r"\{bin:([^}]*)\}", value):
             assert placeholder in bins, f"{name}: {{bin:{placeholder}}} is not in requires.bins"
-    assert probe[0].startswith("{bin:"), probe
+    if probe is not None:
+        assert isinstance(probe, list) and probe and all(isinstance(a, str) for a in probe), probe
+        assert probe[0].startswith("{bin:"), probe
 
 
 def test_every_reference_is_one_a_unit_names():

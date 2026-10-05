@@ -77,7 +77,7 @@ Usage:
 The positional is the WIKI ROOT — `.`, because `run` starts a script there —
 and it is what binds the nested front door to this wiki. `--capture-dir` and
 `--dest` are the ticket's own, verbatim. Everything else defaults off
-`meta.json`, which harvest wrote; pass it only for a hand run over a capture
+`meta.json`, which harvest wrote; pass it only over a capture
 harvest did not record. `--skip "<reason>"` writes the `skipped` report and no
 page — it is how the agent records a capture that `process.exclude_rules`,
 `options` or `min_date` ruled out. `--stage` is accepted and must be `process`

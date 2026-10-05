@@ -561,6 +561,17 @@ def test_a_refusal_posts_nothing(monkeypatch, capsys, tmp_path):
     assert mod.main() == 2 and not updates.exists()
 
 
+@pytest.mark.parametrize("argv", [[], ["--target", SHARE, "--slug", "talks"], ["--ticket", "t1", "--target", SHARE]])
+def test_the_driver_runs_on_its_ticket_and_nothing_stands_in(monkeypatch, capsys, tmp_path, argv):
+    cap, _ticket = _share_dir(tmp_path, [_leaf(1)])
+    mod = _module("harvest_share")
+    monkeypatch.setattr(mod, "run", _fake_capture_job([]))
+    monkeypatch.setattr(sys, "argv", ["harvest_share.py", str(cap), *argv])
+    with pytest.raises(SystemExit) as refused:
+        mod.main()
+    assert refused.value.code == 2 and not (cap / "plan.json").exists()
+
+
 def test_a_refused_update_is_not_swallowed_into_exit_0(monkeypatch, capsys, tmp_path):
     """F6: `post_report` discarded `post_update`'s exit code — a refused
     post still ended in exit 0 and the ticket landed `no_report`, same as a

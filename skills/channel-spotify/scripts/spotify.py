@@ -16,8 +16,6 @@ audio — they are recorded as drm_protected references (metadata + link),
 never ripped. That mirrors the harvest boundary: flag DRM, move on.
 
 Subcommands:
-  auth          store/test client credentials (the `spotify` credential)
-  search        resolve a natural request ("lex fridman #400") to entity URLs
   meta          full metadata JSON for any supported entity URL/URI
   resolve-feed  show/episode -> public RSS feed + episode list
   capture       HARVEST: bytes into --capture-dir — meta.json (the entity as
@@ -25,8 +23,8 @@ Subcommands:
                 assets.json (pending cover art + audio enclosures) and a flat
                 capture.json naming meta.json as the body. No page, no facts
                 object. Reads the URL, slug, min_date and asset policy off
-                `tickets open`, given --ticket; flags override.
-  process       PROCESS: meta.json -> the page, written under --dest through
+                `tickets open`: --ticket is required.
+  process       PROCESS: meta.json -> the page, written under the ticket's dest through
                 `llm-wiki-ops page create` (or `page edit` when it is already
                 there), as a subprocess with an argv list. Prints the pages it
                 wrote; the caller passes them to `report --written-from`.
@@ -45,18 +43,20 @@ in is the SUBCOMMAND its prompt runs (`capture` or `process`), never
 anything on the ticket: a single-item job's two tickets share one capture
 directory and one file name.
 
-Auth: the `spotify` credential, {"client_id": ..., "client_secret": ...}
-      (env SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET override). `auth
-      --client-id <id>` prompts for the secret without echo, or reads one line
-      of stdin — never argv. The token is held in memory for the process
-      lifetime, never written to the store. No user OAuth: private playlists
-      and the user library are out of scope.
+Auth: the harvest sandbox's `spotify` route (references/sandboxes/spotify/
+      spotify.harvest.md). In the stage's jail `SPOTIFY_TOKEN_AUTH` holds a
+      phantom; this script sends it as the token request's Basic
+      `Authorization`, and the proxy puts the wiki's own value there, on
+      requests to accounts.spotify.com alone. The script calls no
+      `credentials` verb and reads no login: no route, no API. The bearer
+      token that request returns is held in memory for the process lifetime.
+      No user OAuth: private playlists and the user library are out of scope.
 
 Paths: `llm-wiki-ops run` starts this script in the WIKI ROOT, so
       `--capture-dir` is the ticket's `capture_dir` verbatim (wiki-relative),
       and so is any other relative path.
 
-Keyless degradation: with no credentials, `meta` and `capture` fall back to
+Keyless degradation: with no route, `meta` and `capture` fall back to
 the public embed endpoint (open.spotify.com/embed/...), which exposes the
 entity name and a POSSIBLY TRUNCATED item list. The output carries
 "keyless": true so nobody mistakes it for a complete enumeration.
@@ -87,7 +87,6 @@ History:
 """
 
 import argparse
-import getpass
 import json
 import datetime
 import os
@@ -358,65 +357,22 @@ def _ops(root, *args, **kw):
     return proc.returncode, answer
 
 
-CREDENTIAL = "spotify"  # the machine's own payload; a ticket naming another (`credential`) wins
+# The variable the harvest sandbox's `spotify` route names. In the jail it holds
+# a phantom the proxy swaps for the wiki's own value — base64 of
+# `<client_id>:<client_secret>` — on requests bound for accounts.spotify.com.
+ROUTE_ENV = "SPOTIFY_TOKEN_AUTH"
 
-# How the CLI words a payload that IS there and could not be opened
-# (common/wiki/secrets.py::get — `cannot read credential '<name>': <OSError>`),
-# as against one that is not (`no credential '<name>' on this machine`).
-UNREADABLE = "cannot read credential "
-
-
-def load_auth(root, name=CREDENTIAL, unreadable=None):
-    """Env override, else the wiki's credential store.
-
-    Returns a bare dict (the old tuple's second element was the file path,
-    which no longer exists). `{}` means no credentials — the keyless path is
-    a documented degradation, not an error.
-
-    A payload that exists and cannot be READ is an error, never a quiet
-    keyless run — unless the caller passes `unreadable`, a list: then what the
-    CLI said is appended to it and `{}` comes back, and the CALLER owns saying
-    so out loud. Only a ticketed capture does that (see `cmd_capture`).
-    """
-    cid, sec = os.environ.get("SPOTIFY_CLIENT_ID"), os.environ.get("SPOTIFY_CLIENT_SECRET")
-    if cid and sec:
-        return {"client_id": cid, "client_secret": sec}
-    if root is None:  # outside a wiki there is no store to reach — degrade keyless
-        return {}
-    try:
-        rc, answer = _ops(root, "credentials", "get", name)
-    except OSError as e:
-        die(f"credential store unreachable ({e.__class__.__name__}: {e})")
-    if rc != 0:
-        # Exit 1 is every "could not answer" — no wiki, an unreadable store —
-        # and only ONE of them is the documented keyless degradation, so it is
-        # told apart by what the CLI said. Anything else is a real error.
-        said = str(answer.get("error", ""))
-        if said.startswith("no credential "):
-            return {}
-        if unreadable is not None and said.startswith(UNREADABLE):
-            unreadable.append(said)
-            return {}
-        die(f"credential lookup failed ({rc}): {said}")
-    try:
-        data = json.loads(answer.get("value") or "")  # the payload `auth` stored, as the text it was
-    except ValueError as e:
-        die(f"credential store returned invalid JSON: {e}")
-    if not isinstance(data, dict):
-        die("credential store returned a non-object payload")
-    return data
-
-
-# Client-credentials bearer token, held for this process only — never
-# written back to the credential store. {"token": ..., "expires_at": ...}.
+# Client-credentials bearer token, held for this process only.
+# {"token": ..., "expires_at": ...}.
 _token_cache = None
 
 
-def get_token(root, name=CREDENTIAL, unreadable=None):
-    """Client-credentials token, cached in memory for this process. None = no creds."""
+def get_token():
+    """Client-credentials token, cached in memory for this process. None = no
+    route here: the documented keyless degradation."""
     global _token_cache
-    data = load_auth(root, name, unreadable)
-    if not data.get("client_id") or not data.get("client_secret"):
+    phantom = os.environ.get(ROUTE_ENV)
+    if not phantom:
         return None
     if _token_cache and _token_cache["expires_at"] > time.time() + 30:
         return _token_cache["token"]
@@ -424,14 +380,17 @@ def get_token(root, name=CREDENTIAL, unreadable=None):
         r = requests.post(
             TOKEN_URL,
             data={"grant_type": "client_credentials"},
-            auth=(data["client_id"], data["client_secret"]),
+            headers={"Authorization": f"Basic {phantom}", **UA},
             timeout=30,
         )
         if r.status_code != 429 or attempt == BACKOFF_TRIES - 1:
             break
         time.sleep(backoff_seconds(r))
     if r.status_code != 200:
-        die(f"token request failed ({r.status_code}): {r.text[:200]}")
+        die(
+            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is enabled and its grant "
+            f"is missing or wrong: `llm-wiki-ops credentials set spotify` (references/enable.md)"
+        )
     tok = r.json()
     _token_cache = {"token": tok["access_token"], "expires_at": time.time() + tok.get("expires_in", 3600)}
     return _token_cache["token"]
@@ -641,10 +600,10 @@ def fetch_entity_keyless(typ, eid):
     if r.status_code in (404, 410):
         raise NotFound(embed, r.status_code)
     if r.status_code != 200:
-        die(f"embed fetch failed ({r.status_code}) and no API credentials configured", 3)
+        die(f"embed fetch failed ({r.status_code}) and no API route here", 3)
     m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', r.text, re.S)
     if not m:
-        die("embed page carried no __NEXT_DATA__ and no API credentials configured", 3)
+        die("embed page carried no __NEXT_DATA__ and no API route here", 3)
     ent = json.loads(m.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
     items = []
     for n, t in enumerate(ent.get("trackList") or [], 1):
@@ -787,9 +746,8 @@ DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 
 
 def opened_ticket(ticket_id, stage=None):
-    """This worker's ticket through `tickets open` (A-1), or `{}` when there
-    is none — a hand run names its own inputs instead."""
-    return open_ticket(ticket_id, stage) if ticket_id else {}
+    """This worker's ticket through `tickets open` (A-1): every input a step reads."""
+    return open_ticket(ticket_id, stage)
 
 
 def now_iso():
@@ -977,15 +935,9 @@ OWN_FILES = ("meta.json", "items.json", "assets.json")
 def cmd_capture(a):
     # `llm-wiki-ops run` starts this script in the WIKI ROOT, not in the capture
     # directory the worker stands in: `--capture-dir` is the ticket's
-    # `capture_dir`, wiki-relative, verbatim — and a directory with no ticket in
-    # it is refused rather than created, unless this is plainly a hand run.
+    # `capture_dir`, wiki-relative, verbatim.
     cap = Path(a.capture_dir)
     ticket = opened_ticket(a.ticket, "harvest")
-    if not ticket and not a.url:
-        die(
-            f"no --ticket and no entity URL. --capture-dir is the ticket's `capture_dir`, WIKI-RELATIVE "
-            f"(this script runs from the wiki root, {Path.cwd()}). A hand run names the entity URL as well."
-        )
     # FIRST, before anything below can refuse: a respawn, and the next pull,
     # land in this same directory. What an earlier run left must not answer
     # for this one — `report` reads `capture.json` as "it landed", and a
@@ -993,14 +945,14 @@ def cmd_capture(a):
     # this run's.
     for stale in (CAPTURE_NAME, VERDICT_NAME):
         (cap / stale).unlink(missing_ok=True)
-    url = a.url or ticket.get("item") or ticket.get("target")
+    url = ticket.get("item") or ticket.get("target")
     if not url:
-        die("no entity URL: pass one, or run with --ticket naming an item")
-    slug = a.slug or ticket.get("slug")
-    min_date = a.min_date or ticket.get("min_date")
+        die(f"{a.ticket}: the ticket names no item")
+    slug = ticket.get("slug")
+    min_date = ticket.get("min_date")
     if min_date and not _published_day(min_date):
         die(f"min date {min_date!r} is not a YYYY-MM-DD day")
-    policy = a.assets or (ticket.get("harvest") or {}).get("assets") or "download"
+    policy = (ticket.get("harvest") or {}).get("assets") or "download"
     if policy not in ASSET_POLICIES:
         die(f"unknown assets policy {policy!r} (one of: {', '.join(ASSET_POLICIES)})")
     cap.mkdir(parents=True, exist_ok=True)
@@ -1009,12 +961,11 @@ def cmd_capture(a):
         """A run that ends here, with nothing captured: `report` still runs
         LAST and posts it, so the verdict is handed off through VERDICT_NAME
         rather than posted here."""
-        if ticket:
-            _dump(cap / VERDICT_NAME, {"ticket": ticket.get("ticket"), "stage": "harvest", "status": status, "reason": reason})
+        _dump(cap / VERDICT_NAME, {"ticket": ticket.get("ticket"), "stage": "harvest", "status": status, "reason": reason})
         print(json.dumps({"url": url, **said, "outcome": status, "reason": reason, "capture_dir": str(cap)}, indent=1))
         sys.exit(code)
 
-    if ticket and already_held(ticket, url) and not ticket.get("refresh"):
+    if already_held(ticket, url) and not ticket.get("refresh"):
         # The pull whose target the job already holds: a designed non-event (P-4: ok + a reason naming known).
         verdict("ok", f"known: {url}", 0, skipped=True)
 
@@ -1022,7 +973,6 @@ def cmd_capture(a):
         (cap / stale).unlink(missing_ok=True)
 
     typ, eid = parse_entity(url)
-    unreadable = [] if ticket else None  # only a ticketed run may degrade on an unreadable store — see load_auth
     if a.entity_json:
         try:
             ent = json.loads(Path(a.entity_json).read_text(encoding="utf-8"))
@@ -1032,8 +982,7 @@ def cmd_capture(a):
             die(f"--entity-json is not the {typ} {eid} that {url} names")
     else:
         try:
-            named = ticket.get("credential")
-            token = None if a.keyless else get_token(wiki_root(), named if isinstance(named, str) and named else CREDENTIAL, unreadable)
+            token = None if a.keyless else get_token()
             ent = fetch_entity(token, typ, eid, a.market) if token else fetch_entity_keyless(typ, eid)
         except NotFound as gone:
             # 404/410 for the entity itself. On a refresh ticket that is the
@@ -1049,12 +998,6 @@ def cmd_capture(a):
             verdict("failed", reason, 3, gone=True)
 
     meta, assets = plan_capture(ent, market=a.market, min_date=min_date, no_audio=a.no_audio)
-    if unreadable:
-        # The payload is THERE and this process may not open it — a slice is
-        # granted no payload for a unit declaring `requires.credential: false`.
-        # Captured keyless, and said out loud: the report turns this into
-        # `partial` + a `missing[]` entry `why: auth`, and the page says it too.
-        meta["auth"] = {"url": f"{API}/{typ}s/{eid}", "why": "auth", "said": unreadable[0][:200]}
     record = write_capture_dir(cap, meta, assets, slug=slug, item=url)
     counts = meta["counts"]
     summary = {
@@ -1068,7 +1011,6 @@ def cmd_capture(a):
         "unreachable": len(meta["unreachable"]),
         "keyless": meta["keyless"],
         "truncated": bool(meta.get("truncated")),
-        "credential_unreadable": bool(meta.get("auth")),
         # The venue's native creation timestamp, under the protocol's name
         # for it — the same value the process step sets as the page's
         # `published`. Emitted only at day precision: Spotify's `release_date`
@@ -1147,19 +1089,14 @@ def write_page(root, *, title, dest, body, keys):
 
 def cmd_process(a):
     # Same directory rule as `capture`: `llm-wiki-ops run` starts this script in
-    # the WIKI ROOT, so `--capture-dir` and `--dest` are both wiki-relative and
-    # verbatim off the ticket. The STEP is never read here — it is the `stage=`
+    # the WIKI ROOT, so `--capture-dir` is wiki-relative and verbatim off the
+    # ticket, as is the `dest` the ticket names. The STEP is never read here — it is the `stage=`
     # the prompt carries, and this subcommand is what that argument chose.
     cap = Path(a.capture_dir)
     ticket = opened_ticket(a.ticket, "process")
-    if not ticket and not a.dest:
-        die(
-            f"no --ticket and no --dest. --capture-dir is the ticket's `capture_dir`, WIKI-RELATIVE "
-            f"(this script runs from the wiki root, {Path.cwd()}). A hand run names --dest as well."
-        )
-    dest = a.dest or ticket.get("dest")
+    dest = ticket.get("dest")
     if not dest:
-        die("no dest: pass --dest, or run with --ticket naming one")
+        die(f"{a.ticket}: the ticket names no dest")
     # FIRST, before anything below can refuse: an earlier run's verdict is in
     # this directory, and `report` never checks whose ticket it answers.
     (cap / VERDICT_NAME).unlink(missing_ok=True)
@@ -1175,8 +1112,7 @@ def cmd_process(a):
     def verdict(status, reason, code, **said):
         """As `cmd_capture`'s: handed off through VERDICT_NAME for `report`,
         run LAST, to post."""
-        if ticket:
-            _dump(cap / VERDICT_NAME, {"ticket": ticket.get("ticket"), "stage": "process", "status": status, "reason": reason})
+        _dump(cap / VERDICT_NAME, {"ticket": ticket.get("ticket"), "stage": "process", "status": status, "reason": reason})
         print(json.dumps({"url": meta.get("url"), **said, "outcome": status, "reason": reason, "dest": dest}, indent=1))
         sys.exit(code)
 
@@ -1184,7 +1120,7 @@ def cmd_process(a):
     if rule:
         # P-4: a capture that earns no page is `ok`, with the rule named in the reason.
         verdict("ok", f"excluded by process.exclude_rules: {rule!r}", 0, skipped=True)
-    meta = refiltered(meta, a.min_date or ticket.get("min_date"))
+    meta = refiltered(meta, ticket.get("min_date"))
 
     keys = page_frontmatter(meta)
     keys["resource"] = ticket.get("item") or meta["url"]  # what `known[]` matches on
@@ -1210,7 +1146,7 @@ def cmd_process(a):
 # --------------------------------------------------------------------- report
 
 
-def build_update(cap, ticket, *, capture_dir=None, extra_missing=()):
+def build_update(cap, ticket, *, extra_missing=()):
     """The `tickets update` arguments for a FRESH run over this capture dir —
     never called for a TERMINAL prior verdict (`cmd_report` posts that one
     directly) — read off what is on disk.
@@ -1221,7 +1157,7 @@ def build_update(cap, ticket, *, capture_dir=None, extra_missing=()):
     caller adds. P-5: `failed` with no capture; `partial` ONLY when the item
     list itself was truncated by a page the API could not fetch — a re-run
     picks up where it left off; every other shortfall (a missing asset, a
-    credential the slice could not read, a keyless capture) is a LASTING
+    keyless capture) is a LASTING
     fact about this pull — `ok`, named in `reason` and `missing[]`.
     """
     cap = Path(cap)
@@ -1237,7 +1173,7 @@ def build_update(cap, ticket, *, capture_dir=None, extra_missing=()):
     assets = load("assets.json", [])
     if not isinstance(meta, dict):
         meta = {}
-    where = capture_dir or ticket.get("capture_dir") or str(cap)
+    where = ticket.get("capture_dir") or str(cap)
     captured, missing, why_ok = [], [], []
     if isinstance(record, dict):
         captured.append({"item": record.get("item"), "dir": where, "title": record.get("title")})
@@ -1250,20 +1186,13 @@ def build_update(cap, ticket, *, capture_dir=None, extra_missing=()):
     missing.extend(extra_missing)
     if missing:
         why_ok.append(f"{len(missing)} url(s) not reached")
-    cut, auth = meta.get("truncated"), meta.get("auth")
+    cut = meta.get("truncated")
     truncated_reason = None
     if isinstance(cut, dict) and cut.get("url"):
         missing.append({"host": host_of(cut["url"]), "url": cut["url"], "why": cut.get("why") if cut.get("why") in WHYS else "error"})
         truncated_reason = (
             f"item list TRUNCATED at {cut.get('got')} of {cut.get('expected') or '?'}: a page of it could not be "
             f"fetched ({cut.get('said')}) — re-run the ticket to complete it"
-        )
-    if isinstance(auth, dict) and auth.get("url"):
-        missing.append({"host": host_of(auth["url"]), "url": auth["url"], "why": "auth"})
-        why_ok.append(
-            f"API credentials exist on this machine and could not be read here ({auth.get('said')}), so the API was "
-            f"not used. Fix: a confined slice is granted no credential payload for this unit — see the unit's "
-            f"references/enable.md, 'Credentials under a confined harvest'"
         )
     if meta.get("keyless"):
         why_ok.append("keyless capture: the item list may be truncated")
@@ -1283,8 +1212,6 @@ def cmd_report(a):
     2 refused (nothing posted)."""
     cap = Path(a.capture_dir)  # wiki-relative: `llm-wiki-ops run` starts this in the wiki root
     ticket_id = a.ticket
-    if not ticket_id:
-        die("no --ticket")
     # Read, then REMOVED, before anything below can refuse: a refusal that left
     # an earlier verdict in place would be read as this run's.
     try:
@@ -1322,8 +1249,8 @@ def cmd_report(a):
         # (truncated, keyless, a missing asset) — `written_from=` never
         # launders that into a quiet `ok`: the status/reason are the same
         # derivation as a harvest report, `captured[]` just goes unclaimed.
-        ticket = opened_ticket(ticket_id, "process") if not a.dir else {}
-        update = build_update(cap, ticket, capture_dir=a.dir, extra_missing=extra)
+        ticket = opened_ticket(ticket_id, "process")
+        update = build_update(cap, ticket, extra_missing=extra)
         code = post_update(
             ticket_id, "process", update["status"], reason=update["reason"], written_from=a.written_from,
             missing=[(m["host"], m["url"], m["why"]) for m in update["missing"]],
@@ -1336,9 +1263,8 @@ def cmd_report(a):
         return
 
     # No prior verdict and no --written-from: a fresh harvest capture, read off disk.
-    # `--dir` names a hand run's own capture dir, which needs no ticket lookup.
-    ticket = opened_ticket(ticket_id, "harvest") if not a.dir else {}
-    update = build_update(cap, ticket, capture_dir=a.dir, extra_missing=extra)
+    ticket = opened_ticket(ticket_id, "harvest")
+    update = build_update(cap, ticket, extra_missing=extra)
     code = post_update(
         ticket_id, "harvest", update["status"], reason=update["reason"],
         captured=[c["dir"] for c in update["captured"]], missing=[(m["host"], m["url"], m["why"]) for m in update["missing"]],
@@ -1415,13 +1341,7 @@ def render_page_md(meta):
         L.append("")
         L.append(
             "> [!warning] Keyless capture — item list may be truncated; "
-            "configure API credentials and re-capture for the full set."
-        )
-    if isinstance(meta.get("auth"), dict):
-        L.append("")
-        L.append(
-            "> [!warning] API credentials exist on this machine but could not be read from this run, "
-            "so the API was not used — see the unit's references/enable.md, 'Credentials under a confined harvest'."
+            "store the `spotify` route's credential and re-capture for the full set."
         )
     cut = meta.get("truncated")
     if isinstance(cut, dict):
@@ -1452,77 +1372,9 @@ def render_page_md(meta):
 # ----------------------------------------------------------------------- CLI
 
 
-def read_secret():
-    """The client secret from a prompt that does not echo (a terminal), else
-    the first line of stdin — never from argv, which every user on the box can
-    read in `ps` and which the shell writes to its history."""
-    if sys.stdin is not None and sys.stdin.isatty():
-        return getpass.getpass("Spotify client secret (not echoed): ").strip()
-    return (sys.stdin.readline() if sys.stdin is not None else "").strip()
-
-
-def cmd_auth(a):
-    root = wiki_root()
-    if root is None:
-        die("no wiki found above the current directory — run from the wiki root")
-    data = load_auth(root)
-    if a.client_id:
-        data["client_id"] = a.client_id
-    given = getattr(a, "client_secret", None)
-    if given:
-        print(
-            "warning: --client-secret puts the secret in argv (`ps`, shell history) — deprecated; "
-            "omit it and the secret is prompted for, or read from stdin",
-            file=sys.stderr,
-        )
-        data["client_secret"] = given
-    elif not data.get("client_id"):
-        die("need a client id: auth --client-id <id> (the secret is then prompted for, or read from stdin)")
-    elif a.client_id or not data.get("client_secret"):
-        data["client_secret"] = read_secret()
-    if not data.get("client_id") or not data.get("client_secret"):
-        die("need a client id (--client-id) and a client secret (prompted, or one line on stdin)")
-    # A payload hand-carried from the old store may still have these — never
-    # persist a bearer token to the store; it now lives only in-process.
-    data.pop("token", None)
-    data.pop("expires_at", None)
-    try:
-        rc, answer = _ops(root, "credentials", "set", CREDENTIAL, input=json.dumps(data, indent=1).encode())
-    except OSError as e:
-        die(f"credential store unreachable ({e.__class__.__name__}: {e})")
-    if rc != 0:
-        die(f"credential store failed ({rc}): {answer.get('error', '')}")
-    print(json.dumps({"stored": "spotify", "token_ok": bool(get_token(root))}))
-
-
-def cmd_search(a):
-    token = get_token(wiki_root())
-    if not token:
-        die("search needs API credentials — the operator stores them with `llm-wiki-ops credentials set spotify` (references/enable.md)", 3)
-    types = a.type or "episode,show,playlist,album,audiobook"
-    d = api_get(token, "/search", {"q": a.query, "type": types, "limit": a.limit, "market": a.market})
-    rows = []
-    for key, bucket in (d or {}).items():
-        for x in (bucket or {}).get("items") or []:
-            if not x:
-                continue
-            i = _norm_item(x)
-            rows.append(
-                {
-                    "type": i["type"] or key.rstrip("s"),
-                    "name": i["name"] or x.get("name"),
-                    "by": i["show"] or i["artist"] or (x.get("publisher") if x else None),
-                    "release_date": i["release_date"],
-                    "duration": ms_to_hms(i["duration_ms"]) if i["duration_ms"] else None,
-                    "url": i["url"] or canonical_url(key.rstrip("s"), x["id"]),
-                }
-            )
-    print(json.dumps({"query": a.query, "results": rows}, indent=1))
-
-
 def cmd_meta(a):
     typ, eid = parse_entity(a.url)
-    token = None if a.keyless else get_token(wiki_root())
+    token = None if a.keyless else get_token()
     ent = fetch_entity(token, typ, eid, a.market) if token else fetch_entity_keyless(typ, eid)
     print(json.dumps(ent, indent=1))
 
@@ -1531,7 +1383,7 @@ def cmd_resolve_feed(a):
     name = a.show_name
     if not name and a.url:
         typ, eid = parse_entity(a.url)
-        token = get_token(wiki_root())
+        token = get_token()
         if token:
             e = api_get(token, f"/{typ}s/{eid}", {"market": a.market})
             name = (e.get("show") or {}).get("name") if typ == "episode" else e.get("name")
@@ -1557,18 +1409,6 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("auth", help="store + test client credentials")
-    c.add_argument("--client-id", help="the app's client id; the SECRET is then prompted for (or read from stdin)")
-    c.add_argument("--client-secret", help="DEPRECATED — argv is world-readable; omit it and the secret is prompted for")
-    c.set_defaults(fn=cmd_auth)
-
-    c = sub.add_parser("search", help="search the catalog, JSON rows out")
-    c.add_argument("query")
-    c.add_argument("--type", help="comma list: episode,show,playlist,album,track,audiobook")
-    c.add_argument("--limit", type=int, default=10)
-    c.add_argument("--market", default="US")
-    c.set_defaults(fn=cmd_search)
-
     c = sub.add_parser("meta", help="entity metadata JSON (full item pagination)")
     c.add_argument("url")
     c.add_argument("--market", default="US")
@@ -1586,18 +1426,12 @@ def main():
         "capture",
         help="capture an entity into --capture-dir: meta.json, items.json, assets.json, capture.json",
     )
-    c.add_argument("url", nargs="?", help="entity URL/URI; default: the ticket's `item`")
     c.add_argument(
         "--capture-dir", required=True,
         help="the ticket's `capture_dir`, WIKI-RELATIVE and verbatim; the script runs from the wiki root",
     )
-    c.add_argument("--ticket", help="the ticket id, opened for the rest of these defaults; REQUIRED unless every other flag names a hand run's inputs")
-    c.add_argument("--slug", help=f"job slug for {CAPTURE_NAME}; default: the ticket's `slug`")
+    c.add_argument("--ticket", required=True, help="the ticket id, opened for the entity URL, slug, min_date and asset policy")
     c.add_argument("--market", default="US")
-    c.add_argument("--min-date", help="drop items released before YYYY-MM-DD; default: the ticket's `min_date`")
-    c.add_argument(
-        "--assets", choices=ASSET_POLICIES, help="asset policy echoed in the summary; default: the ticket's `harvest.assets`"
-    )
     c.add_argument("--keyless", action="store_true", help="force embed fallback")
     c.add_argument("--no-audio", action="store_true", help="metadata + images only (no feed lookup)")
     c.add_argument("--entity-json", help="an already-fetched entity (what `meta` prints) instead of calling the API; wiki-relative")
@@ -1605,21 +1439,18 @@ def main():
 
     c = sub.add_parser(
         "process",
-        help="build the page from a capture and write it under --dest (`page create`, or `page edit` when it is there)",
+        help="build the page from a capture and write it under the ticket's dest (`page create`, or `page edit` when it is there)",
     )
     c.add_argument(
         "--capture-dir", required=True,
         help="the ticket's `capture_dir`, WIKI-RELATIVE and verbatim (holds meta.json)",
     )
-    c.add_argument("--ticket", help="the ticket id, opened for --dest's default; REQUIRED unless --dest names a hand run's")
-    c.add_argument("--dest", help="the ticket's `dest`, WIKI-RELATIVE; default: the ticket's own")
-    c.add_argument("--min-date", help="drop items released before YYYY-MM-DD; default: the ticket's `min_date`")
+    c.add_argument("--ticket", required=True, help="the ticket id, opened for its `dest` and `min_date`")
     c.set_defaults(fn=cmd_process)
 
     c = sub.add_parser("report", help="post `tickets update` from what the capture dir holds — run it LAST")
     c.add_argument("--capture-dir", required=True, help="the ticket's `capture_dir`, WIKI-RELATIVE and verbatim")
     c.add_argument("--ticket", required=True, help="the ticket id")
-    c.add_argument("--dir", help="wiki-relative capture dir for captured[]; default: the ticket's `capture_dir`. Given, this is a PROCESS report")
     c.add_argument("--missing", action="append", metavar="URL=WHY", help=f"a url not reached; WHY is {'|'.join(WHYS)}")
     c.add_argument(
         "--written-from", metavar="FILE",
@@ -1631,7 +1462,7 @@ def main():
     a = ap.parse_args()
     try:
         a.fn(a)
-    except NotFound as gone:  # `meta`, `search`, `resolve-feed`; `capture` turns it into a verdict itself
+    except NotFound as gone:  # `meta`, `resolve-feed`; `capture` turns it into a verdict itself
         die(f"not found: the venue answered {gone.status} at {gone.url}", 3)
 
 

@@ -21,11 +21,27 @@ harness`.
 
 ## Credential
 
-`requires.credential: "optional"`. A job with a binding on this machine
-is granted that one payload and spends it at `api.spotify.com` and
-`accounts.spotify.com`. The manifest's exact `host:spotify.com` keyword is
-the credential's claim, and this snippet reaches it. A job with none runs
-keyless.
+A venue route, `spotify`, in this sandbox's `## Machine` block below:
+`upstream` `https://accounts.spotify.com`, `env_var` `SPOTIFY_TOKEN_AUTH`,
+`credential_format` `"Basic {}"`, and one endpoint rule, `POST /api/token`.
+`sandboxes enable` asks the operator before it writes the fragment to this
+machine's allow file; a peer's commit grants nothing by itself. The route is
+the stage's, never the harness profile's.
+
+The route carries the client-credentials grant, not an API token. Its value
+is the wiki's own, in its credential vault under the route's name: the app's
+`<client_id>:<client_secret>`, base64-encoded, once per machine that
+harvests (`references/enable.md` of `channel-spotify` has the line). `sandboxes
+compose` adds the `credential_key` and the capture that read that name, so
+the fragment carries neither. `requires.credential` is `false`: nothing is
+bound to a job and no payload file is granted.
+
+In the jail `SPOTIFY_TOKEN_AUTH` holds a phantom. `spotify.py` sends it as
+the token request's `Authorization: Basic …`; the proxy puts the real value
+there, on that one request to `accounts.spotify.com`. The client secret never
+enters the jail. The bearer token Spotify answers is short-lived and stays in
+the script's memory, sent to `api.spotify.com` alone. With no route the
+capture runs keyless and says so.
 
 ## Customize
 
@@ -35,8 +51,11 @@ keyless.
 
 ## Never loosen
 
-Never add a DRM media host: music and Spotify-exclusive audio are captured
-as references and never ripped.
+- Never add a DRM media host: music and Spotify-exclusive audio are captured
+  as references and never ripped.
+- Add no route to the harness profile for this venue, and no
+  `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` to any environment: the route
+  is the one way the grant reaches a capture.
 
 ## Profile
 
@@ -59,6 +78,28 @@ as references and never ripped.
         "*.spotifycdn.com",
         "itunes.apple.com"
       ]
+    }
+  }
+}
+```
+
+## Machine
+
+The venue route, as a nono fragment `skills install` writes to the
+template's `machine.allow`. Nothing in it names a machine path. No probe:
+the unit declares no bin to run one with.
+
+```json
+{
+  "network": {
+    "credentials": ["spotify"],
+    "custom_credentials": {
+      "spotify": {
+        "upstream": "https://accounts.spotify.com",
+        "env_var": "SPOTIFY_TOKEN_AUTH",
+        "credential_format": "Basic {}",
+        "endpoint_rules": [{"method": "POST", "path": "/api/token"}]
+      }
     }
   }
 }

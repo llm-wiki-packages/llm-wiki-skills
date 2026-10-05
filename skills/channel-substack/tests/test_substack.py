@@ -391,11 +391,11 @@ def test_no_script_runs_without_a_capture_dir_and_none_writes_at_the_wiki_root(t
     assert _litter(root) == []
 
     # Pointed at a directory that is no ticket's (the wiki root itself), with
-    # no --ticket and no domain: refused, nothing written.
+    # no --ticket: refused, nothing written.
     done = _py("enumerate_archive.py", "--capture-dir", ".", cwd=root)
     assert done.returncode == 2 and "--ticket" in done.stderr and _litter(root) == []
     # A capture dir that is not there (an absolute-minded path from the wrong cwd) says what it wants.
-    done = _py("enumerate_archive.py", "--capture-dir", "_raw/news/nope", cwd=root)
+    done = _py("enumerate_archive.py", "--capture-dir", "_raw/news/nope", "--ticket", "0123456789ab", cwd=root)
     assert done.returncode == 2 and "wiki-relative" in done.stderr
 
 
@@ -407,11 +407,9 @@ def test_the_enumerator_and_the_report_run_from_the_wiki_root_on_relative_paths(
     plan = json.loads((root / OWN / "leaves.json").read_text(encoding="utf-8"))
     assert [(leaf["item"], leaf["dir"]) for leaf in plan["leaves"]] == [(POST, OWN)]
 
-    # A hand run's relative `--out` lands INSIDE the capture dir, never at the wiki root.
-    hand = root / "_raw/news/hand"
-    hand.mkdir()
-    out = _py("enumerate_archive.py", POST, "--slug", "news", "--capture-dir", "_raw/news/hand", "--out", "leaves.json", cwd=root)
-    assert out.returncode == 0 and (hand / "leaves.json").is_file(), out.stderr
+    # A relative `--out` lands INSIDE the capture dir, never at the wiki root.
+    out = _py("enumerate_archive.py", "--capture-dir", OWN, "--ticket", ticket["ticket"], "--out", "plan-copy.json", cwd=root, env=env)
+    assert out.returncode == 0 and (root / OWN / "plan-copy.json").is_file() and not (root / "plan-copy.json").exists(), out.stderr
 
     # Nothing captured: `tickets update` posts `status=failed` — with the ticket's id.
     # The script's OWN exit is 0: the `tickets update` CALL succeeded, whatever it reported.

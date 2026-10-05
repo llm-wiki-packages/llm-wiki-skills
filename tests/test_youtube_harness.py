@@ -1,86 +1,72 @@
 """channel-youtube, the harness tier: the unit installed and enabled through the REAL
-CLI, landing pages in the session wiki. Its helpers and constants are the
-unit's own tests' — `skills/channel-youtube/tests/test_youtube.py`, which ships with
-the unit — so a case here reads exactly as it did beside them.
+CLI, each stage started by the runner in the jail it composes — the harvest
+its own `script`, `capture_video.py`, over the `yt-dlp` stand-in the
+harness's PATH leads with (fixtures; no network), and the process a session
+the harness profile's fake agent stands in for. Its helpers and constants are
+the unit's own tests' — `skills/channel-youtube/tests/test_youtube.py`, which
+ships with the unit — so a case here reads exactly as it did beside them.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import pytest
 import re
+import shutil
 
-from pathlib import Path
+import pytest
 
-from harness import advanced, declared_job, landed, live_ticket, rooted, run, unit_tests
+from harness import YT_FIXTURES, claimed, declared_job, pending, shown, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-youtube", "test_youtube"))
 
-
-def _formatter():
-    """The plugin's real formatter, or a skip with the true reason."""
-    plugin = os.environ.get("LLM_WIKI_OPS_PLUGIN")
-    if not plugin:
-        pytest.skip("set LLM_WIKI_OPS_PLUGIN to the ops plugin's root — format_transcript.py is host code, not this package's")
-    rel = re.search(r'^FORMATTER = "([^"]+)"$', BUILDER.read_text(encoding="utf-8"), re.M).group(1)
-    path = Path(plugin) / rel
-    old = Path(plugin) / "skills/process/scripts/format_transcript.py"  # G3, plugins PR 4
-    if not path.is_file() and old.is_file():
-        path = old
-    assert path.is_file(), f"{rel} is not under LLM_WIKI_OPS_PLUGIN={plugin} — did the plugin move it?"
-    return path
+NOTE = "ops/skills/channel-youtube/scripts/youtube_note.py"
 
 
-def _needs_run_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "run", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets run` (spawn=self) is plugins PR 2 (#2486)")
+def held(item: str, meta: dict) -> None:
+    """What `yt-dlp` answers for `item`: its metadata and its caption track."""
+    video = YT_FIXTURES / item.rsplit("v=", 1)[1]
+    video.mkdir(parents=True, exist_ok=True)
+    (video / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+    shutil.copy(FIXTURES / "dQw4fixture.en.vtt", video / f"{meta['id']}.en.vtt")
+
+
+def harvested(ops, env, wiki, job):
+    """The harvest stage, the runner's own: `capture_video.py` in its jail."""
+    ticket_id, cap = claimed(ops, env, wiki, job)
+    session = staged(ops, env, wiki, ticket_id, "")  # a script stage: no session, nothing for the fake agent to type
+    landed = shown(ops, env, wiki, ticket_id)
+    assert landed["state"] == "done", (landed["reason"], session.log[-3000:])
+    return cap
+
+
+def processed(ops, env, wiki, job, cap):
+    """The process stage, a session in its jail: SKILL.md's steps 1, 3 and 4."""
+    process_id = pending(ops, env, wiki, job.slug)[str(cap.relative_to(wiki))]
+    session = staged(ops, env, wiki, process_id, f"""\
+rm -f "$CAP/page.md" "$CAP/written.json"
+step note "$OPS" run {NOTE} . --capture-dir "$CAP" --dest {job.dest} --ticket "$TICKET"
+step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+""")
+    for name in ("note", "update"):
+        done = session.step(name)
+        assert done.returncode == 0, (name, done.stdout + done.stderr)
+    return json.loads(session.step("note").stdout)
 
 
 def test_a_harvested_video_becomes_the_staged_page(ops, env, wiki):
-    """The whole point of the rework. A live ticket over what yt-dlp leaves
-    (fixtures; no network) → harvest's capture record → this unit's own
-    process step, through the REAL `page create` → one staged page under
-    the job's `dest`, carrying the venue-specific body and the venue's own
-    facts. `open_ticket`/`post_update` reach the REAL CLI here — no stub —
-    since `run` exports `LLM_WIKI_OPS` for the worker it starts."""
-    formatter = _formatter()
-    _needs_run_verb(ops, env, wiki)
+    """The whole point of the rework. The harvest's own script over what yt-dlp
+    leaves → the capture record → this unit's own process step, through the
+    REAL `page create` and the plugin's real formatter → one staged page under
+    the job's `dest`, carrying the venue-specific body and the venue's own facts."""
+    held(ITEM, META)
     job = declared_job(ops, env, wiki, UNIT, JOB_TARGET)
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    _fill(cap)
-
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-youtube/scripts/youtube_note.py", ".",
-            "--capture-dir", str(cap.relative_to(wiki)), "--record", "--ticket", ticket_id, cwd=wiki)
-    assert r.returncode == 0, r.stdout + r.stderr
+    cap = harvested(ops, env, wiki, job)
     record = json.loads((cap / "capture.json").read_text())
     assert record["slug"] == job.slug and record["item"] == ITEM and "frontmatter" not in record
 
-    # The script only builds the capture; `SKILL.md`'s own `## Stages` lines
-    # are the worker's `tickets update` — the session's, not the script's.
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "update", ticket_id, "stage=harvest", "status=ok")
-    assert r.returncode == 0, r.stdout + r.stderr
-
-    # The harvest ticket's own `close` (A-10) mints the process ticket the
-    # unit's process arm reads through `--ticket` — the two steps share the
-    # capture dir, never a ticket id.
-    process_id, process_cap = advanced(ops, env, wiki, ticket_id)
-    assert process_cap == cap
-
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-youtube/scripts/youtube_note.py", ".",
-            "--capture-dir", str(cap.relative_to(wiki)), "--dest", job.dest, "--ticket", process_id,
-            "--format-transcript", str(formatter), cwd=wiki)
-    assert r.returncode == 0, r.stdout + r.stderr
-    out = json.loads(r.stdout)
+    out = processed(ops, env, wiki, job, cap)
     assert out["has_transcript"] is True and out["chapters"] == 2
-
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "update", process_id, "stage=process",
-            "status=ok", "written_from=written.json")
-    assert r.returncode == 0, r.stdout + r.stderr
-
-    closed = landed(ops, env, wiki, process_id)
-    assert closed.get("status") in ("ok", None), closed
 
     page = wiki / out["written"][0]
     text = page.read_text(encoding="utf-8")
@@ -117,33 +103,19 @@ def test_a_harvested_video_becomes_the_staged_page(ops, env, wiki):
     ("hostile--5e2e0003", ".hidden: what is <X> | Y?\n---\n# Forged", "hidden - what is (X) - Y --- # Forged"),
     ("hostile--5e2e0004", "漢" * 100, None),
 ])
-def test_a_title_no_filename_can_hold_still_lands_as_a_page(ops, env, wiki, tmp_path, leaf, title, safe):
+def test_a_title_no_filename_can_hold_still_lands_as_a_page(ops, env, wiki, leaf, title, safe):
     """Through the REAL `page create`, which names the page's file from the
     title and refuses `:` `?` `/` `"` or a leading dot outright."""
-    _needs_run_verb(ops, env, wiki)
-    # A wiki holds ONE job per target url — reusing JOB_TARGET across these
-    # cases would collide with the other test's job (and each other), so
-    # every hostile case gets its own target, not just its own slug.
+    # A wiki holds ONE job per target url — every hostile case gets its own
+    # target, not just its own slug.
     item = f"https://www.youtube.com/watch?v={leaf[-8:]}xyz"
+    held(item, {**META, "title": title, "webpage_url": item})
     job = declared_job(ops, env, wiki, UNIT, item, slug=f"harness-yt-{leaf}")
-    ticket_id, cap = live_ticket(ops, env, wiki, job)
-    _fill(cap)
-    (cap / "metadata.json").write_text(json.dumps({**META, "title": title}))
-
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-youtube/scripts/youtube_note.py", ".",
-            "--capture-dir", str(cap.relative_to(wiki)), "--record", "--ticket", ticket_id, cwd=wiki)
-    assert r.returncode == 0, r.stdout + r.stderr
+    cap = harvested(ops, env, wiki, job)
     record = json.loads((cap / "capture.json").read_text())
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "update", ticket_id, "stage=harvest", "status=ok")
-    assert r.returncode == 0, r.stdout + r.stderr
-    process_id, _cap = advanced(ops, env, wiki, ticket_id)
 
-    # FIRST: the refusal this pins is `page create`'s own, not an assertion of ours.
-    r = run(ops, rooted(env, wiki), "run", "ops/skills/channel-youtube/scripts/youtube_note.py", ".",
-            "--capture-dir", str(cap.relative_to(wiki)), "--dest", job.dest, "--ticket", process_id,
-            "--format-transcript", str(_stub_formatter(tmp_path)), cwd=wiki)
-    assert r.returncode == 0, r.stdout + r.stderr
-    out = json.loads(r.stdout)
+    # The refusal this pins is `page create`'s own, not an assertion of ours.
+    out = processed(ops, env, wiki, job, cap)
     if safe:
         assert record["title"] == safe
     page = wiki / out["written"][0]
@@ -154,8 +126,3 @@ def test_a_title_no_filename_can_hold_still_lands_as_a_page(ops, env, wiki, tmp_
     assert body.lstrip().startswith(f"# {folded.replace('<', '&lt;')}\n"), "the TRUE title is the H1"
     assert "source_title: " in front and folded[:20] in front
     assert len(re.findall(r"^---$", text, re.M)) == 2 and "\n# Forged" not in text
-
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "update", process_id, "stage=process",
-            "status=ok", "written_from=written.json")
-    assert r.returncode == 0, r.stdout + r.stderr
-    landed(ops, env, wiki, process_id)  # frees the process cap slot for the next case

@@ -26,6 +26,8 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +71,23 @@ def _cli(ops: list) -> list:
 NEUTRAL_CWD = Path(tempfile.mkdtemp(prefix="llm-wiki-harness-cwd-"))
 atexit.register(shutil.rmtree, NEUTRAL_CWD, ignore_errors=True)
 
+# The scratch HOME and the session wiki live here, never under `/tmp`: on Linux
+# nono's `system_write_linux` group grants `/tmp` whole, Landlock has no deny
+# primitive, and the runner refuses to start a jail whose base-layer denies
+# (`$HOME/.ssh`, `$WORKDIR/.git/hooks`) sit under that grant.
+SCRATCH = Path.home() / ".cache" / "llm-wiki-skills-harness" / f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
+SCRATCH.mkdir(parents=True)
+atexit.register(shutil.rmtree, SCRATCH, ignore_errors=True)
+
+# Where the fake agent and every ticket's plan live: the one directory the
+# machine layer grants every jail a read of, outside the wiki, so a jailed
+# session cannot rewrite what it was told to do.
+AGENT_DIR = SCRATCH / "harness-bin"
+FAKE_AGENT = Path(__file__).with_name("fake_agent.sh")
+# First on the harness's PATH as `bin/yt-dlp`: see the file.
+FAKE_YT_DLP = Path(__file__).with_name("fake_yt_dlp.sh")
+YT_FIXTURES = AGENT_DIR / "yt"
+
 
 @dataclass
 class Result:
@@ -81,25 +100,8 @@ class Result:
         return json.loads(self.stdout)
 
 
-def _refused_for_the_jail(args, cp) -> str | None:
-    """What a plugin that composes a unit's jail answers a hand-driven stage
-    (`tickets run <id> spawn=self`, or `run ops/skills/<unit>/…` outside a ticket's
-    jail): a refusal naming the runner's own command. Nothing here can run a
-    stage that way, so a case that needs it skips on that refusal, saying so."""
-    if cp.returncode == 0:
-        return None
-    text = cp.stdout + cp.stderr
-    by_hand = "spawn=self" in args or (len(args) > 1 and args[0] == "run" and str(args[1]).startswith("ops/skills/"))
-    if by_hand and "pipeline tickets run" in text and "wait=" in text:
-        return text.strip().splitlines()[-1][:200]
-    return None
-
-
 def run(ops: list, env: dict, *args, cwd=None, input=None) -> Result:
     cp = subprocess.run([*ops, *args], env=env, cwd=cwd or NEUTRAL_CWD, capture_output=True, text=True, check=False, input=input)
-    refused = _refused_for_the_jail(args, cp)
-    if refused:
-        pytest.skip(f"the plugin refuses a stage driven by hand; it runs only through the runner's jail: {refused}")
     return Result(cp.returncode, cp.stdout, cp.stderr)
 
 
@@ -110,6 +112,84 @@ def rooted(env: dict, wiki: Path) -> dict:
     whole argv, so that one verb binds by `cwd=` instead — and a case that
     stands inside the wiki may pass both, because they agree."""
     return {**env, "LLM_WIKI_ROOT": str(Path(wiki).resolve())}
+
+
+def machine_harness(home: Path) -> Path:
+    """The machine's default harness profile, pointing at the fake agent: a
+    session stage's jail starts it where a real box starts `claude`, with no
+    agent binary on PATH and no login route. Beside it, the `yt-dlp` stand-in
+    the harness's PATH leads with, a git identity, uv set offline, and
+    `bins.jsonc` naming `uv`, which `run` needs for a script with PEP 723
+    dependencies and a jail's PATH does not carry."""
+    AGENT_DIR.mkdir(parents=True, exist_ok=True)
+    agent = AGENT_DIR / FAKE_AGENT.name
+    shutil.copy2(FAKE_AGENT, agent)
+    agent.chmod(0o755)
+    (AGENT_DIR / "bin").mkdir(exist_ok=True)
+    (AGENT_DIR / "bin" / "yt-dlp").write_text(
+        FAKE_YT_DLP.read_text(encoding="utf-8").replace("@YT_FIXTURES@", shlex.quote(str(YT_FIXTURES))), encoding="utf-8")
+    (AGENT_DIR / "bin" / "yt-dlp").chmod(0o755)
+    profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
+    # The exit pass commits as the host's git identity; a scratch HOME has none.
+    (home / ".gitconfig").write_text("[user]\n\tname = harness\n\temail = harness@example.invalid\n", encoding="utf-8")
+    # uv offline, from the cache the CI warm step fills: a slice has no route
+    # to an index, and nothing in this suite reaches the network.
+    (home / ".config" / "uv").mkdir(parents=True, exist_ok=True)
+    (home / ".config" / "uv" / "uv.toml").write_text("offline = true\n", encoding="utf-8")
+    uv = shutil.which("uv")
+    if uv:
+        (home / ".config" / "llm-wiki" / "bins.jsonc").write_text(json.dumps({"uv": uv}), encoding="utf-8")
+    return profile
+
+
+def _cli_python(ops: list) -> list:
+    """The interpreter the ops CLI runs under, out of the same command line."""
+    last = ops[-1]
+    if os.sep in last:
+        return [*ops[:-1], str(Path(last).resolve().with_name("python"))]
+    return [*ops[:-1], "python"]
+
+
+_TOOLCHAIN = """
+import json, os, sys, llm_wiki_ops
+roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
+roots += [p for p in sys.path if p and os.path.isdir(p)]
+try:  # the plugin's own scripts, which a process slice runs: `extract.py`
+    from llm_wiki_ops.commands.common.plugin_root import plugin_root
+    roots.append(str(plugin_root()))
+except Exception:
+    pass
+print(json.dumps(sorted({r for root in roots for r in (root, os.path.realpath(root))})))
+"""
+
+
+def machine_layer(ops: list, home: Path, uv_cache: str) -> None:
+    """The machine layer every jail is composed over, as an operator would
+    write it for this box: read grants to exec the ops CLI (its venv,
+    interpreter and import roots, read off the CLI's own interpreter) and the
+    plugin root, to read the fake agent's `AGENT_DIR`, `uv`, `bins.jsonc` and
+    `uv.toml`; and, in the slice layer, a uv cache a jail may write. `run`
+    executes a PEP 723 script under `uv run --script`, which cannot start on a
+    read-only cache, and the floor write-denies the default one
+    (llm-wiki-plugins #1630, finding 8): a cache the slice layer names is the
+    operator's way through, and the one this box takes."""
+    done = subprocess.run([*_cli_python(ops), "-c", _TOOLCHAIN], cwd=NEUTRAL_CWD, capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    reads = [*json.loads(done.stdout.strip().splitlines()[-1]), str(AGENT_DIR)]
+    uv = shutil.which("uv")
+    if uv:
+        reads += [str(home / ".config" / "llm-wiki" / "bins.jsonc"), str(home / ".config" / "uv" / "uv.toml"),
+                  str(Path(uv).parent), str(Path(uv).resolve().parent)]
+    path = home / ".config" / "llm-wiki" / "sandbox" / "base.jsonc"
+    document = jsonc(path.read_text(encoding="utf-8")) if path.is_file() else {"v": 1, "profile": {}}
+    filesystem = document["profile"].setdefault("filesystem", {})
+    filesystem["read"] = sorted({*filesystem.get("read", []), *reads})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document), encoding="utf-8")
+    # A slice's own layer: the base file carries no write grant a jail honors.
+    path.with_name("slice.jsonc").write_text(json.dumps({"v": 1, "profile": {"filesystem": {"allow": [uv_cache]}}}), encoding="utf-8")
 
 
 def outbound_ip() -> str:
@@ -280,61 +360,166 @@ def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extr
     return Job(slug, record["dest"], record)
 
 
-def live_ticket(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
-    """A real ticket, minted and moved to `active/` by the CLI — never a hand
-    fixture (side note; A-8, A-9). `jobs claim <slug>` leases the job and
-    mints its harvest ticket, pending; `tickets run <id> spawn=self` moves it
-    to `active/` under THIS SESSION's own worker id, matched against
-    `LLM_WIKI_SESSION_ID` (`conftest.py`'s `env` fixture) the way `open`
-    checks it against `env.current().session`. Returns the id and its
-    capture directory, the latter read back through `open` (A-1) rather than
-    guessed off `run`'s own answer shape."""
+def claimed(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
+    """A real harvest ticket, minted pending by `jobs claim <slug>`, and the
+    capture directory its stage will be started in, read back through
+    `tickets show`. The job is then paused: the pass a slice's exit runs
+    lands the ticket and would start the next one with no plan written yet,
+    and a paused job's tickets start only when `staged` names them."""
     r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "claim", job.slug)
     assert r.returncode == 0, r.stdout + r.stderr
-    claimed = next(c for c in r.data["claimed"] if c["slug"] == job.slug)
-    ticket_id = claimed["tickets"][0]["id"]
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "run", ticket_id, "spawn=self")
-    assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "open", ticket_id)
-    assert r.returncode == 0, r.stdout + r.stderr
-    capture_dir = wiki / r.data["ticket"]["capture_dir"]
-    # `spawn=self` takes the `starting.claim_rows` arm (tickets_run.py), never
-    # `starting.start`, so it never runs that arm's `capture.mkdir(...)` — a
-    # real worker's own first act (P-7's clearing line) makes the directory a
-    # spawned slice would otherwise be granted already made. A case that
-    # writes a fixture into it before running the unit's own script needs it
-    # to exist first, same as a granted slice would find it.
-    capture_dir.mkdir(parents=True, exist_ok=True)
-    return ticket_id, capture_dir
+    paused = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "pause", job.slug)
+    assert paused.returncode == 0, paused.stdout + paused.stderr
+    mine = [c for c in r.data["claimed"] if c["slug"] == job.slug]
+    assert mine and mine[0]["tickets"], f"{job.slug}: claim minted no ticket: {r.stdout}"
+    ticket_id = mine[0]["tickets"][0]["id"]
+    return ticket_id, capture_of(ops, env, wiki, ticket_id)
 
 
-def landed(ops: list, env: dict, wiki: Path, ticket: str) -> dict:
-    """The ticket, closed by the host (A-10) — the real `close`, reading
-    whatever `update` the worker last posted and routing it."""
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "close", ticket)
+def capture_of(ops: list, env: dict, wiki: Path, ticket: str) -> Path:
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "show", ticket)
     assert r.returncode == 0, r.stdout + r.stderr
-    return r.data
+    return wiki / r.data["tickets"][0]["capture_dir"]
 
 
-def advanced(ops: list, env: dict, wiki: Path, ticket: str) -> tuple[str, Path]:
-    """Close `ticket` (A-10) and move the ONE ticket it mints for the next
-    declared stage to `active/`, the way `live_ticket` moves a fresh
-    harvest ticket there — a `close` only enqueues (`pending/`); a caller
-    invoking a unit's next stage still needs `tickets run <id> spawn=self`
-    to reach it. For a unit whose harvest and process share one ticket id
-    (P5's `SAME ticket` units), skip this and pass the harvest id straight
-    to the process step instead."""
-    closed = landed(ops, env, wiki, ticket)
-    row = closed["closed"][0]
-    enqueued = row["enqueued"]
-    assert len(enqueued) == 1, f"{ticket}: close enqueued {enqueued}, not exactly one next-stage ticket"
-    next_id = enqueued[0]
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "run", next_id, "spawn=self")
-    assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "open", next_id)
-    assert r.returncode == 0, r.stdout + r.stderr
-    return next_id, wiki / r.data["ticket"]["capture_dir"]
+@dataclass
+class Session:
+    """What a stage's jailed session left: `tickets run`'s answer and the
+    slice log, which holds the fake agent's output between the runtime's own
+    lines."""
 
+    answer: dict
+    log: str
+
+    @property
+    def update(self) -> dict | None:
+        """The last `tickets update` the stage posted, as the runner read it at exit."""
+        return self.answer["wait"]["table"][0]["update"]
+
+    def step(self, name: str) -> Result:
+        """One `step` of the plan: its exit code, stdout and stderr."""
+        for line in self.log.splitlines():
+            if line.startswith(STEP_MARK):
+                said = json.loads(line[len(STEP_MARK):])
+                if said["name"] == name:
+                    return Result(said["rc"], said["out"], said["err"])
+        raise AssertionError(f"the session ran no step {name!r}:\n{self.log[-4000:]}")
+
+
+# What every plan starts with. `step NAME CMD...` runs one command the way a
+# session types it and prints its exit code, stdout and stderr as ONE JSON
+# line behind `STEP_MARK`, in one write: the runtime logs into the same file,
+# and a line it writes cannot land inside a step's output. Run by the CLI's
+# own interpreter, which every jail is granted. No temporary file: a jail may
+# write `/tmp` and still not read it back. `OPS` is the CLI the spawn hands
+# the jail; `FIX` is the case's fixtures, under `AGENT_DIR`.
+STEP_MARK = "@@step "
+_STEP_PY = """\
+import json, subprocess, sys
+try:
+    done = subprocess.run(sys.argv[2:], capture_output=True)
+    rc, out, err = done.returncode, done.stdout, done.stderr
+except OSError as exc:
+    rc, out, err = 127, b"", str(exc).encode()
+line = {"name": sys.argv[1], "rc": rc, "out": out.decode("utf-8", "replace"), "err": err.decode("utf-8", "replace")}
+sys.stdout.write(%r + json.dumps(line) + "\\n")
+""" % STEP_MARK
+PLAN_HEAD = """\
+OPS="$LLM_WIKI_OPS"
+PY="$(dirname "$LLM_WIKI_OPS")/python"
+TICKET={ticket}
+CAP={capture}
+FIX={fixtures}
+export OPS PY TICKET CAP FIX
+step() {{
+    "$PY" -c {step_py} "$@"
+}}
+cd "$LLM_WIKI_ROOT"
+"""
+
+# The runner's own words where this machine has no sandbox runtime at all.
+# Nothing else skips: a jail the runner refuses to compose is a failure.
+NO_JAIL = "no sandbox runtime on this machine"
+
+
+def no_jail_here(answer: Result) -> None:
+    """Skip, quoting the runner, where this machine has no runtime to start a stage's jail with."""
+    text = answer.stdout + answer.stderr
+    if NO_JAIL in text:
+        at = text.index(NO_JAIL)
+        pytest.skip(f"this machine cannot start a stage's jail, so no stage runs here: {text[at:at + 300]}")
+
+
+# llm-wiki-plugins #3080: what stops a stage inside its slice on plugins main,
+# each in the plugin's own words, read off the slice log. `tickets update` and
+# the plugin's `extract.py` open the wiki root for listing, which a Linux slice
+# is not granted (the root by its own path, so no other refusal matches); and
+# since #3072 `run` asks `git ls-files` about `.agents/` with the slice's own
+# `GIT_DIR`, and git answers "not a git repository". A case that meets either
+# has nothing left to prove on this box.
+def plugin_refused(wiki: Path, text: str) -> None:
+    refusals = {
+        f"PermissionError: [Errno 13] Permission denied: '{Path(wiki).resolve()}'":
+            "a Linux slice cannot list the wiki root, so `tickets update` and `extract.py` die on it",
+        "`git ls-files` failed (128) rather than saying whether .agents/ is tracked": "`run` refuses every unit script in a slice: `git ls-files` there answers 'not a git repository'",
+    }
+    for words, why in refusals.items():
+        if words in text:
+            pytest.skip(f"llm-wiki-plugins #3080: {why}; the case runs where that is fixed")
+
+
+def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict | None = None, wait: str = "120s") -> Session:
+    """Run `ticket`'s stage the one way a unit's stage runs: `pipeline tickets
+    run <id> wait=` starts it behind the jail the runner composes, and the
+    harness profile's command, the fake agent, stands in for the session and
+    types `plan` there. `files` (name -> bytes) are the case's fixtures,
+    readable in the jail under `$FIX`. Skips, quoting the runner, where this
+    machine cannot start a jail. Returns once the pass the worker's exit runs
+    has landed the ticket."""
+    fixtures = AGENT_DIR / f"fix.{ticket}"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    for name, data in (files or {}).items():
+        (fixtures / name).parent.mkdir(parents=True, exist_ok=True)
+        (fixtures / name).write_bytes(data)
+    capture = capture_of(ops, env, wiki, ticket).relative_to(wiki)
+    head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)),
+                            step_py=shlex.quote(_STEP_PY))
+    (AGENT_DIR / f"plan.{ticket}.sh").write_text(head + plan, encoding="utf-8")
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "run", ticket, f"wait={wait}")
+    no_jail_here(r)
+    assert r.returncode == 0, r.stdout + r.stderr
+    waited = r.data.get("wait") or {}
+    assert waited.get("event") == "exit", f"{ticket}: the stage did not exit within {wait}: {r.stdout}"
+    log = Path(waited["table"][0]["log"]).read_text(encoding="utf-8", errors="replace")
+    plugin_refused(wiki, log)
+    # `wait=` answers at the worker's exit; the pass that exit runs lands the
+    # ticket (and mints the next stage's) a moment later.
+    deadline = time.monotonic() + 60
+    while shown(ops, env, wiki, ticket)["state"] == "active":
+        assert time.monotonic() < deadline, f"{ticket}: still active 60s after its worker exited"
+        time.sleep(0.5)
+    return Session(r.data, log)
+
+
+def shown(ops: list, env: dict, wiki: Path, ticket: str) -> dict:
+    """The ticket's record. A landing moves it between queue directories, and
+    a `show` in that moment reads it `missing`: asked again, briefly."""
+    for _ in range(20):
+        r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "show", ticket)
+        assert r.returncode == 0, r.stdout + r.stderr
+        if r.data["tickets"]:
+            return r.data["tickets"][0]
+        time.sleep(0.25)
+    raise AssertionError(f"{ticket}: `tickets show` keeps answering it missing: {r.stdout}")
+
+
+def pending(ops: list, env: dict, wiki: Path, slug: str, stage: str = "process") -> dict[str, str]:
+    """The tickets the landing of a job's last stage minted for `stage`, still
+    pending: `{capture_dir: id}`. The pass a slice's exit runs is what lands it."""
+    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "ls")
+    assert r.returncode == 0, r.stdout + r.stderr
+    ids = [t["id"] for t in r.data["tickets"] if t["slug"] == slug and t["stage"] == stage and t["state"] == "pending"]
+    return {shown(ops, env, wiki, one)["capture_dir"]: one for one in ids}
 
 
 def unit_tests(unit: str, module: str) -> dict:

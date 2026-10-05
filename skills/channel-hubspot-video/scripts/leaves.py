@@ -18,9 +18,8 @@ command that needs THIS pull's own fields (`slug`, `target`, `harvest.*`,
 `min_date`, `known[]`, `refresh`, `resource`). It writes them into
 `plan.json`'s own `job` object, and every other command (`next`, `assets`,
 `record`, `report`) reads that copy back rather than opening the ticket
-again — no ticket lookup on every per-leaf command. A hand run with no
-`--ticket` at all passes them as flags instead; every other command then
-reads them back off `plan.json`.
+again — no ticket lookup on every per-leaf command. `plan` takes no other
+source: with no ticket it is refused.
 
 **No command takes a venue's url on its command line.** A sitemap is the
 venue's text, and a `<loc>` ending `;$(touch${IFS}PWNED)` typed onto a shell
@@ -699,8 +698,7 @@ def job_facts(capture: Path, args=None, *, stage: str | None = None, fresh: bool
     open` (A-1), given `--ticket` — the only command that needs THIS pull's
     own fields. Every other command reads `plan.json`'s own copy instead,
     written once by `plan` and carried forward: no ticket lookup on every
-    per-leaf command. Explicit flags override either source, for a hand run
-    (the first time, with no ticket and no `plan.json` yet)."""
+    per-leaf command."""
     blank = {"ticket": None, "slug": None, "item": None, "target": None, "capture_dir": None, "scope": "section",
              "exclude_urls": [], "min_date": None, "known": [], "assets": "download", "refresh": False, "resource": None}
     ticket_id = getattr(args, "ticket", None) if args is not None else None
@@ -720,11 +718,6 @@ def job_facts(capture: Path, args=None, *, stage: str | None = None, fresh: bool
     else:
         plan = _read_json(capture / PLAN_NAME)
         facts = {**blank, **plan["job"]} if isinstance(plan, dict) and isinstance(plan.get("job"), dict) else dict(blank)
-    for key in ("ticket", "slug", "target", "scope", "min_date", "assets"):  # explicit flags win: a hand run
-        if args is not None and getattr(args, key, None):
-            facts[key] = getattr(args, key)
-    if args is not None and getattr(args, "exclude_url", None):
-        facts["exclude_urls"] = [*facts["exclude_urls"], *args.exclude_url]
     facts["item"] = facts.get("item") or facts["target"]
     if facts.get("slug") and not facts.get("capture_dir"):
         facts["capture_dir"] = f"{RAW}/{facts['slug']}/{capture.name}"
@@ -770,7 +763,7 @@ def cmd_plan(args) -> int:
     capture = _capture_dir(args.capture_dir)
     job = job_facts(capture, args, stage="harvest", fresh=True)
     if not job.get("slug") or not job.get("target"):
-        raise Problem(f"no ticket for {capture}: pass --ticket, or --slug and --target for a hand run")
+        raise Problem(f"ticket {args.ticket} names no slug or target for {capture}")
     root = wiki_root(capture, job["capture_dir"])
     # Before anything else: this directory is stable across pulls, so what an
     # earlier run left must not outlive a run that fails.
@@ -846,10 +839,6 @@ def _leaf_at(plan: dict, n: int) -> dict:
     if not 0 <= n < len(leaves):
         raise Problem(f"--leaf {n}: {PLAN_NAME} names no page at that index (it holds {len(leaves)} rows; run `plan`, then `next`)")
     return leaves[n]
-
-
-def _leaf_of(plan: dict, root: Path, leaf: Path) -> dict | None:
-    return next((row for row in plan.get("leaves") or [] if (root / row["dir"]).resolve() == leaf), None)
 
 
 def cmd_next(args) -> int:
@@ -979,16 +968,9 @@ def cmd_record(args) -> int:
     if args.leaf is not None:
         row = _leaf_at(plan, args.leaf)
         leaf = (root / row["dir"]).resolve()
-    elif args.leaf_dir:
-        leaf = Path(args.leaf_dir).resolve()
-        row = _leaf_of(plan, root, leaf)
     else:
         raise Problem("record needs --leaf <n> (the index `next` printed)")
     item = (row or {}).get("item") or (job["item"] if leaf == capture else None)
-    if args.url:  # a hand run, on a page `plan.json` does not name
-        item = _normal(args.url, ())
-        if item is None:
-            raise Problem("--url: not an http(s) url this unit will carry")
     if not item:
         raise Problem(f"{leaf} is not a leaf {PLAN_NAME} names; run `plan` first")
     html_file = leaf / HTML_NAME
@@ -1283,18 +1265,13 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("plan", help="open the ticket, filter the enumerated urls and name one capture directory per page")
     p.add_argument("capture_dir", help=capture_help)
-    p.add_argument("--ticket", default=None, help="the ticket id, opened for the rest of these defaults; REQUIRED unless every other flag names a hand run's inputs")
+    p.add_argument("--ticket", required=True, help="the ticket id, opened for the job's slug, target and harvest rules")
     p.add_argument("--urls", action="append", help="sitemap.xml, a JSON list, or one url per line, wiki-relative; `-` is stdin (repeatable)")
     p.add_argument("--limit", type=int, default=None,
                    help=f"attempt at most N pages this run, newest first (default {DOWNLOAD_LIMIT} where the job downloads, none for `assets: reference`; 0 = none)")
     p.add_argument("--budget-minutes", type=float, default=BUDGET_MINUTES,
                    help=f"no new leaf is started this long after the spawn (default {BUDGET_MINUTES}; the slice is killed at 30)")
     p.add_argument("--sites", type=Path, default=None, help="default: this unit's references/sites.json")
-    for flag in ("--slug", "--target", "--min-date"):
-        p.add_argument(flag, default=None, help="hand run with no --ticket: the ticket's own value")
-    p.add_argument("--scope", choices=["page", "section", "domain"], default=None, help="hand run: harvest.scope")
-    p.add_argument("--assets", choices=["reference", "download", "download-audio"], default=None, help="hand run: harvest.assets")
-    p.add_argument("--exclude-url", action="append", default=[], help="hand run: one more harvest.exclude_urls glob")
     p.set_defaults(fn=cmd_plan)
 
     n = sub.add_parser("next", help="the next page to capture, or stop (exit 5) once the deadline has passed")
@@ -1308,9 +1285,7 @@ def main(argv=None) -> int:
 
     g = sub.add_parser("record", help="the leaf's flat capture.json, and the downloaded video beside it")
     g.add_argument("capture_dir", help=capture_help)
-    g.add_argument("leaf_dir", nargs="?", default=None, help="a hand run: the leaf's directory, in place of --leaf")
     g.add_argument("--leaf", type=int, default=None, help="the page's index in plan.json's leaves[] — what `next` printed")
-    g.add_argument("--url", default=None, help="a HAND run on a page plan.json does not name; never a url read off a venue")
     g.add_argument("--media-file", default=None, help="the downloaded video/audio, when the leaf's assets.json does not name it")
     g.add_argument("--no-media", action="store_true", help="record the page's bytes alone, even where the video was downloaded")
     g.set_defaults(fn=cmd_record)
@@ -1326,8 +1301,6 @@ def main(argv=None) -> int:
     r.add_argument("--written-from", default=None, metavar="FILE",
                    help="a JSON list of wiki-relative pages the PROCESS step wrote, inside the capture dir: makes this a process report")
     r.add_argument("--skipped", action="store_true", help="the process report for a capture that earned no page; say why with --reason")
-    for flag in ("--slug", "--target"):
-        r.add_argument(flag, default=None, help="hand run with neither --ticket nor plan.json: the ticket's own value")
     r.set_defaults(fn=cmd_report)
 
     args = ap.parse_args(argv)

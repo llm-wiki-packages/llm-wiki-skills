@@ -3,14 +3,11 @@
 `script` stage under the harvest sandbox — no model session, ever.
 
   llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>
-  llm-wiki-ops run ops/skills/web-page/scripts/fetch.py --target <url> --capture-dir <dir>
 
-The pass starts it exactly the first way (G2): no `run`, no token, and this
-script is its own whole worker — it reads the ticket through `tickets open`
-(A-1), fetches, and posts `tickets update` (A-2) itself, through the front
-door. The second form is a hand run with no ticket and no job behind it: it
-fetches into `--capture-dir` and prints the would-be status as JSON, posting
-no `update` — the one thing the ticket arm does not cover.
+The pass starts it exactly so (G2): no token, and this script is its own
+whole worker — it reads the ticket through `tickets open` (A-1), fetches, and
+posts `tickets update` (A-2) itself, through the front door. There is no
+other form: a fetch with no ticket behind it is no stage's.
 
 Three files land in the capture directory and nothing outside it: the body
 as the server sent it, `capture.json` naming it — the whole of what the
@@ -350,43 +347,16 @@ def run_ticketed(ticket_id: str) -> int:
     return post_update(ticket_id, "harvest", "ok")
 
 
-def run_hand(directory: Path, target: str) -> dict:
-    """The `--target` arm: no ticket, no `update`. Fetches into `directory`
-    and prints the would-be status as JSON — the one feature the ticket arm
-    does not cover, a fetch with no job behind it."""
-    scheme = urllib.parse.urlsplit(target).scheme.lower()
-    if scheme not in SCHEMES:
-        return {"status": "failed", "reason": f"{scheme or 'that'} is not a scheme this fetches"}
-    try:
-        data, content_type, landed = fetch(target)
-        write_capture(directory, None, landed, data, content_type)
-    except Exception as exc:  # noqa: BLE001
-        why = why_for(exc)
-        return {"status": "failed", "reason": f"{why}: {exc}", "missing": [{"host": host_of(target), "url": target, "why": why}]}
-    return {"status": "ok", "item": landed}
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "ticket_kv", nargs="?", metavar="ticket=<id>",
         help="the ticket id, as `run` invokes this script (G2) — `ticket=<id>`, not a flag",
     )
-    parser.add_argument("--target", help="fetch this url directly, with no ticket and no `update` (a hand run)")
-    parser.add_argument("--capture-dir", help="required with --target: where the hand run writes")
     args = parser.parse_args(argv)
 
-    if args.target:
-        if not args.capture_dir:
-            sys.exit("fetch: --target needs --capture-dir")
-        directory = Path(args.capture_dir)
-        directory.mkdir(parents=True, exist_ok=True)
-        result = run_hand(directory, args.target)
-        print(json.dumps(result))
-        return 0 if result["status"] == "ok" else 1
-
     if not args.ticket_kv or not args.ticket_kv.startswith("ticket="):
-        sys.exit("fetch: pass ticket=<id> (as `run` invokes this script) or --target <url> --capture-dir <dir> for a hand run")
+        sys.exit("fetch: pass ticket=<id>, as `run` invokes this script")
     ticket_id = args.ticket_kv[len("ticket=") :]
     if not ticket_id:
         sys.exit("fetch: ticket=<id> names no id")
