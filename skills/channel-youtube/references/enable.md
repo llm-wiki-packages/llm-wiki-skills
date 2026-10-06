@@ -22,9 +22,6 @@
    Use a throwaway Google account, and never open that profile in a browser
    again: YouTube rotates the session's cookies under any open tab, and the
    harvest's own copy (`cookies.txt` in the credential directory) would stop
-   working. A harvest that fails with `auth` has already dropped that copy;
-   run `credentials login youtube` again and the next harvest re-exports it.
-   A copy that survived some other failure (a timeout, a 403) keeps winning
-   over a fresh login until an `auth` failure drops it; delete
-   `cookies.txt` from the credential directory yourself to force the
-   re-export. Public videos need none of this.
+   working. A harvest that fails with `auth` means the session is dead: run
+   `credentials login youtube` again and the next harvest re-exports from
+   the fresh profile. Public videos need none of this.

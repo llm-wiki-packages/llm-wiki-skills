@@ -178,12 +178,13 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by
   `browser_python`) and passes `--cookies` to both yt-dlp calls. Unbound,
   the argv is unchanged.
-- A harvest that fails `auth` with a jar present deletes the jar: run
-  `llm-wiki-ops credentials login <name>` again and the next harvest
-  re-exports. Exception: YouTube's "confirm you're not a bot" wall is
-  throttling, not an auth wall; with a jar present it is reported `error`
-  and the jar is kept, since after the first run the jar holds the live
-  session (yt-dlp writes rotated cookies back into it).
+- The jar is the live session once yt-dlp has written rotated cookies back
+  into it, so no failure deletes it. A harvest that fails `auth` means the
+  session is dead: run `llm-wiki-ops credentials login <name>` again, and the
+  next harvest sees the profile's cookie DB newer than the jar and
+  re-exports. YouTube's "confirm you're not a bot" wall is throttling, not
+  an auth wall; with a jar present it is reported `error`, and a login does
+  not help.
 - A `credential_store_error` reason is the export itself failing. Its text
   says which: `not logged in to youtube.com` means the profile has no YouTube
   session yet, so run `credentials login`; a dir that cannot be read, or a

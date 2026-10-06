@@ -139,26 +139,37 @@ if os.environ.get("FAKE_EXPORT_FAIL"):
     print("playwright: no cookies for youtube.com in the profile", file=sys.stderr)
     sys.exit(3)
 pathlib.Path(sys.argv[3]).write_text("# Netscape HTTP Cookie File\\n")  # argv: <export_cookies.py> <profile> <jar>
+if os.environ.get("FAKE_EXPORT_TOUCHES_DB"):
+    db = pathlib.Path(sys.argv[2], "Default", "Cookies"); db.parent.mkdir(parents=True, exist_ok=True)
+    db.write_text("sqlite"); os.utime(db, ns=(1 << 62, 1 << 62))  # far in the future: strictly newer than the jar
 """
 
 
-def bound(tmp_path, *, jar=False, export_fails=False, **over):
+def bound(tmp_path, *, jar=False, export_fails=False, db=None, touches_db=False, **over):
     """A ticket bound to a browser `dir`: `credential_dir` is a profile the slice may write and
-    `browser_python` a stand-in that logs every invocation. Returns (cp, calls, updates, exports, jar)."""
+    `browser_python` a stand-in that logs every invocation. `db` is the profile cookie DB's age
+    relative to the jar: "older" or "newer". Returns (cp, calls, updates, exports, jar)."""
     profile = tmp_path / "profile"
-    profile.mkdir()
+    profile.mkdir(exist_ok=True)
     jar_path = profile / "cookies.txt"
     if jar is not False:  # True: a good jar; a str: that exact body
         jar_path.write_text("# Netscape HTTP Cookie File\n" if jar is True else jar)
+        os.utime(jar_path, ns=(1_700_000_000 * 10**9,) * 2)
+    if db:
+        cookie_db = profile / "Default" / "Cookies"
+        cookie_db.parent.mkdir(parents=True, exist_ok=True)
+        cookie_db.write_text("sqlite")
+        os.utime(cookie_db, ns=((1_700_000_000 + (3600 if db == "newer" else -3600)) * 10**9,) * 2)
     python = tmp_path / "browser_python"
     python.write_text(FAKE_BROWSER_PYTHON, encoding="utf-8")
     python.chmod(0o755)
     os.environ["FAKE_EXPORT_LOG"] = str(tmp_path / "export.log")
     os.environ["FAKE_EXPORT_FAIL"] = "1" if export_fails else ""
+    os.environ["FAKE_EXPORT_TOUCHES_DB"] = "1" if touches_db else ""
     try:
         cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), browser_python=str(python), **over)
     finally:
-        del os.environ["FAKE_EXPORT_LOG"], os.environ["FAKE_EXPORT_FAIL"]
+        del os.environ["FAKE_EXPORT_LOG"], os.environ["FAKE_EXPORT_FAIL"], os.environ["FAKE_EXPORT_TOUCHES_DB"]
     log = tmp_path / "export.log"
     exports = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
     return cp, calls, updates, exports, jar_path
@@ -205,11 +216,34 @@ def test_a_bound_dir_with_no_jar_and_no_browser_python_is_a_credential_store_err
     assert "status=failed" in updates[0] and any(a.startswith("reason=credential_store_error") for a in updates[0])
 
 
-def test_an_auth_wall_with_a_jar_present_deletes_the_jar(tmp_path):
-    cp, calls, updates, _, jar = bound(tmp_path, jar=True, fail="ERROR: Sign in to confirm your age")
+def test_an_auth_wall_with_a_jar_present_keeps_the_jar_and_reports_auth(tmp_path):
+    # The jar is the live session after yt-dlp's first write-back; only a fresh login replaces it.
+    cp, calls, updates, exports, jar = bound(tmp_path, jar=True, db="older", fail="ERROR: Sign in to confirm your age")
     assert cp.returncode == 0, cp.stderr
-    assert not jar.exists(), "the stale jar must go, so the run after `credentials login` re-exports"
+    assert jar.exists() and exports == []
     assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},auth" in updates[0]
+
+
+def test_a_login_newer_than_the_jar_re_exports_it_once(tmp_path):
+    cp, calls, updates, exports, jar = bound(tmp_path, jar="# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tOLD\told\n", db="newer")
+    assert cp.returncode == 0, cp.stderr
+    assert len(exports) == 1 and exports[0][1:] == [str(jar.parent), str(jar)]
+    assert "OLD" not in jar.read_text()
+    assert len(calls) == 2 and all(c[c.index("--cookies") + 1] == str(jar) for c in calls) and "status=ok" in updates[0]
+
+
+def test_a_jar_newer_than_the_login_is_spent_as_is(tmp_path):
+    cp, calls, updates, exports, jar = bound(tmp_path, jar=True, db="older")
+    assert cp.returncode == 0 and exports == [] and len(calls) == 2
+
+
+def test_the_export_s_own_touch_of_the_profile_does_not_re_export_next_run(tmp_path):
+    # Opening the profile headless makes Chromium write its cookie DB on close; that write is not a login.
+    _, _, _, exports, jar = bound(tmp_path, touches_db=True)
+    assert len(exports) == 1
+    _, calls, updates, exports, _ = bound(tmp_path, jar=False, touches_db=True)
+    assert len(exports) == 1, "the second run re-exported: the jar must be stamped newer than the DB after an export"
+    assert len(calls) == 4 and "status=ok" in updates[-1]
 
 
 def test_a_plain_error_with_a_jar_present_keeps_the_jar(tmp_path):
