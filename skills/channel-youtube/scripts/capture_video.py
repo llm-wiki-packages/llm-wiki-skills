@@ -20,6 +20,17 @@ carrying `&` or a quote is never a shell line. A failure is one `failed`
 update: `missing=<host>,<url>,<why>`, `why` read off yt-dlp's own stderr
 (`denied`, `timeout`, `auth`, else `error`).
 
+A ticket bound to a `dir` credential (`credential_dir`, a browser profile the
+slice may write) spends it as a Netscape `cookies.txt` IN that directory:
+exported once through `browser_python` running `export_cookies.py` when the
+jar is missing, then handed to every yt-dlp call as `--cookies <jar>`. The
+profile is reopened only to export again, and nothing of it lands in the
+capture dir. The jar is the live session once yt-dlp has written rotated
+cookies back into it, so no failure deletes it; a `credentials login` since
+the export, read as the profile's cookie DB being newer than the jar, is what
+makes the next run export anew. An export that fails is
+`credential_store_error`. Unbound, every argv is as before.
+
 Stdlib only, deliberately no PEP 723 block: a script stage is run by the
 interpreter directly, and a block is refused at install.
 """
@@ -33,6 +44,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -44,7 +56,13 @@ CALL_TIMEOUT = 600
 DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 AUTH_MARKERS = ("sign in", "log in", "login", "age-restricted", "private video", "members-only", "members only", "confirm your age")
 TIMEOUT_MARKERS = ("timed out", "timeout")
+# YouTube's IP-reputation wall carries the words "sign in" too, but a logged-in jar hits it as well: throttling, not an auth wall.
+BOT_CHECK_MARKERS = ("not a bot",)
 NOTE = Path(__file__).with_name("youtube_note.py")
+EXPORT = Path(__file__).with_name("export_cookies.py")
+JAR = "cookies.txt"
+# Where Chromium keeps the profile's cookies; a `credentials login` writes one of these.
+COOKIE_DBS = ("Default/Cookies", "Default/Network/Cookies")
 
 
 def front_door() -> list:
@@ -145,6 +163,53 @@ def yt_dlp(args: list[str], *, stdout_to: Path | None = None) -> tuple[int, str]
     return cp.returncode, cp.stderr.decode("utf-8", "replace")
 
 
+def login_newer_than(jar: Path) -> bool:
+    """Whether the profile's cookie DB was written after the jar: a
+    `credentials login` since the last export, the one event that makes the
+    profile fresher than the jar yt-dlp has been writing rotated cookies into."""
+    stamp = jar.stat().st_mtime_ns
+    return any((jar.parent / db).is_file() and (jar.parent / db).stat().st_mtime_ns > stamp for db in COOKIE_DBS)
+
+
+def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
+    """The jar a bound `dir` credential is spent as: exported from the profile
+    when there is none, when the one there is not a Netscape file, or when
+    the profile saw a login since. `(None, None)` unbound; `(None, error)`
+    where the store cannot yield one."""
+    profile = ticket.get("credential_dir")
+    if not isinstance(profile, str) or not profile:
+        return None, None
+    jar = Path(profile) / JAR
+    try:
+        if jar.is_file():
+            with jar.open("rb") as handle:
+                good = handle.readline().startswith(b"# Netscape")
+            if good and not login_newer_than(jar):
+                return jar, None
+    except OSError as exc:
+        # The dir is granted read-write to this slice; a dir that cannot be read is the store's problem, not a login's.
+        return None, f"credential dir cannot be read: {exc}"
+    python = ticket.get("browser_python")
+    if not isinstance(python, str) or not python:
+        return None, f"no {JAR} in the credential dir and the ticket names no browser_python to export one"
+    try:
+        cp = subprocess.run([python, str(EXPORT), profile, str(jar)], capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"export_cookies.py could not run: {exc}"
+    if cp.returncode != 0 or not jar.is_file():
+        last = (cp.stderr.strip().splitlines() or [f"export_cookies.py exited {cp.returncode} leaving no jar"])[-1]
+        return None, last[:200]
+    # Opening the profile made Chromium write its cookie DB on close; stamp the jar after that
+    # write, or the next run would read the export itself as a login and export again.
+    try:
+        newest = max([(jar.parent / db).stat().st_mtime_ns for db in COOKIE_DBS if (jar.parent / db).is_file()] or [0])
+        stamp = max(time.time_ns(), newest + 1)
+        os.utime(jar, ns=(stamp, stamp))
+    except OSError as exc:
+        return None, f"credential dir cannot be stamped: {exc}"
+    return jar, None
+
+
 def run_ticketed(ticket_id: str) -> int:
     ticket = open_ticket(ticket_id, "harvest")
     capture_rel = ticket.get("capture_dir")
@@ -166,17 +231,28 @@ def run_ticketed(ticket_id: str) -> int:
     if not ticket.get("refresh") and already_held(ticket, item):
         return post_update(ticket_id, "harvest", "ok", reason="known: item is already a page of this job")
 
+    jar, store_error = cookie_jar(ticket)
+    if store_error:
+        # Never `auth`: a fresh login cannot fix a store that will not yield a jar.
+        return post_update(ticket_id, "harvest", "failed", reason=f"credential_store_error: {store_error}", missing=[(host, item, "error")])
+    cookies = ["--cookies", str(jar)] if jar else []
+
     metadata = directory / "metadata.json"
-    code, err = yt_dlp(["--dump-json", "--no-download", "--", item], stdout_to=metadata)
+    code, err = yt_dlp([*cookies, "--dump-json", "--no-download", "--", item], stdout_to=metadata)
     if code != 0 or not metadata.is_file() or metadata.stat().st_size == 0:
         metadata.unlink(missing_ok=True)  # yt-dlp leaves an empty file behind a failed `>`
         why = why_of(err)
+        if why == "auth" and jar and any(marker in err.lower() for marker in BOT_CHECK_MARKERS):
+            # A bot check with a live jar is throttling: retryable, and no login fixes it.
+            why = "error"
+        # The jar is kept on every failure: it is the live session (yt-dlp writes rotated cookies
+        # back into it), and only a login newer than it (`login_newer_than`) replaces it.
         detail = (err.strip().splitlines() or ["yt-dlp failed"])[-1][:200]
         return post_update(ticket_id, "harvest", "failed", reason=f"{why}: {detail}", missing=[(host, item, why)])
 
     # Captions are optional: a failure here is a video with none, process's question.
     yt_dlp([
-        "--skip-download", "--write-sub", "--write-auto-sub", "--sub-langs", "en", "--sub-format", "vtt/srt",
+        *cookies, "--skip-download", "--write-sub", "--write-auto-sub", "--sub-langs", "en", "--sub-format", "vtt/srt",
         "-o", str(directory / "captions" / "%(id)s.%(ext)s"), "--", item,
     ])
 

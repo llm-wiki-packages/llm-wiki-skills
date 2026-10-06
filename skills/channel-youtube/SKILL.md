@@ -129,8 +129,9 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Access / paywall
 
-- No paywall concept for standard public videos. Age/region-gated and
-  members-only are unverified — nothing harvested so far has hit an auth wall.
+- No paywall concept for standard public videos. Age-restricted, private and
+  members-only videos are the credential's job (Auth, below); the cookie path
+  is tested against stand-ins, not yet against a live wall.
 
 ### Content extraction
 
@@ -168,8 +169,28 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Auth
 
-- No auth wall on public videos. Age-gated, region-locked and private ones will
-  likely need `--cookies-from-browser` or a storage state — untested.
+- Cookies only: yt-dlp has no OAuth or password route to YouTube. Public videos
+  need none; private, age-restricted and members-only ones need a signed-in
+  session.
+- `requires.credential` is `"optional"`. Bound to a `dir` credential with
+  `login: browser` (`references/enable.md`), the ticket carries
+  `credential_dir` and `browser_python`; the harvest script exports a Netscape
+  `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by
+  `browser_python`) and passes `--cookies` to both yt-dlp calls. Unbound,
+  the argv is unchanged.
+- The jar is the live session once yt-dlp has written rotated cookies back
+  into it, so no failure deletes it. A harvest that fails `auth` usually
+  means the session is dead: run `llm-wiki-ops credentials login <name>`
+  again, and the next harvest sees the profile's cookie DB newer than the
+  jar and re-exports. A members-only or private video the account itself
+  cannot see is also `auth`, and no login fixes that. YouTube's "confirm you're not a bot" wall is throttling, not
+  an auth wall; with a jar present it is reported `error`, and a login does
+  not help.
+- A `credential_store_error` reason is the export itself failing. Its text
+  says which: `not logged in to youtube.com` means the profile has no YouTube
+  session yet, so run `credentials login`; a dir that cannot be read, or a
+  bound dir with no `browser_python`, is the binding's problem and no login
+  fixes it. The sandbox reference owns the why (rotation, throwaway account).
 
 ## Quirks log
 

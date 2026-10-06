@@ -23,7 +23,7 @@
         }
       }
     ],
-    "credential": false,
+    "credential": "optional",
     "ops": ">=0.1.0"
   },
   "stages": {
