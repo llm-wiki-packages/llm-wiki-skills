@@ -129,8 +129,9 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Access / paywall
 
-- No paywall concept for standard public videos. Age/region-gated and
-  members-only are unverified — nothing harvested so far has hit an auth wall.
+- No paywall concept for standard public videos. Age-restricted, private and
+  members-only videos are the credential's job (Auth, below); the cookie path
+  is tested against stand-ins, not yet against a live wall.
 
 ### Content extraction
 
@@ -168,8 +169,21 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Auth
 
-- No auth wall on public videos. Age-gated, region-locked and private ones will
-  likely need `--cookies-from-browser` or a storage state — untested.
+- Cookies only: yt-dlp has no OAuth or password route to YouTube. Public videos
+  need none; private, age-restricted and members-only ones need a signed-in
+  session.
+- `requires.credential` is `"optional"`. Bound to a `dir` credential with
+  `login: browser` (`references/enable.md`), the ticket carries
+  `credential_dir` and `browser_python`; the harvest script exports a Netscape
+  `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by
+  `browser_python`) and passes `--cookies` to both yt-dlp calls. Unbound,
+  the argv is unchanged.
+- A harvest that fails `auth` with a jar present deletes the jar: run
+  `llm-wiki-ops credentials login <name>` again and the next harvest
+  re-exports. A `credential_store_error` reason is the export itself failing
+  (no YouTube cookies in the profile, or no `browser_python`), which a login
+  alone does not fix. The sandbox reference owns the why (rotation,
+  throwaway account).
 
 ## Quirks log
 

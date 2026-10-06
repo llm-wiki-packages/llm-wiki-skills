@@ -20,6 +20,15 @@ carrying `&` or a quote is never a shell line. A failure is one `failed`
 update: `missing=<host>,<url>,<why>`, `why` read off yt-dlp's own stderr
 (`denied`, `timeout`, `auth`, else `error`).
 
+A ticket bound to a `dir` credential (`credential_dir`, a browser profile the
+slice may write) spends it as a Netscape `cookies.txt` IN that directory:
+exported once through `browser_python` running `export_cookies.py` when the
+jar is missing, then handed to every yt-dlp call as `--cookies <jar>`. The
+profile itself is never reopened here, and nothing of it lands in the capture
+dir. An export that fails is `credential_store_error` (a fresh login cannot
+fix it); an `auth` wall while a jar was present deletes the jar, so the next
+run after `credentials login` exports anew. Unbound, every argv is as before.
+
 Stdlib only, deliberately no PEP 723 block: a script stage is run by the
 interpreter directly, and a block is refused at install.
 """
@@ -45,6 +54,8 @@ DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 AUTH_MARKERS = ("sign in", "log in", "login", "age-restricted", "private video", "members-only", "members only", "confirm your age")
 TIMEOUT_MARKERS = ("timed out", "timeout")
 NOTE = Path(__file__).with_name("youtube_note.py")
+EXPORT = Path(__file__).with_name("export_cookies.py")
+JAR = "cookies.txt"
 
 
 def front_door() -> list:
@@ -145,6 +156,29 @@ def yt_dlp(args: list[str], *, stdout_to: Path | None = None) -> tuple[int, str]
     return cp.returncode, cp.stderr.decode("utf-8", "replace")
 
 
+def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
+    """The jar a bound `dir` credential is spent as, exporting it into the
+    profile once. `(None, None)` unbound; `(None, error)` where the store
+    cannot yield one."""
+    profile = ticket.get("credential_dir")
+    if not isinstance(profile, str) or not profile:
+        return None, None
+    jar = Path(profile) / JAR
+    if jar.is_file():
+        return jar, None
+    python = ticket.get("browser_python")
+    if not isinstance(python, str) or not python:
+        return None, f"no {JAR} in the credential dir and the ticket names no browser_python to export one"
+    try:
+        cp = subprocess.run([python, str(EXPORT), profile, str(jar)], capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"export_cookies.py could not run: {exc}"
+    if cp.returncode != 0 or not jar.is_file():
+        last = (cp.stderr.strip().splitlines() or [f"export_cookies.py exited {cp.returncode} leaving no jar"])[-1]
+        return None, last[:200]
+    return jar, None
+
+
 def run_ticketed(ticket_id: str) -> int:
     ticket = open_ticket(ticket_id, "harvest")
     capture_rel = ticket.get("capture_dir")
@@ -166,17 +200,27 @@ def run_ticketed(ticket_id: str) -> int:
     if not ticket.get("refresh") and already_held(ticket, item):
         return post_update(ticket_id, "harvest", "ok", reason="known: item is already a page of this job")
 
+    jar, store_error = cookie_jar(ticket)
+    if store_error:
+        # Never `auth`: a fresh login cannot fix a store that will not yield a jar.
+        return post_update(ticket_id, "harvest", "failed", reason=f"credential_store_error: {store_error}", missing=[(host, item, "error")])
+    cookies = ["--cookies", str(jar)] if jar else []
+
     metadata = directory / "metadata.json"
-    code, err = yt_dlp(["--dump-json", "--no-download", "--", item], stdout_to=metadata)
+    code, err = yt_dlp([*cookies, "--dump-json", "--no-download", "--", item], stdout_to=metadata)
     if code != 0 or not metadata.is_file() or metadata.stat().st_size == 0:
         metadata.unlink(missing_ok=True)  # yt-dlp leaves an empty file behind a failed `>`
         why = why_of(err)
+        if why == "auth" and jar:
+            # The session the jar held no longer opens the venue: drop it, so the run after
+            # `credentials login` exports a fresh one instead of retrying a dead jar forever.
+            jar.unlink(missing_ok=True)
         detail = (err.strip().splitlines() or ["yt-dlp failed"])[-1][:200]
         return post_update(ticket_id, "harvest", "failed", reason=f"{why}: {detail}", missing=[(host, item, why)])
 
     # Captions are optional: a failure here is a video with none, process's question.
     yt_dlp([
-        "--skip-download", "--write-sub", "--write-auto-sub", "--sub-langs", "en", "--sub-format", "vtt/srt",
+        *cookies, "--skip-download", "--write-sub", "--write-auto-sub", "--sub-langs", "en", "--sub-format", "vtt/srt",
         "-o", str(directory / "captions" / "%(id)s.%(ext)s"), "--", item,
     ])
 
