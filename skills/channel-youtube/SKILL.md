@@ -180,10 +180,15 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   the argv is unchanged.
 - A harvest that fails `auth` with a jar present deletes the jar: run
   `llm-wiki-ops credentials login <name>` again and the next harvest
-  re-exports. A `credential_store_error` reason is the export itself failing
-  (no YouTube cookies in the profile, or no `browser_python`), which a login
-  alone does not fix. The sandbox reference owns the why (rotation,
-  throwaway account).
+  re-exports. Exception: YouTube's "confirm you're not a bot" wall is
+  throttling, not an auth wall; with a jar present it is reported `error`
+  and the jar is kept, since after the first run the jar holds the live
+  session (yt-dlp writes rotated cookies back into it).
+- A `credential_store_error` reason is the export itself failing. Its text
+  says which: `not logged in to youtube.com` means the profile has no YouTube
+  session yet, so run `credentials login`; a dir that cannot be read, or a
+  bound dir with no `browser_python`, is the binding's problem and no login
+  fixes it. The sandbox reference owns the why (rotation, throwaway account).
 
 ## Quirks log
 

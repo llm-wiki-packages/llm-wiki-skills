@@ -148,8 +148,8 @@ def bound(tmp_path, *, jar=False, export_fails=False, **over):
     profile = tmp_path / "profile"
     profile.mkdir()
     jar_path = profile / "cookies.txt"
-    if jar:
-        jar_path.write_text("# Netscape HTTP Cookie File\n")
+    if jar is not False:  # True: a good jar; a str: that exact body
+        jar_path.write_text("# Netscape HTTP Cookie File\n" if jar is True else jar)
     python = tmp_path / "browser_python"
     python.write_text(FAKE_BROWSER_PYTHON, encoding="utf-8")
     python.chmod(0o755)
@@ -222,3 +222,36 @@ def test_nothing_from_the_profile_lands_in_the_capture_dir(tmp_path):
     assert cp.returncode == 0
     names = {p.name for p in (tmp_path / CAP).rglob("*")}
     assert "cookies.txt" not in names
+
+
+def test_a_bot_check_with_a_jar_present_keeps_the_jar_and_is_retryable(tmp_path):
+    # YouTube's IP-reputation wall carries the words "sign in", but a logged-in jar hits it too;
+    # after the first run the jar, not the profile, holds the live (rotated) session.
+    _, _, updates, _, jar = bound(tmp_path, jar=True, fail="ERROR: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies")
+    assert jar.exists()
+    assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},error" in updates[0]
+
+
+def test_a_bot_check_with_no_jar_is_still_auth(tmp_path):
+    _, _, updates = harvest(tmp_path, fail="ERROR: Sign in to confirm you’re not a bot")
+    assert f"missing=www.youtube.com,{ITEM},auth" in updates[0]
+
+
+def test_a_jar_without_the_netscape_header_is_dropped_and_re_exported(tmp_path):
+    cp, calls, updates, exports, jar = bound(tmp_path, jar="")  # a save yt-dlp was killed in the middle of
+    assert cp.returncode == 0, cp.stderr
+    assert len(exports) == 1 and jar.read_text().startswith("# Netscape HTTP Cookie File")
+    assert len(calls) == 2 and "status=ok" in updates[0]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads any directory")
+def test_a_credential_dir_that_cannot_be_read_is_a_credential_store_error_not_a_traceback(tmp_path):
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    profile.chmod(0)
+    try:
+        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), browser_python=sys.executable)
+    finally:
+        profile.chmod(0o700)
+    assert cp.returncode == 0 and "Traceback" not in cp.stderr and calls == []
+    assert len(updates) == 1 and "status=failed" in updates[0] and any(a.startswith("reason=credential_store_error") for a in updates[0])

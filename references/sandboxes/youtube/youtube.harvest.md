@@ -35,8 +35,8 @@ writes the cookies YouTube rotates back into that file, so the directory must
 stay writable. The unit never reopens the browser profile after the export:
 a browser tab holding the same session rotates the cookies out from under
 yt-dlp. An `auth` failure deletes the jar, so the run after a fresh
-`credentials login` exports anew. Nothing from the directory lands in the
-capture dir.
+`credentials login` exports anew; the "not a bot" wall is throttling and
+keeps it. Nothing from the directory lands in the capture dir.
 
 Use a throwaway account: yt-dlp's own wiki warns that a harvesting account
 can be rate-limited or banned.

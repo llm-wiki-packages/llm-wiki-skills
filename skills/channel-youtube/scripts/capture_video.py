@@ -53,6 +53,8 @@ CALL_TIMEOUT = 600
 DENIED_MARKERS = ("tunnel connection failed", "not in the allowlist")
 AUTH_MARKERS = ("sign in", "log in", "login", "age-restricted", "private video", "members-only", "members only", "confirm your age")
 TIMEOUT_MARKERS = ("timed out", "timeout")
+# YouTube's IP-reputation wall carries the words "sign in" too, but a logged-in jar hits it as well: throttling, not an auth wall.
+BOT_CHECK_MARKERS = ("not a bot",)
 NOTE = Path(__file__).with_name("youtube_note.py")
 EXPORT = Path(__file__).with_name("export_cookies.py")
 JAR = "cookies.txt"
@@ -164,8 +166,15 @@ def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
     if not isinstance(profile, str) or not profile:
         return None, None
     jar = Path(profile) / JAR
-    if jar.is_file():
-        return jar, None
+    try:
+        if jar.is_file():
+            with jar.open("rb") as handle:
+                if handle.readline().startswith(b"# Netscape"):
+                    return jar, None
+            jar.unlink()  # a save yt-dlp was killed in the middle of: export anew rather than fail on it forever
+    except OSError as exc:
+        # The dir is granted read-write to this slice; a dir that cannot be read is the store's problem, not a login's.
+        return None, f"credential dir cannot be read: {exc}"
     python = ticket.get("browser_python")
     if not isinstance(python, str) or not python:
         return None, f"no {JAR} in the credential dir and the ticket names no browser_python to export one"
@@ -212,9 +221,14 @@ def run_ticketed(ticket_id: str) -> int:
         metadata.unlink(missing_ok=True)  # yt-dlp leaves an empty file behind a failed `>`
         why = why_of(err)
         if why == "auth" and jar:
-            # The session the jar held no longer opens the venue: drop it, so the run after
-            # `credentials login` exports a fresh one instead of retrying a dead jar forever.
-            jar.unlink(missing_ok=True)
+            if any(marker in err.lower() for marker in BOT_CHECK_MARKERS):
+                # A bot check with a live jar is throttling: retryable, and no login fixes it. After the
+                # first run the jar (yt-dlp writes rotated cookies back) is the only live copy of the session.
+                why = "error"
+            else:
+                # The session the jar held no longer opens the venue: drop it, so the run after
+                # `credentials login` exports a fresh one instead of retrying a dead jar forever.
+                jar.unlink(missing_ok=True)
         detail = (err.strip().splitlines() or ["yt-dlp failed"])[-1][:200]
         return post_update(ticket_id, "harvest", "failed", reason=f"{why}: {detail}", missing=[(host, item, why)])
 

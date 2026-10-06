@@ -24,4 +24,7 @@
    harvest's own copy (`cookies.txt` in the credential directory) would stop
    working. A harvest that fails with `auth` has already dropped that copy;
    run `credentials login youtube` again and the next harvest re-exports it.
-   Public videos need none of this.
+   A copy that survived some other failure (a timeout, a 403) keeps winning
+   over a fresh login until an `auth` failure drops it; delete
+   `cookies.txt` from the credential directory yourself to force the
+   re-export. Public videos need none of this.
