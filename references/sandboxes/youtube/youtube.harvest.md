@@ -33,9 +33,9 @@ exports a Netscape `cookies.txt` into that same directory once (through
 `--cookies <dir>/cookies.txt` to every yt-dlp call from then on. yt-dlp
 writes the cookies YouTube rotates back into that file, so the directory must
 stay writable and the jar, not the profile, is the live session: no failure
-deletes it. The unit reopens the browser profile only to export again, and
-only when the profile's cookie DB is newer than the jar, which is what a
-`credentials login` since the last export looks like. A browser tab holding
+deletes it. The unit reopens the browser profile only to export again: when
+there is no usable jar, or when the profile's cookie DB is newer than the
+jar, which is what a `credentials login` since the last export looks like. A browser tab holding
 the same session would rotate the cookies out from under yt-dlp. Nothing
 from the directory lands in the capture dir.
 

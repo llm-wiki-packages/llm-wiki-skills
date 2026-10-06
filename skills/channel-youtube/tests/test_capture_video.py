@@ -224,7 +224,7 @@ def test_an_auth_wall_with_a_jar_present_keeps_the_jar_and_reports_auth(tmp_path
     assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},auth" in updates[0]
 
 
-def test_a_login_newer_than_the_jar_re_exports_it_once(tmp_path):
+def test_a_login_newer_than_the_jar_re_exports_it(tmp_path):
     cp, calls, updates, exports, jar = bound(tmp_path, jar="# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tOLD\told\n", db="newer")
     assert cp.returncode == 0, cp.stderr
     assert len(exports) == 1 and exports[0][1:] == [str(jar.parent), str(jar)]
@@ -278,14 +278,17 @@ def test_a_jar_without_the_netscape_header_is_dropped_and_re_exported(tmp_path):
     assert len(calls) == 2 and "status=ok" in updates[0]
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root reads any directory")
-def test_a_credential_dir_that_cannot_be_read_is_a_credential_store_error_not_a_traceback(tmp_path):
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads any file")
+def test_a_jar_that_cannot_be_read_is_a_credential_store_error_not_a_traceback(tmp_path):
+    # An unreadable jar, not dir: `is_file()` is True on every Python, so the open itself raises.
     profile = tmp_path / "profile"
     profile.mkdir()
-    profile.chmod(0)
+    jar = profile / "cookies.txt"
+    jar.write_text("# Netscape HTTP Cookie File\n")
+    jar.chmod(0)
     try:
         cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), browser_python=sys.executable)
     finally:
-        profile.chmod(0o700)
+        jar.chmod(0o600)
     assert cp.returncode == 0 and "Traceback" not in cp.stderr and calls == []
     assert len(updates) == 1 and "status=failed" in updates[0] and any(a.startswith("reason=credential_store_error") for a in updates[0])

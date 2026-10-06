@@ -201,9 +201,12 @@ def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
         return None, last[:200]
     # Opening the profile made Chromium write its cookie DB on close; stamp the jar after that
     # write, or the next run would read the export itself as a login and export again.
-    newest = max([(jar.parent / db).stat().st_mtime_ns for db in COOKIE_DBS if (jar.parent / db).is_file()] or [0])
-    stamp = max(time.time_ns(), newest + 1)
-    os.utime(jar, ns=(stamp, stamp))
+    try:
+        newest = max([(jar.parent / db).stat().st_mtime_ns for db in COOKIE_DBS if (jar.parent / db).is_file()] or [0])
+        stamp = max(time.time_ns(), newest + 1)
+        os.utime(jar, ns=(stamp, stamp))
+    except OSError as exc:
+        return None, f"credential dir cannot be stamped: {exc}"
     return jar, None
 
 

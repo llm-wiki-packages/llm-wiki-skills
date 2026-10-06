@@ -8,8 +8,8 @@ by `llm-wiki-ops run`. YouTube rotates an account's cookies whenever a browser
 tab holds the session, so a jar yt-dlp shares with a live browser dies within
 minutes. Exporting once and letting yt-dlp alone hold the session (it writes
 rotated cookies back into `--cookies`) keeps the login good, which is why the
-profile is opened here headless, read, and closed, and never reopened by the
-unit.
+profile is opened here headless, read, and closed, and reopened by the unit
+only to export again after a fresh login.
 
 Only cookies for YouTube, Google and the media CDN are written. The file is
 0600, written whole through a temp file then renamed. No cookies for those
