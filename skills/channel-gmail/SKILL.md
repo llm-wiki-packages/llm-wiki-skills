@@ -160,7 +160,7 @@ is an MCP tool whose name depends on which client this machine
 authenticated, so a pattern written here would match nothing while looking
 correct. Access is session-level and PER MAILBOX, so expect harvest to work
 only where the stage's own jail loads that connector, which is unmeasured —
-`references/enable.md` says why. The process step has no such limit; it reads files.
+`llm-wiki-ops reference channel-gmail/enable` says why. The process step has no such limit; it reads files.
 
 **With no connector** (no Gmail tool in your tool list, or every call
 refused): do not look for another way to the mailbox — no browser, no IMAP,
@@ -180,4 +180,4 @@ The manifest declares `requires.credential: true` and **the value is never
 read** — not by this unit, not by its script. `credentials bind <slug> <name>`
 is the operator's per-machine consent: "this machine's session is signed into
 THIS mailbox", and a machine without one skips this job's harvest. How to
-make one: this unit's `references/enable.md`.
+make one: `llm-wiki-ops reference channel-gmail/enable`.

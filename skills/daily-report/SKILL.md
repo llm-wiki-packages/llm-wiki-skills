@@ -169,8 +169,8 @@ when some of it did — say what fell short — `failed` when none did.
 
 ## 7. Author the day's brief
 
-Read `references/setup.md` beside this file first — the template, the three
-hard rules, and who owns which concern.
+Run `llm-wiki-ops reference daily-report/setup` first (it prints `references/setup.md`) — the
+template, the three hard rules, and who owns which concern.
 
 `wiki/reports/YYYY-MM-DD.html` is standalone HTML, authored fresh from that
 day's story. `wiki/reports/_template.html` supplies the design language and
@@ -208,7 +208,7 @@ Fail-open, and it indexes the markdown only. Never index the HTML.
 
 `setup` as the argument, or §1 finding the `daily-report-setup` marker with
 an operator at the keyboard. Follow
-`references/setup.md`'s interview: inventory what is connected, ask what they
+the interview `llm-wiki-ops reference daily-report/setup` prints (`setup.md`): inventory what is connected, ask what they
 care about seeing each morning, cut sections nothing feeds, personalize the
 template, fold the section plan and tone into the overlay on the operator's
 yes, retire the marker when §1's read returned it — a redesign on a wiki

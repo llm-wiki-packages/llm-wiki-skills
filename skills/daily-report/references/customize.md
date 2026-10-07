@@ -21,4 +21,4 @@ llm-wiki-ops policy get daily-report     # read FIRST
 llm-wiki-ops policy set daily-report     # on the operator's yes, prose on stdin
 ```
 
-`references/setup.md` is the full interview; `/daily-report setup` runs it.
+`llm-wiki-ops reference daily-report/setup` prints the full interview (`setup.md`); `/daily-report setup` runs it.

@@ -92,7 +92,7 @@ through `page create` (or `page edit` for a title `dest` already holds), and
 leaves the paths in `written.json`. One JSON line out — `written`, `page`,
 `has_transcript`, `chapters`, `description`. A non-zero exit means NOTHING
 landed: post `failed` with its last stderr line. The page's shape is
-`references/note-shape.md`.
+`llm-wiki-ops reference channel-youtube/note-shape`.
 
 **4. Post progress — last.**
 
@@ -173,7 +173,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   need none; private, age-restricted and members-only ones need a signed-in
   session.
 - `requires.credential` is `"optional"`. Bound to a `dir` credential with
-  `login: browser` (`references/enable.md`), the ticket carries
+  `login: browser` (`llm-wiki-ops reference channel-youtube/enable`), the ticket carries
   `credential_dir` and `browser_python`; the harvest script exports a Netscape
   `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by
   `browser_python`) and passes `--cookies` to both yt-dlp calls. Unbound,

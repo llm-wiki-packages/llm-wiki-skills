@@ -174,7 +174,7 @@ gets no `published` key at all.
   harvest sandbox's `spotify` route: in the jail `SPOTIFY_TOKEN_AUTH` holds a
   phantom, `capture` sends it on the one token request, and the proxy puts the
   wiki's own grant there. You call no `credentials` verb and read no login.
-  The operator stores the grant once per machine (`references/enable.md`).
+  The operator stores the grant once per machine (`llm-wiki-ops reference channel-spotify/enable`).
 - With the route enabled and no grant stored, the token request fails and the
   capture says so: nothing falls back to another account.
 - **Keyless degradation**: with no route, `meta`/`capture` fall back to the
