@@ -170,8 +170,9 @@ overwrites. `wiki/index.md` gets ONE directory-level line for
 
 Then commit and close, NOW — an attended run dying mid-§7 still has its
 promotions recorded. A scheduled run's commit is its landing's, which
-commits only the pages §10 lists: the HTML, the log and index lines and §5's
-edits stay uncommitted until the wiki's next commit.
+commits only the pages §10 lists: the HTML, a same-day rerun's edit of the
+report, the log and index lines and §5's edits stay uncommitted until the
+wiki's next commit.
 
 ```sh
 llm-wiki-ops git commit message="daily-report 2026-09-05"

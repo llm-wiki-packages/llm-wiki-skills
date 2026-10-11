@@ -19,12 +19,16 @@ A slice keeps only an in-wiki entry spelled `$WORKDIR/<path>`, so each tree
 the run reads is named; `$WORKDIR` alone grants nothing.
 
 - Read `.git`: `op latest`, `op since` and `git changed`, which fix the
-  window and say what the wiki did.
+  window and say what the wiki did. It also exposes every committed file's
+  content and `.git/config`'s remote urls, so this list is not a read
+  boundary; the grant stays because those three need it.
 - Read `.llm-wiki/policy`: the `daily-report` overlay and the
   `daily-report-setup` marker. Unreadable, `policy get` answers no overlay
   and the run reports on stock alone.
 - Read `research/`: the channel ledgers under `research/channels/` and the
   ops digest under `research/reports/`.
+- Read `sources/`: `page lint` sweeps it beside `wiki/`, and skips a tree it
+  cannot read without saying so, so the report's `lint:` would undercount.
 - Write `wiki/`: the report's markdown and HTML under `wiki/reports/`, the
   promotions on existing `wiki/` pages and the entity stubs, and the
   `wiki/log.md` and `wiki/index.md` entries. The profile, the previous
@@ -70,11 +74,12 @@ None.
     "filesystem": {
       // Each tree by name: a slice drops a bare `$WORKDIR`. `.git` fixes the
       // window, `.llm-wiki/policy` is the overlay, `research/` the ledgers
-      // and the digest.
+      // and the digest, `sources/` what `page lint` sweeps beside `wiki/`.
       "read": [
         "$WORKDIR/.git",
         "$WORKDIR/.llm-wiki/policy",
-        "$WORKDIR/research"
+        "$WORKDIR/research",
+        "$WORKDIR/sources"
       ],
       // `wiki/` alone: the report, its promotions, and the log and index
       // entries. An overlay is the operator's to write.

@@ -17,6 +17,9 @@ REPORT = f"wiki/reports/{TODAY}.md"
 # and one channel's ledger page.
 DIGEST = f"research/reports/{TODAY}.md"
 LEDGER = f"research/channels/harness-daily-report/{TODAY}.md"
+# A `sources/` page `page lint` flags: the sweep skips a tree it cannot read
+# without a word, so only a finding there shows the jail reaches it.
+UNDATED = "sources/harness-daily-report/undated.md"
 
 # The ticket's own steps (scope, §10), the reads §1–§3 make, and the writes
 # the sandbox has to decide, as the run types them. A read the sandbox does
@@ -30,6 +33,7 @@ step latest "$OPS" --json op latest daily-report
 step changed "$OPS" --json git changed research sources filter=since:3d
 step ledgers "$OPS" --json page ls filter=under:research/channels
 step digest "$OPS" --json page read {DIGEST}
+step lint "$OPS" --json page lint
 step report sh -c 'printf "The lead.\\n" | "$OPS" --json page create title={TODAY} dest=wiki/reports type=report --stdin'
 step brief sh -c 'printf "<html></html>\\n" > wiki/reports/{TODAY}.html'
 step write-research sh -c 'printf x > research/daily-report.txt'
@@ -52,16 +56,18 @@ def _routine_job(ops, env, wiki) -> str:
 def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, env, wiki):
     """The claim gate admits the paused seed once the enabled copy serves
     `routine`; its slice writes `wiki/` and nothing else the sandbox does not
-    name, reads the overlay, the op log and `research/`, asks the router for
-    the stage's model, and its report lands the listed page stamped with the
-    job."""
+    name, reads the overlay, the op log, `research/` and `sources/`, asks the
+    router for the stage's model, and its report lands the listed page
+    stamped with the job."""
     enabled(ops, env, wiki, "daily-report")
     for rel, body in ((DIGEST, "The digest.\n"), (LEDGER, "- a line\n")):
         where, name = rel.rsplit("/", 1)
         r = run(ops, rooted(env, wiki), "--json", "page", "create", f"title={name.removesuffix('.md')}", f"dest={where}",
                 "type=report", "--stdin", input=body)
         assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, rooted(env, wiki), "--json", "git", "commit", DIGEST, LEDGER, "message=harness: what daily-report reads")
+    (wiki / UNDATED).parent.mkdir(parents=True, exist_ok=True)
+    (wiki / UNDATED).write_text("---\ntitle: undated\ntype: note\npublished: someday\n---\nBody.\n", encoding="utf-8")
+    r = run(ops, rooted(env, wiki), "--json", "git", "commit", DIGEST, LEDGER, UNDATED, "message=harness: what daily-report reads")
     assert r.returncode == 0, r.stdout + r.stderr
     slug = _routine_job(ops, env, wiki)
     for verb in ("resume", "claim", "pause"):
@@ -77,12 +83,13 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     opened = session.step("open")
     assert opened.returncode == 0, opened.stdout + opened.stderr
     assert opened.data["ticket"]["stage"] == "routine", opened.data
-    for step in ("overlay", "latest", "changed", "ledgers", "digest", "report", "brief", "listed", "update"):
+    for step in ("overlay", "latest", "changed", "ledgers", "digest", "lint", "report", "brief", "listed", "update"):
         assert session.step(step).returncode == 0, (step, session.step(step))
     assert "daily-report" in [o["name"] for o in session.step("overlay").data["overlays"]], session.step("overlay").stdout
     assert {DIGEST, LEDGER} <= set(session.step("changed").data["files"]), session.step("changed").stdout
     assert LEDGER in [p["path"] for p in session.step("ledgers").data["pages"]], session.step("ledgers").stdout
     assert session.step("digest").data["body"] == "The digest.\n", session.step("digest").stdout
+    assert UNDATED in [f["path"] for f in session.step("lint").data["findings"]], session.step("lint").stdout
     for step in ("write-research", "write-policy"):
         assert session.step(step).returncode != 0, f"{step}: the routine sandbox let the run write outside `wiki/`"
     assert not (wiki / ".llm-wiki" / "policy" / "harness-routine.md").exists()
