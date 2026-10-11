@@ -1,4 +1,5 @@
 """What the daily-report skill's body claims about its own directory."""
+import json
 from pathlib import Path
 
 import pytest
@@ -43,3 +44,30 @@ def test_the_setup_marker_is_retired_only_when_it_was_found():
     assert "llm-wiki-ops policy retire daily-report-setup" in setup
     assert MARKER_GUARD in setup, "setup.md retires the marker unconditionally"
     assert MARKER_GUARD in BODY, "the skill body's §8 clause carries no condition"
+
+
+# The `ops-morning` job runs this unit as `/daily-report ticket=<id>
+# stage=routine`; the claim gate admits that job only where the enabled
+# manifest serves `routine`.
+MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
+ROUTINE = BODY.split("\n## 10. ", 1)[1].split("\n## ", 1)[0] if "\n## 10. " in BODY else ""
+
+
+def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
+    assert MANIFEST["kind"] != "tool", "a tool unit serves no stage, so no job can run it"
+    routine = MANIFEST["stages"]["routine"]
+    assert routine["sandbox_ref"].endswith(":daily-report/daily-report.routine"), routine
+
+
+def test_a_scheduled_run_reports_last_listing_only_the_pages_it_made():
+    assert "ticket=<id> stage=routine" in BODY.split("\n## 1. ", 1)[0], "the scope names no scheduled entry"
+    assert ROUTINE, "no §10 for the scheduled run's report"
+    assert "after §7's last close" in ROUTINE
+    assert "stage=routine" in ROUTINE and "written_from=written.json" in ROUTINE
+    # `close` stamps the job's `job` and `meta` on every listed page.
+    assert "never the HTML" in ROUTINE and "only edited" in ROUTINE
+
+
+def test_the_schedule_it_names_is_the_ops_morning_job():
+    assert "`ops-morning` job" in BODY
+    assert "bundle" not in BODY

@@ -12,7 +12,11 @@ import pytest
 
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel"]
+# The capture units: each holds the pen at process. Selected by the stages a
+# unit declares, never by `kind`: a routine unit is a `channel` too and
+# captures nothing, so none of the ticket-step checks below are its.
+CHANNELS = [n for n in SKILLS if "process" in unit_manifest(n).get("stages", {})]
+ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
 # A unit's own tests ship too, but a test asserting a gone name is ABSENT is
 # not a unit telling a worker to look for it: the scan below skips them.
 SHIPPED = sorted(p for p in (ROOT / "skills").rglob("*") if p.is_file() and p.suffix in {".md", ".py", ".json"} and not {"__pycache__", "tests"} & set(p.parts))
@@ -151,6 +155,18 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     assert "ticket.json" not in skill, name
 
 
+@pytest.mark.parametrize("name", ROUTINES)
+def test_a_routine_unit_reads_its_ticket_and_leaves_a_routine_report(name):
+    """The spawner's prompt for a routine is `/<unit> ticket=<id>
+    stage=routine` (the job-record contract), so the body names that entry,
+    reads the ticket the way a capture unit does, and posts its report on the
+    routine stage, which is what the ticket's `close` reads."""
+    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    assert "ticket=<id> stage=routine" in skill, name
+    assert "llm-wiki-ops --json pipeline tickets open <id>" in skill, name
+    assert re.search(r"llm-wiki-ops pipeline tickets update <id> stage=routine status=", skill), name
+
+
 @pytest.mark.parametrize("name", SKILLS)
 def test_a_unit_is_reachable_by_the_invocation_its_spawner_types(name):
     """The spawner's whole prompt for a slice is `/<unit> ticket=<id>`. With
@@ -225,7 +241,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
     assert done.returncode == 0 and re.search(r"^\d+ tests? collected", done.stdout, re.M), f"{name}'s tests do not collect on their own:\n{done.stdout}{done.stderr}"
 
 
-@pytest.mark.parametrize("name", CHANNELS)
+@pytest.mark.parametrize("name", SKILLS)
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""

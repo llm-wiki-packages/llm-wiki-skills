@@ -13,6 +13,13 @@ top-tier model.
 
 Scope: `$ARGUMENTS` — a date to report as, or a focus. Default: today,
 everything since the last report. `setup` runs the interview instead (§8).
+`ticket=<id> stage=routine` is the scheduled run, the `ops-morning` job's:
+open the ticket first, run §1–§7 for today with nobody to answer, and leave
+its report last (§10).
+
+```sh
+llm-wiki-ops --json pipeline tickets open <id>
+```
 
 Dream analyzes; this skill formats. It never needs operator input mid-run —
 open questions land in the report for the next `/llm-wiki:grill`.
@@ -81,9 +88,9 @@ llm-wiki-ops page ls filter=under:research/reports
   (`llm-wiki-ops reference channel-ledger`). A job not pulled here has no
   ledger for the gap days — note and skip.
 - **This wiki's ops digest** — the newest `research/reports/` page inside the
-  window, read with `llm-wiki-ops page read <path>`. The `morning` bundle
-  blocks until a `wiki-report` run has written one, so under the schedule
-  there is always one to read; a by-hand run may find none — note the gap and
+  window, read with `llm-wiki-ops page read <path>`. The `ops-morning` job
+  `requires` a `wiki-report` run within the day, so under the schedule there
+  is always one to read; a by-hand run may find none — note the gap and
   continue. Take it as given, never re-derive it.
 - **What the wiki did** — `op since` is the runs, `git changed` the files.
 - **Lint delta** — `page lint` against the previous report's `lint:`
@@ -223,11 +230,29 @@ the newest report as top-priority gaps. When a question persists across
 reports, print the instruction in the report and on the brief: **type
 `/llm-wiki:grill`**.
 
+## 10. The scheduled run's report
+
+Only under `ticket=<id> stage=routine`, and only after §7's last close. List
+the pages this run produced — the day's markdown report and each entity stub
+§5 created, wiki-relative — as one JSON list in `written.json` inside the
+ticket's `capture_dir`, then post it:
+
+```sh
+llm-wiki-ops pipeline tickets update <id> stage=routine status=<ok|partial|failed> written_from=written.json
+```
+
+`status` is §6's `outcome`, or worse where §7's brief did not land. The host
+adopts each listed page and stamps it with the job's `job` and `meta`, so
+list only what this run made: never the HTML, which is no page, nor a page
+§5 only edited, `wiki/log.md` or `wiki/index.md`, which are not this job's
+to label. A routine report carries no `captured=` or `missing=`. The update
+is the last act; then exit.
+
 ## Never
 
 - Write outside the report's markdown and HTML, the interactive-only first-run
-  seeds, the promotion list, and the `wiki/log.md` and `wiki/index.md`
-  entries.
+  seeds, the promotion list, the `wiki/log.md` and `wiki/index.md` entries,
+  and a scheduled run's `written.json`.
 - Read a raw channel capture, or touch another wiki in any writing way.
 - Resolve contradictions, merge topic or concept pages, or downgrade stale
   facts — dream owns all three.

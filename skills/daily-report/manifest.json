@@ -4,13 +4,19 @@
     "dashboard",
     "morning"
   ],
-  "kind": "tool",
+  "kind": "channel",
   "name": "daily-report",
   "requires": {
-    "credential": false,
     "ops": ">=0.1.0"
+  },
+  "stages": {
+    "routine": {
+      "model": "frontier",
+      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report/daily-report.routine"
+    }
   },
   "usage": "/daily-report [date|focus|setup]",
   "v": 1,
+  "venue": "daily-report",
   "version": "0.1.0"
 }
