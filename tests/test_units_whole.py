@@ -12,10 +12,10 @@ import pytest
 
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
-# The capture units: each holds the pen at process. Selected by the stages a
-# unit declares, never by `kind`: a routine unit is a `channel` too and
-# captures nothing, so none of the ticket-step checks below are its.
-CHANNELS = [n for n in SKILLS if "process" in unit_manifest(n).get("stages", {})]
+# The capture units. A routine unit is a `channel` too and captures nothing,
+# so it is set apart by the stage it declares; a capture unit that forgot
+# `process` stays in, for the both-stages check to catch.
+CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel" and "routine" not in unit_manifest(n).get("stages", {})]
 ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
 # A unit's own tests ship too, but a test asserting a gone name is ABSENT is
 # not a unit telling a worker to look for it: the scan below skips them.

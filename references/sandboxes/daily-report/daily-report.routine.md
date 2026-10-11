@@ -1,8 +1,8 @@
 # daily-report.routine
 
 The sandbox for the daily report's `routine` stage: the scheduled morning
-run, with nobody at the keyboard. It reads the wiki and writes the day's
-report and its promotions under `wiki/`.
+run, with nobody at the keyboard. It reads what the report is made from and
+writes the day's report and its promotions under `wiki/`.
 
 ## Bins
 
@@ -15,18 +15,26 @@ None of its own. The model endpoints are the harness profile's; see
 
 ## Filesystem
 
-- Read: the whole wiki. The run reads the channel ledgers under
-  `research/channels/`, the ops digest under `research/reports/`, the
-  profile, the previous report and the template.
-- Write: `wiki/`. The report's markdown and HTML under `wiki/reports/`,
-  the promotions on existing `wiki/` pages and the entity stubs, and the
-  `wiki/log.md` and `wiki/index.md` entries.
+A slice keeps only an in-wiki entry spelled `$WORKDIR/<path>`, so each tree
+the run reads is named; `$WORKDIR` alone grants nothing.
 
-`op open`, `op close`, `git commit` and the routine report ask nothing of
-this file, and it could grant them nothing: the commit route (`.git`, and
-the wiki's git lock under `.llm-wiki.local/`) is the runner's to grant and
-the floor refuses a sandbox naming it, and the runner grants the ticket's
-capture directory itself.
+- Read `.git`: `op latest`, `op since` and `git changed`, which fix the
+  window and say what the wiki did.
+- Read `.llm-wiki/policy`: the `daily-report` overlay and the
+  `daily-report-setup` marker. Unreadable, `policy get` answers no overlay
+  and the run reports on stock alone.
+- Read `research/`: the channel ledgers under `research/channels/` and the
+  ops digest under `research/reports/`.
+- Write `wiki/`: the report's markdown and HTML under `wiki/reports/`, the
+  promotions on existing `wiki/` pages and the entity stubs, and the
+  `wiki/log.md` and `wiki/index.md` entries. The profile, the previous
+  report and the template are read through the same grant.
+
+`op open`, `op close` and `git commit` write `.git` and the wiki's git lock
+under `.llm-wiki.local/`, which no sandbox can grant: the floor refuses a
+write at or inside `.git`, and a committed profile names nothing under
+`.llm-wiki.local/`. The runner grants the ticket's capture directory, where
+the routine report goes, itself.
 
 ## Credential
 
@@ -34,15 +42,14 @@ None.
 
 ## Customize
 
-- A cross-wiki what's-new the overlay names is a read of another wiki,
-  which this sandbox does not grant: the run notes the denied read and
-  skips that wiki. Grant the peer's path read-only in the enabled copy and
-  an allow file, never here.
+- A cross-wiki what's-new is an attended run's: the run finds a peer's path
+  through the machine config, which no sandbox grant reaches, so a
+  scheduled run notes each wiki the overlay names and skips it.
 
 ## Never loosen
 
-- No `.llm-wiki/policy`: an overlay is written by an operator answering
-  `/daily-report setup`, never by a run nobody is watching.
+- No write under `.llm-wiki/policy`: an overlay is written by an operator
+  answering `/daily-report setup`, never by a run nobody is watching.
 - No machine registry: every writer of it runs on the host.
 - No write under `sources/` or `research/`: the run promotes into `wiki/`
   and nowhere else.
@@ -56,17 +63,21 @@ None.
   "profile": {
     "meta": {
       "name": "daily-report-routine",
-      "description": "the scheduled daily report: reads the wiki, writes `wiki/`."
+      "description": "the scheduled daily report: reads its inputs, writes `wiki/`."
     },
     // No `network`: the harness profile supplies the model hosts, and the
     // run reaches no other.
     "filesystem": {
+      // Each tree by name: a slice drops a bare `$WORKDIR`. `.git` fixes the
+      // window, `.llm-wiki/policy` is the overlay, `research/` the ledgers
+      // and the digest.
       "read": [
-        "$WORKDIR"
+        "$WORKDIR/.git",
+        "$WORKDIR/.llm-wiki/policy",
+        "$WORKDIR/research"
       ],
       // `wiki/` alone: the report, its promotions, and the log and index
-      // entries. An overlay is the operator's, so `.llm-wiki/policy` stays
-      // out.
+      // entries. An overlay is the operator's to write.
       "allow": [
         "$WORKDIR/wiki"
       ]

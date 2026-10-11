@@ -59,13 +59,21 @@ def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
     assert routine["sandbox_ref"].endswith(":daily-report/daily-report.routine"), routine
 
 
-def test_a_scheduled_run_reports_last_listing_only_the_pages_it_made():
-    assert "ticket=<id> stage=routine" in BODY.split("\n## 1. ", 1)[0], "the scope names no scheduled entry"
+def test_a_scheduled_run_checks_its_ticket_is_a_routine():
+    scope = BODY.split("\n## 1. ", 1)[0]
+    assert "ticket=<id> stage=routine" in scope, "the scope names no scheduled entry"
+    assert "tickets open <id>" in scope and "`stage` must be `routine`" in scope
+
+
+def test_a_scheduled_run_reports_last_listing_only_the_pages_it_created():
     assert ROUTINE, "no §10 for the scheduled run's report"
     assert "after §7's last close" in ROUTINE
     assert "stage=routine" in ROUTINE and "written_from=written.json" in ROUTINE
-    # `close` stamps the job's `job` and `meta` on every listed page.
-    assert "never the HTML" in ROUTINE and "only edited" in ROUTINE
+    # `close` stamps the job's `job` and `meta` on every listed page, so a
+    # page the run only edited — a same-day rerun's report among them — is
+    # never listed.
+    assert "created with `page create`" in ROUTINE
+    assert "same-day rerun edited" in ROUTINE and "only edited" in ROUTINE and "the HTML" in ROUTINE
 
 
 def test_the_schedule_it_names_is_the_ops_morning_job():
