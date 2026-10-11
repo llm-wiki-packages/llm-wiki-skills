@@ -79,8 +79,8 @@ def _hash8(url: str) -> str:
 
 
 def _stub_ops(tmp_path: Path, ticket_dict: dict | None) -> str:
-    """A stand-in front door: `pipeline tickets open` answers `ticket_dict`
-    (refused, naming nothing, where it is None); `pipeline tickets update` is
+    """A stand-in front door: `tickets open` answers `ticket_dict`
+    (refused, naming nothing, where it is None); `tickets update` is
     recorded to `update-calls.jsonl` and answers a bare 0.
 
     Written under a dot-directory, never directly in `tmp_path` — several
@@ -94,12 +94,12 @@ def _stub_ops(tmp_path: Path, ticket_dict: dict | None) -> str:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    if TICKET is None:\n"
         "        sys.exit('ops_stub: no ticket')\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -354,7 +354,7 @@ def test_plan_record_report_from_a_ticket_with_files_only(tmp_path):
     kv = _kv(_updates(tmp_path)[-1])
     assert kv["status"] == "partial"  # one of two pages was captured
     # S5: what an operator does next, said where the host reports it — a `once` job is never pulled again.
-    assert "pipeline tickets retry 0123456789ab" in kv["reason"] and "pipeline jobs edit site-learn every=" in kv["reason"]
+    assert "tickets retry 0123456789ab" in kv["reason"] and "jobs edit site-learn every=" in kv["reason"]
 
 
 def test_everything_known_is_ok_with_nothing_captured_not_a_failure(tmp_path):
@@ -412,7 +412,7 @@ def test_the_stages_speak_the_new_contract():
     # One sentence settles the step, and the reasoning stays in its one home.
     opening = text.split("## Stages", 1)[1].split("### harvest", 1)[0]
     assert " ".join(opening.split()) == (
-        "```sh llm-wiki-ops --json pipeline tickets open <id> ``` "
+        "```sh llm-wiki-ops --json tickets open <id> ``` "
         "The answer's own `stage` — `harvest` or `process` — is the step; the two "
         "sections below are those steps. Either step opens with the policy read — the "
         "stage's overlay, then this unit's own, folded onto the step: "
@@ -731,7 +731,7 @@ def test_past_the_deadline_the_worker_is_told_to_stop_and_the_report_says_how_to
     done = _cli("report", rel, tmp_path=tmp_path, ticket_dict=t, cwd=root)
     kv = _kv(_updates(tmp_path)[-1])
     assert done.returncode == 0 and kv["status"] == "partial" and "1 of 3 pages captured, 2 left" in kv["reason"]
-    assert "every: once" in kv["reason"] and "pipeline tickets retry 0123456789ab" in kv["reason"]
+    assert "every: once" in kv["reason"] and "tickets retry 0123456789ab" in kv["reason"]
 
 
 def test_a_second_run_does_not_redo_what_a_killed_run_finished(tmp_path):
@@ -954,7 +954,7 @@ def test_a_malformed_enumeration_is_a_clear_refusal_and_the_failure_can_still_be
     assert done.returncode == 1
     kv = _kv(_updates(tmp_path)[-1])
     call = _updates(tmp_path)[-1]
-    assert (call[3], kv["status"], kv["reason"]) == ("0123456789ab", "failed", "sitemap_unreadable")
+    assert (call[2], kv["status"], kv["reason"]) == ("0123456789ab", "failed", "sitemap_unreadable")
 
 
 def test_fetched_at_is_the_renders_time_not_the_time_record_ran(tmp_path):

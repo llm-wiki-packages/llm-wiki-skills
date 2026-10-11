@@ -65,7 +65,7 @@ def wiki(ops, env) -> Path:
     w = SCRATCH / "wiki" / "w"
     r = run(_cli(ops), env, "init", str(w), "preset=general")  # values are key=value; init commits on its own
     assert r.returncode == 0, r.stderr
-    # `pipeline add` needs a joined checkout. `join` registers the wiki in the
+    # `jobs add` needs a joined checkout. `join` registers the wiki in the
     # throwaway machine config above and seeds this box's sandbox base under
     # `env`'s scratch HOME. It is a protected write: nobody is at a terminal
     # for this harness process, so it asks and refuses unless the session is
@@ -85,12 +85,12 @@ def wiki(ops, env) -> Path:
     r = run(ops, rooted(env, w), "git", "commit", ".llm-wiki.toml",
             "message=harness: declare this checkout's package", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
-    # `[pipeline] model` is the committed fallback ADR-0014 falls to where a
-    # unit declares no `stages.<stage>.model` (plugins main, post-#2487) — a
-    # `config set` writes the LOCAL manifest only, and this key is read from
-    # the COMMITTED one, so it is hand-written and committed like a peer's edit.
+    # `[jobs.defaults] model` is the wiki's rung of the model chain, the one
+    # ADR-0014 falls to where a unit declares no `stages.<stage>.model`.
+    # `config set` names a two-part key and this one has three, so it is
+    # hand-written and committed like a peer's edit.
     (w / ".llm-wiki.toml").write_text(
-        (w / ".llm-wiki.toml").read_text(encoding="utf-8") + '\n[pipeline]\nmodel = "harness-model"\n',
+        (w / ".llm-wiki.toml").read_text(encoding="utf-8") + '\n[jobs.defaults]\nmodel = "harness-model"\n',
         encoding="utf-8",
     )
     r = run(ops, rooted(env, w), "git", "commit", ".llm-wiki.toml",

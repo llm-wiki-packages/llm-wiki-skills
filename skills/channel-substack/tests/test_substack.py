@@ -337,8 +337,8 @@ def _py(name, *argv, cwd, env=None):
 
 
 def _stub_ops(root, ticket=None):
-    """A stand-in front door: `pipeline tickets open` answers `ticket`;
-    `pipeline tickets update` is recorded to `update-calls.jsonl` and
+    """A stand-in front door: `tickets open` answers `ticket`;
+    `tickets update` is recorded to `update-calls.jsonl` and
     answers a bare 0 — the one `LLM_WIKI_OPS` `open_ticket`/`post_update`
     both reach through when these scripts run as real subprocesses."""
     stub = root / "ops_stub.py"
@@ -346,10 +346,10 @@ def _stub_ops(root, ticket=None):
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path('update-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -416,7 +416,7 @@ def test_the_enumerator_and_the_report_run_from_the_wiki_root_on_relative_paths(
     wrote = _py("capture_posts.py", "--capture-dir", OWN, "--report", "--ticket", ticket["ticket"], cwd=root, env=env)
     assert wrote.returncode == 0, wrote.stderr
     call = _updates(root)[-1]
-    assert call[3] == ticket["ticket"] and _kv(call)["status"] == "failed"
+    assert call[2] == ticket["ticket"] and _kv(call)["status"] == "failed"
 
     # A malformed `--missing` is refused before anything is posted.
     before = len(_updates(root))
@@ -458,7 +458,7 @@ def test_a_process_ticket_reports_the_page_it_wrote(tmp_path):
     assert wrote.returncode == 0, wrote.stderr
     call = _updates(root)[-1]
     kv = _kv(call)
-    assert call[3] == ticket["ticket"] and kv["stage"] == "process" and kv["status"] == "ok"
+    assert call[2] == ticket["ticket"] and kv["stage"] == "process" and kv["status"] == "ok"
     assert kv["written_from"] == "written.json"
 
     # A capture that earns no page says so instead, with no `--written-from` behind it.

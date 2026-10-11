@@ -88,8 +88,8 @@ def why(plan: dict) -> dict:
 
 
 def _stub_ops(tmp_path: Path, ticket_dict: dict | None) -> str:
-    """A stand-in front door: `pipeline tickets open` answers `ticket_dict`
-    (refused, naming nothing, where it is None); `pipeline tickets update` is
+    """A stand-in front door: `tickets open` answers `ticket_dict`
+    (refused, naming nothing, where it is None); `tickets update` is
     recorded to `update-calls.jsonl` and answers a bare 0.
 
     Written under a dot-directory, never directly in `tmp_path` — several
@@ -102,12 +102,12 @@ def _stub_ops(tmp_path: Path, ticket_dict: dict | None) -> str:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    if TICKET is None:\n"
         "        sys.exit('ops_stub: no ticket')\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -337,7 +337,7 @@ def test_report_is_partial_until_every_planned_leaf_is_on_disk(slice_dir, tmp_pa
     call = _updates(tmp_path)[-1]
     kv = _kv(call)
     assert kv["status"] == "partial" and "1 of 2" in kv["reason"]
-    assert call[3] == "0123456789ab" and kv["captured"] == plan["leaves"][0]["dir"]
+    assert call[2] == "0123456789ab" and kv["captured"] == plan["leaves"][0]["dir"]
 
 
 def test_auth_expiry_names_every_unreached_lesson_as_auth(slice_dir, tmp_path):
@@ -632,7 +632,7 @@ def stub_capture_front_door(tmp_path: Path, ticket_dict: dict, profile_answer: d
         "argv = [a for a in argv if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
         f"PROFILE = json.loads({json.dumps(json.dumps(profile_answer))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
         "if argv[:2] == ['credentials', 'info']:\n"
@@ -807,7 +807,7 @@ def test_past_the_deadline_record_says_stop_and_no_new_lesson_is_started(wiki_ro
     call = _updates(report_door)[-1]
     assert [a.split("=", 1)[1] for a in call if a.startswith("captured=")] == [plan["leaves"][0]["dir"]]
     # The reason tells the operator exactly what resumes an `every: once` job — nothing does by itself.
-    for said in ("1 of 2", "deadline passed", "pipeline tickets retry 0123456789ab", "pipeline jobs edit course every=1d", "NOT pulled again"):
+    for said in ("1 of 2", "deadline passed", "tickets retry 0123456789ab", "jobs edit course every=1d", "NOT pulled again"):
         assert said in kv["reason"], said
 
     # Inside the budget (a fresh plan) the same record is plain success.

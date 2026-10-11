@@ -153,8 +153,8 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
     """A recording `llm-wiki-ops` first on PATH.
 
     It appends every call — argv, cwd, the binding it inherited, whatever arrived on
-    stdin — to `seen.jsonl`, then answers `pipeline tickets open` with `ticket`
-    (default: the standard `_default_ticket("process")`), `pipeline tickets
+    stdin — to `seen.jsonl`, then answers `tickets open` with `ticket`
+    (default: the standard `_default_ticket("process")`), `tickets
     update` with a bare 0, and `page create`/`page edit` by writing the page
     and printing what the real verb prints — the whole front door this
     script's own helpers (`open_ticket`, `post_update`, `write_page`) reach
@@ -181,10 +181,10 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         f"{body or 'pass'}\n"
         "verb = [a for a in argv if not a.startswith('--')]\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if verb[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if verb[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
         "if verb[:1] == ['page']:\n"
         "    pairs = dict(a.split('=', 1) for a in argv if '=' in a and not a.startswith('--'))\n"
@@ -450,5 +450,5 @@ def test_the_ticket_is_opened_with_the_right_stage(tmp_path):
     cap = _capture(tmp_path)
     path, seen = _stub_front_door(tmp_path, ticket=_default_ticket("harvest"))
     _run(tmp_path, cap, mode=["--record"], formatter=None, extra_env=path)
-    opens = [c["argv"] for c in _calls(seen) if c["argv"][:3] == ["--json", "pipeline", "tickets"]]
-    assert any(a[3:5] == ["open", TICKET_ID] and "stage=harvest" in a for a in opens), opens
+    opens = [c["argv"] for c in _calls(seen) if c["argv"][:2] == ["--json", "tickets"]]
+    assert any(a[2:4] == ["open", TICKET_ID] and "stage=harvest" in a for a in opens), opens

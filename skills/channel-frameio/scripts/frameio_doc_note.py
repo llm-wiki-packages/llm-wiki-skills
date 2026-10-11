@@ -104,7 +104,7 @@ History:
               `report.json` naming it in `written[]`.
   2026-09-19  a video leaf gets a page too — the transcribe stage's queued
               stub, minted here. It was reported `skipped` for a day, on the
-              reading that only `pipeline extract` could set `extracted` and
+              reading that only a host step could set `extracted` and
               `media`; measuring `page create` showed otherwise.
   2026-09-25  moved to the CLI-verb worker contract: `--ticket <id>` opens
               `process.bundle_media` through `tickets open` instead of a file
@@ -161,8 +161,9 @@ TYPE_DOC = "doc"
 TYPE_VIDEO = "video"
 
 # Where `process.bundle_media: true` puts the media, relative to `dest`. The
-# process slice is granted rw on `dest`, so the copy is this step's to make;
-# `pipeline extract` used to make it and no longer sees these pages.
+# process slice is granted rw on `dest`, and this step writes the page itself
+# through `page create`, so no host step lands these pages and the copy is
+# this step's to make.
 ASSETS = "assets"
 
 #: Cap on inlined text. A page is read by people and by search; a 300-page

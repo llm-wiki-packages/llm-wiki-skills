@@ -84,10 +84,10 @@ def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))",
         f"open({str(seen)!r}, 'a').write(json.dumps({{'argv': sys.argv[1:], 'cwd': os.getcwd(),\n"
         "    'stdin': stdin,\n"
         "    'inherited': sorted(k for k in ('CLAUDE_PROJECT_DIR',) if k in os.environ)}) + '\\n')\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         f"    print(json.dumps({{'ticket': {ticket_json}}}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
         f"{body}\n"
     )
@@ -106,7 +106,7 @@ def _page_calls(seen: Path) -> list:
 
 
 def _update_calls(seen: Path) -> list:
-    return [c for c in _calls(seen) if c["argv"][1:4] == ["pipeline", "tickets", "update"]]
+    return [c for c in _calls(seen) if c["argv"][1:3] == ["tickets", "update"]]
 
 
 def _kv(argv: list) -> dict:
@@ -161,7 +161,7 @@ def test_the_update_is_posted_last_and_names_the_page_in_written_from(tmp_path, 
     capsys.readouterr()
 
     call = _update_calls(seen)[-1]
-    assert call["argv"][4] == TICKET and "stage=process" in call["argv"] and "status=ok" in call["argv"]
+    assert call["argv"][3] == TICKET and "stage=process" in call["argv"] and "status=ok" in call["argv"]
     kv = _kv(call["argv"])
     assert "written_from" in kv and "captured" not in kv and "missing" not in kv
     written = json.loads((root / CAP_REL / kv["written_from"]).read_text(encoding="utf-8"))

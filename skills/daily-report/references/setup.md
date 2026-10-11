@@ -77,7 +77,7 @@ With the operator present:
 
    ```sh
    llm-wiki-ops op open grill
-   llm-wiki-ops pipeline jobs ls
+   llm-wiki-ops jobs ls
    llm-wiki-ops page ls filter=under:wiki/profile
    llm-wiki-ops search status
    ```

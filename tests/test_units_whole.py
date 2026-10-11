@@ -44,6 +44,18 @@ GONE[r"(?<![\w.-])report\.json\b"] = "no unit writes a report; `tickets update` 
 # A dated changelog line may name what it removed; that is history, not an instruction.
 _HISTORY = re.compile(r"^\s*[-*#>]?\s*`?20\d\d-\d\d-\d\d")
 
+# The verb paths the ops CLI no longer mounts: the job verbs sit one level
+# down, under `jobs`, `tickets` and `denylist`, and `tick` is a verb of its
+# own. Each is matched over a file with its whitespace folded, so a doc that
+# wraps one across a line break, or an argv split one token per line, is
+# caught as well. No history exemption: a unit has no reason to spell one.
+RETIRED_VERBS = {
+    r"\bpipeline\s+(?:jobs|tickets|due|run|denylist)\b": "not a verb: `jobs <verb>` (`jobs due`, `jobs run`), `tickets <verb>`, `denylist <verb>`",
+    r"""["']pipeline["'],\s*["'](?:jobs|tickets|due|run|denylist)["']""": "not an argv: it opens `jobs`, `tickets` or `denylist`",
+    r"\bschedule\s+tick\b": "not a verb: `tick` stands alone",
+    r"""["']schedule["'],\s*["']tick["']""": "not an argv: `tick` stands alone",
+}
+
 
 @pytest.mark.parametrize("path", SHIPPED, ids=lambda p: str(p.relative_to(ROOT)))
 def test_no_shipped_file_names_a_host_that_is_gone(path):
@@ -58,6 +70,23 @@ def test_no_shipped_file_names_a_host_that_is_gone(path):
             if re.search(pattern, line) and not history:
                 wrong.append(f"{path.relative_to(ROOT)}:{n}: {line.strip()[:110]} — {why}")
     assert not wrong, "\n".join(wrong)
+
+
+@pytest.mark.parametrize("path", SHIPPED, ids=lambda p: str(p.relative_to(ROOT)))
+def test_no_shipped_file_names_a_verb_the_cli_does_not_mount(path):
+    folded = " ".join(path.read_text(encoding="utf-8").split())
+    wrong = [f"{path.relative_to(ROOT)}: `{m.group(0)}` — {why}" for pattern, why in RETIRED_VERBS.items() for m in re.finditer(pattern, folded)]
+    assert not wrong, "\n".join(wrong)
+
+
+def test_the_retired_verb_scan_catches_a_wrapped_spelling():
+    """A scan that matches nothing reports green over every file; pointed at
+    the shapes it exists for, built here so this file spells none of them."""
+    verb, group = "tickets", "pipeline"
+    stale = [f"`llm-wiki-ops {group}\n   {verb} open <id>`", f'argv = [*door, "--json", "{group}",\n    "{verb}", "open"]', "`schedule\ttick`"]
+    for text in stale:
+        folded = " ".join(text.split())
+        assert any(re.search(pattern, folded) for pattern in RETIRED_VERBS), text
 
 
 def test_every_copy_of_the_converter_is_the_same_file():
@@ -148,7 +177,7 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     stages = skill.split("\n## Stages", 1)[1]
     opener = stages.split("\n### harvest", 1)[0]
-    assert "llm-wiki-ops --json pipeline tickets open <id>" in opener, opener[:300]
+    assert "llm-wiki-ops --json tickets open <id>" in opener, opener[:300]
     assert "stage=<id>" not in opener and not re.search(r"open <id> stage=", opener), opener[:300]
     assert not re.search(r"stage=harvest\|process", skill), name
     assert not re.search(r"\$ARGUMENTS", skill), name
@@ -163,8 +192,8 @@ def test_a_routine_unit_reads_its_ticket_and_leaves_a_routine_report(name):
     routine stage, which is what the ticket's `close` reads."""
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     assert "ticket=<id> stage=routine" in skill, name
-    assert "llm-wiki-ops --json pipeline tickets open <id>" in skill, name
-    assert re.search(r"llm-wiki-ops pipeline tickets update <id> stage=routine status=", skill), name
+    assert "llm-wiki-ops --json tickets open <id>" in skill, name
+    assert re.search(r"llm-wiki-ops tickets update <id> stage=routine status=", skill), name
 
 
 @pytest.mark.parametrize("name", SKILLS)

@@ -13,7 +13,7 @@
    profile directory today, so until it is, an authenticated capture fails
    in its jail unless the operator lists this unit in `[unsandboxed]` for this
    wiki — see the SKILL.md's Auth section.
-2. Declare the job, naming the skill: `llm-wiki-ops pipeline jobs add
+2. Declare the job, naming the skill: `llm-wiki-ops jobs add
    <space-root-url> slug=<community> description="<what this is>"
    skill=channel-circle` — the skill's manifest supplies `every=once`,
    `harvest.scope=section`, `harvest.access=licensed`,
@@ -26,6 +26,6 @@
    lesson url every sibling lesson is outside it. Pass
    `harvest.scope=domain` to take the whole community. A course longer than
    one 30-minute slice ends `partial`, and an `every=once` job is never
-   pulled again by itself: re-queue it with `llm-wiki-ops pipeline tickets
+   pulled again by itself: re-queue it with `llm-wiki-ops tickets
    retry <id>` (three attempts per ticket), or declare a period
    (`every=1d`) until the course is held — each run skips what it already has.

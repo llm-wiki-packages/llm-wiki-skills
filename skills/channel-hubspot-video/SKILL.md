@@ -20,7 +20,7 @@ map and traps under a heading of their own here.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
