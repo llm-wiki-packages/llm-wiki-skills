@@ -54,7 +54,7 @@ ROUTINE = BODY.split("\n## 10. ", 1)[1].split("\n## ", 1)[0] if "\n## 10. " in B
 
 
 def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
-    assert MANIFEST["kind"] != "tool", "a tool unit serves no stage, so no job can run it"
+    assert "routine" in MANIFEST.get("stages", {}), "a unit that declares no `stages.routine` is one no routine job can run"
     routine = MANIFEST["stages"]["routine"]
     assert routine["sandbox_ref"].endswith(":daily-report/daily-report.routine"), routine
 
