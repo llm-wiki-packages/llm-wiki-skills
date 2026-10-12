@@ -3,8 +3,8 @@
 A session skill with no scripts. Invoked `/daily-report [date|focus|setup]`.
 
 A routine entry's `args` become the words before `ticket=<id> stage=routine`
-(SKILL.md, scope). An arg may not contain `ticket=…`, `stage=…`, `--`, `--help`,
-a control character or a newline.
+(SKILL.md, scope). No word of an arg may be `--` or `--help` or begin
+`ticket=` or `stage=`, and no arg may carry a control character or a newline.
 
 ## Arguments
 

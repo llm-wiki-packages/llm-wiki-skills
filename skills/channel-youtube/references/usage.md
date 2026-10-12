@@ -17,8 +17,8 @@ Each runs as `llm-wiki-ops run ops/skills/channel-youtube/scripts/<script> …`.
 
 ## Knobs
 
-- No `watch.inputs`. The harvest script reads `item`, `capture_dir`, `known[]`
-  and `refresh` off the ticket.
+- No `watch.inputs`. The harvest script reads `item`, `capture_dir`, `known[]`,
+  `refresh`, `credential_dir` and `browser_python` off the ticket.
 - `process.exclude_rules`, `options` and `min_date` are applied first at
   process; `process.embeds` (default on) controls the embed in the page body.
 - `requires.dir` is `optional`: a `login: browser` credential adds a cookie jar
