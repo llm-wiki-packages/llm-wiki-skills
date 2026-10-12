@@ -24,8 +24,11 @@ def test_the_body_names_itself_as_a_unit_invocation():
 
 LOCAL = sorted(p.name for p in (SKILL / "references").glob("*"))
 
+# The plugin reads enable.md, customize.md and usage.md by name (`skills ls`
+# carries each as a path), so the body need not mention them.
 
-@pytest.mark.parametrize("local", [n for n in LOCAL if n not in {"enable.md", "customize.md"}])
+
+@pytest.mark.parametrize("local", [n for n in LOCAL if n not in {"enable.md", "customize.md", "usage.md"}])
 def test_every_skill_local_reference_it_ships_is_named_in_the_body(local):
     assert local in BODY
 
