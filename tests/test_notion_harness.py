@@ -95,7 +95,7 @@ def job(ops, env, wiki, request):
     # `requires.credentials.notion` is "required": `jobs claim` refuses a
     # harvest this machine does not map the route for. The mapping, the token
     # and the vault are this case's alone, gone when it ends.
-    with local_vault(env):
+    with local_vault(ops, env):
         mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
         try:
             yield j

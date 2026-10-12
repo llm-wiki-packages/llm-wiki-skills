@@ -40,10 +40,10 @@ The stage binds to the `notion-harvest` sandbox `skills install` writes
 from this reference, the one sandbox that carries the route; one written
 from `## Profile` alone carries none. The route's token is the wiki's own,
 in its credential vault, and the route's name is a binding name. Once per
-machine that harvests, in this order: name the vault (`vault = "local"`
-under `[wikis.<key>]` in the file `llm-wiki-cli machine config get
-config_path` names, by hand — no verb writes a `[wikis]` key, and the
-doctor's `credentials` row names the same edit); store the Notion bot token
+machine that harvests, in this order: name the vault, `llm-wiki-cli
+machine wikis vault <key> local` (`<key>` is this wiki's key in
+`llm-wiki-cli machine wikis ls`; the doctor's `credentials` row names the
+same line); store the Notion bot token
 with the host it may be spent at, `llm-wiki-ops credentials set notion` with
 `{"value": "<token>", "host": "api.notion.com"}` at its prompt; enable this
 sandbox, whose probe spends that entry; bind the stage; then map the route,

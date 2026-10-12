@@ -183,7 +183,7 @@ def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
             assert done.returncode == 0, (verb, done.stdout + done.stderr)
 
     moved = False
-    with local_vault(env):
+    with local_vault(ops, env):
         try:
             done = run(ops, attended, "--json", "sandboxes", "enable", "spotify-harvest", "--confirm")
             assert done.returncode == 0, done.stdout + done.stderr

@@ -6,14 +6,12 @@
    route to this machine's allow file), and its value is the wiki's own, in
    its credential vault, mapped to the route on this machine. The stage is
    bound to the `spotify-harvest` sandbox (`references/customize.md`). Once
-   per machine that harvests, name the wiki's vault, by hand — no verb
-   writes a `[wikis]` key — as `vault = "local"` under `[wikis.<key>]` (this
-   wiki's key in `llm-wiki-cli machine wikis ls`) in the file
-   `llm-wiki-cli machine config get config_path` names; the `credentials`
-   row of `llm-wiki-ops doctor` names the same edit, and `bind` refuses
-   until it is made. Have the operator create an app at
-   developer.spotify.com → Dashboard; then the OPERATOR runs this at a
-   terminal, once per machine that harvests:
+   per machine that harvests, name the wiki's vault with `llm-wiki-cli
+   machine wikis vault <key> local`, `<key>` being this wiki's key in
+   `llm-wiki-cli machine wikis ls`; the `credentials` row of `llm-wiki-ops
+   doctor` names the same line, and `bind` refuses until it is run. Have the
+   operator create an app at developer.spotify.com → Dashboard; then the
+   OPERATOR runs this at a terminal, once per machine that harvests:
 
    ```sh
    printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
