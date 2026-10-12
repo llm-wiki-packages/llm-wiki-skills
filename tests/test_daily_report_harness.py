@@ -44,8 +44,9 @@ def _hooked(name: str, tool: str, rel: str, write: str) -> str:
 # The order SKILL.md gives: §1's overlay read, then `op open`, the reads
 # §2–§3 make, the writes the sandbox has to decide — §5's promotion and the
 # report through verbs, the brief and a log line as a session's Write and
-# Edit, each recorded by the hook — and §7's `op close` last. A read the sandbox does not reach
-# answers empty or refuses, so each is checked for its data. The `git commit`
+# Edit, each recorded by the hook — and §7's `op close` last. A read the
+# sandbox does not reach answers empty or refuses, so each is checked for its
+# data. The `git commit`
 # is the step the skill never takes, typed here to show it is refused by name.
 PLAN = f"""\
 step overlay "$OPS" --json policy get daily-report daily-report-setup
