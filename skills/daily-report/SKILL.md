@@ -134,8 +134,9 @@ llm-wiki-ops page create title="<Name>" dest=wiki/entities type=entity --stdin
 
 Never: topic or concept pages, restructuring, contradiction resolution,
 staleness downgrades, `sources/`, staged-page frontmatter, or another wiki.
-Each promotion gets a `report`-prefixed `wiki/log.md` bullet and appears in
-the report's Promotions section. The overlay may tighten this list, never
+Each promotion gets a `report`-prefixed `wiki/log.md` bullet, written with
+your file tools and never a `page` verb, and appears in the report's
+Promotions section. The overlay may tighten this list, never
 widen it.
 
 ## 6. Write the markdown record
@@ -172,7 +173,7 @@ with the lint delta; promotions with their log lines; open questions (§9).
 If the newest `dream` run is older than a day or absent —
 `llm-wiki-ops op latest dream` — say so in a header note. A same-day rerun
 overwrites. `wiki/index.md` gets ONE directory-level line for
-`wiki/reports/`, never a line per day.
+`wiki/reports/`, never a line per day, written with your file tools.
 
 ## 7. Author the day's brief
 
@@ -180,7 +181,8 @@ Run `llm-wiki-ops reference daily-report/setup` first (it prints `references/set
 template, the three hard rules, and who owns which concern.
 
 `wiki/reports/YYYY-MM-DD.html` is standalone HTML, authored fresh from that
-day's story. `wiki/reports/_template.html` supplies the design language and
+day's story and written with your file tools: it is no page, so never a
+`page` verb. `wiki/reports/_template.html` supplies the design language and
 is a working sample, never a form. Absent, with an operator at the keyboard:
 seed it from `references/dashboard-template.html`. With nobody to answer do
 NOT seed — render from that reference copy read-only and note the missing
