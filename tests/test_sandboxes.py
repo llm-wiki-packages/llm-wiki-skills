@@ -1,7 +1,8 @@
-"""The stage sandboxes the package ships: each harvest stage's `sandbox_ref`
-resolves to one reference here, the reference's snippet reaches a model, and
-a credentialed unit can spend its credential somewhere. That the snippet's
-keys are admitted is `sandboxes enable`'s to say, in test_install.py."""
+"""The stage sandboxes the package ships: each harvest or routine stage's
+`sandbox_ref` resolves to one reference here, the reference's snippet names
+a model host only for a parked venue, and a credentialed unit can spend its
+credential somewhere. That the snippet's keys are admitted is `sandboxes
+enable`'s to say, in test_install.py."""
 
 from __future__ import annotations
 
@@ -20,14 +21,24 @@ REFERENCES = ROOT / "references" / "sandboxes"
 # snippet.
 PARKED = {"circle", "substack", "teachable"}
 
+# The stages a unit here names a sandbox on. Harvest reaches the venue; a
+# routine writes the wiki on a clock, which the seeded `slice` it runs without
+# one does not grant. Process runs what `slice` allows.
+SANDBOX_STAGES = ("harvest", "routine")
+
 # A unit's harvest stage MAY carry no `sandbox_ref` at all — the ninth unit's
 # `script` stage runs the seeded `harvest` sandbox instead (A-5) — so only a
-# unit that DOES name one has a reference to check here.
-SANDBOXED = [n for n in SKILLS if "sandbox_ref" in unit_manifest(n).get("stages", {}).get("harvest", {})]
+# stage that DOES name one has a reference to check here.
+SANDBOXED = [
+    (n, stage)
+    for n in SKILLS
+    for stage in SANDBOX_STAGES
+    if "sandbox_ref" in unit_manifest(n).get("stages", {}).get(stage, {})
+]
 
 
-def _reference(name: str) -> tuple[str, dict]:
-    ref = unit_manifest(name)["stages"]["harvest"]["sandbox_ref"]
+def _reference(name: str, stage: str = "harvest") -> tuple[str, dict]:
+    ref = unit_manifest(name)["stages"][stage]["sandbox_ref"]
     package, rel = ref.rsplit(":", 1)
     assert package == SOURCE, f"{name}: {ref} names a package other than this one"
     path = REFERENCES / f"{rel}.md"
@@ -40,21 +51,24 @@ def _hosts(name: str) -> list[str]:
 
 
 @pytest.mark.parametrize("name", SKILLS)
-def test_only_harvest_names_a_sandbox_and_requires_names_no_network(name):
+def test_only_harvest_or_routine_names_a_sandbox_and_requires_names_no_network(name):
     manifest = unit_manifest(name)
     assert "network" not in manifest["requires"], name
     for stage, spec in manifest.get("stages", {}).items():
-        assert stage == "harvest" or "sandbox_ref" not in spec, (name, stage, spec)
+        assert stage in SANDBOX_STAGES or "sandbox_ref" not in spec, (name, stage, spec)
         assert not {"sandbox", "reviewed"} & set(spec), f"{name}: a package manifest carries no binding"
 
 
-@pytest.mark.parametrize("name", SANDBOXED)
-def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name):
-    rel, doc = _reference(name)
+@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
+def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name, stage):
+    rel, doc = _reference(name, stage)
     venue = unit_manifest(name)["venue"]
-    assert rel == f"{venue}/{venue}.harvest", rel
+    assert rel == f"{venue}/{venue}.{stage}", rel
     assert set(doc) == {"v", "profile"} and doc["v"] == 1, doc
-    allow = doc["profile"]["network"]["allow_domain"]
+    # A harvest reaches its venue, so it names hosts; a routine may name none
+    # and run on the harness profile's model hosts alone.
+    network = doc["profile"]["network"] if stage == "harvest" else doc["profile"].get("network", {})
+    allow = network.get("allow_domain", [])
     if venue in PARKED:
         assert MODEL <= set(allow), f"{name}: the snippet lacks a model endpoint"
     else:
@@ -91,9 +105,9 @@ def _strings(value):
             yield from _strings(one)
 
 
-@pytest.mark.parametrize("name", SANDBOXED)
-def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name):
-    rel, _ = _reference(name)
+@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
+def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name, stage):
+    rel, _ = _reference(name, stage)
     text = (REFERENCES / f"{rel}.md").read_text(encoding="utf-8")
     machine, probe = _section_json(text, "Machine"), _section_json(text, "Probe")
     if machine is None and probe is None:
@@ -113,7 +127,7 @@ def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name):
 
 
 def test_every_reference_is_one_a_unit_names():
-    named = {_reference(n)[0] for n in SANDBOXED}
+    named = {_reference(n, stage)[0] for n, stage in SANDBOXED}
     shipped = {str(p.relative_to(REFERENCES).with_suffix("")) for p in REFERENCES.rglob("*.md")}
     assert shipped == named, shipped ^ named
 
