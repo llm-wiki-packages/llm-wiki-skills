@@ -163,6 +163,11 @@ BUDGET = {
 }
 
 
+def test_every_budgeted_unit_is_a_capture_unit():
+    """`watch` is what selects a capture unit; one that loses it would drop out of every check above unseen."""
+    assert sorted(CHANNELS) == sorted(BUDGET), sorted(set(BUDGET) ^ set(CHANNELS))
+
+
 @pytest.mark.parametrize("name", CHANNELS)
 def test_a_unit_stays_under_its_budget(name):
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
