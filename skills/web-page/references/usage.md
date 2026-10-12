@@ -6,22 +6,20 @@ A script unit: its one stage runs no model session. The runner starts
 llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>
 ```
 
-There is no hand-run form; the script runs only through the runner, and
-`tickets run <id> spawn=self` is refused for this unit's ticket.
+There is no hand-run form (SKILL.md, intro).
 
 ## Argv
 
-`fetch.py` takes one argument, `ticket=<id>`, not a flag. Without it, or with
-an empty id, it exits naming the missing argument.
+| script | argv |
+| :--- | :--- |
+| `fetch.py` | `ticket=<id>`, not a flag; without it, or with an empty id, it exits naming the missing argument |
 
-## What it reads off the ticket
+## Reads off the ticket
 
-Through `tickets open <id> stage=harvest`: `target` (only `http` and `https`
-are fetched), `capture_dir`, `slug`, `known[]` and `refresh`. It posts
-`tickets update` itself and never closes its ticket.
+`target`, `capture_dir`, `slug`, `known[]` and `refresh`, through
+`tickets open <id> stage=harvest`. What it does with them is SKILL.md "What it
+does".
 
 ## Knobs
 
-None: the unit declares no `watch.inputs` and no defaults. A target already in
-`known[]` is `ok` with nothing captured, unless the ticket is a refresh. See
-SKILL.md "What it does" for the outcomes.
+None: no `watch.inputs` and no defaults.

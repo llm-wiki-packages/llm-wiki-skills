@@ -1,8 +1,8 @@
 # channel-gmail — usage
 
-Invoked `/channel-gmail ticket=<id> stage=<harvest|process>`. The step is the
-`stage` that `tickets open <id>` answers. One invocation serves one mailbox
-(`options.mailbox`) and one day directory; it takes no other argument.
+Invoked `/channel-gmail ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
+No other argument. One invocation serves one mailbox (`options.mailbox`) and one day directory.
 
 ## Script
 
@@ -23,6 +23,7 @@ or `--failed`, never both. `-h` after an arm lists the rest.
 
 - `watch.inputs.mailbox` (required) lands as `options.mailbox`; the job's slug
   keys the cursor, the `_raw` slice and the ledger.
+- The ticket's `min_date` clamps `since`: the pull never starts earlier.
 - The mechanical filters are the flags on `write` and `since`; this wiki's
   values are SKILL.md "Mechanical filters".
 - `process.exclude_rules` feeds the junk rules (SKILL.md, process).

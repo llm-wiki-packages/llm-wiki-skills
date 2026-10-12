@@ -1,9 +1,9 @@
 # channel-youtube — usage
 
-Invoked `/channel-youtube ticket=<id> stage=<harvest|process>`. The step is the
-`stage` that `tickets open <id>` answers; it takes no other argument. Harvest
-is a script stage and runs no session; process is the session's. Single videos
-are the proven shape.
+Harvest is a script stage (`stages.harvest.script`): the runner starts
+`capture_video.py ticket=<id>` with no session and no slash invocation. Only
+process is invoked, as `/channel-youtube ticket=<id> stage=process`, and takes
+no other argument. Single videos are the proven shape.
 
 ## Scripts
 
@@ -17,11 +17,10 @@ Each runs as `llm-wiki-ops run ops/skills/channel-youtube/scripts/<script> …`.
 
 ## Knobs
 
-- No `watch.inputs`. `harvest.assets` is `reference` by default: only metadata
-  and captions are fetched. `harvest.scope` defaults to `page`.
-  `harvest.refresh` is off by default.
+- No `watch.inputs`. The harvest script reads `item`, `capture_dir`, `known[]`
+  and `refresh` off the ticket.
 - `process.exclude_rules`, `options` and `min_date` are applied first at
-  process.
+  process; `process.embeds` (default on) controls the embed in the page body.
 - `requires.dir` is `optional`: a `login: browser` credential adds a cookie jar
   for private, age-restricted and members-only videos (SKILL.md "Auth").
   `yt-dlp` must be on PATH.

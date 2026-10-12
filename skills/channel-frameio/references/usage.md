@@ -1,8 +1,8 @@
 # channel-frameio — usage
 
-Invoked `/channel-frameio ticket=<id> stage=<harvest|process>`. The step is
-the `stage` that `tickets open <id>` answers; it takes no other argument. One
-harvest ticket captures a whole share, one process ticket writes one leaf.
+Invoked `/channel-frameio ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
+No other argument. One harvest ticket captures a whole share; one process ticket writes one leaf.
 
 ## Scripts
 
@@ -15,11 +15,11 @@ Each runs as `llm-wiki-ops run ops/skills/channel-frameio/scripts/<script> …`.
 | `harvest_share.py` | harvest | `<capture_dir> --ticket <id> [--title-strip S] [--author NAME] [--group NAME] [--group-type KIND] [--plan-only] [--retry-failed]`; bounded, so re-run while its summary says `"stop": "budget"` |
 | `frameio_doc_note.py` | process | `. --capture-dir <capture_dir> --dest <dest> --ticket <id> [--skip REASON]`; the `.` is the wiki root |
 
-`harvest_share.py` calls `capture_job.py` and `capture_asset.py` itself, and
-`capture_record.py` is its helper; none is run by hand. `frameio_doc_note.py`
-also takes `--name`, `--path`, `--crumb-skip`, `--title-strip`, `--author`,
-`--group`, `--group-type`, only for a capture harvest did not record in
-`meta.json`.
+`harvest_share.py` calls `capture_job.py`, which calls `capture_asset.py`;
+`capture_record.py` is imported by `capture_job.py` and `frameio_doc_note.py`.
+None of the three is run by hand. `frameio_doc_note.py` also takes `--item`,
+`--name`, `--path`, `--crumb-skip`, `--title-strip`, `--author`, `--group`,
+`--group-type`, only for a capture harvest did not record in `meta.json`.
 
 ## Knobs
 
@@ -27,5 +27,6 @@ also takes `--name`, `--path`, `--crumb-skip`, `--title-strip`, `--author`,
   `harvest.assets` is `download` by default; `harvest.exclude_urls` and
   `known[]` filter the plan. `harvest.access`, `min_date` and `dest` are not
   consulted at harvest (SKILL.md "Read the job").
-- `process.exclude_rules` is applied first at process.
+- `process.exclude_rules` is applied first at process; `process.bundle_media`
+  (off unless true) puts a video leaf's media under `<dest>/assets/`.
 - `yt-dlp` must be on PATH. The unit holds no credential.

@@ -1,8 +1,8 @@
 # channel-circle — usage
 
-Invoked `/channel-circle ticket=<id> stage=<harvest|process>`. The step is the
-`stage` that `tickets open <id>` answers; it takes no other argument. One
-harvest ticket walks a whole section, one process ticket writes one lesson.
+Invoked `/channel-circle ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
+No other argument. One harvest ticket walks a whole section; one process ticket writes one lesson.
 
 ## Scripts
 

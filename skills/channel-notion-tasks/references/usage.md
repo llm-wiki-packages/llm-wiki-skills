@@ -1,9 +1,8 @@
 # channel-notion-tasks — usage
 
-Invoked `/channel-notion-tasks ticket=<id> stage=<harvest|process>`. The step
-is the `stage` that `tickets open <id>` answers. One invocation serves one
-workspace (`options.workspace`) and one day directory; it takes no other
-argument.
+Invoked `/channel-notion-tasks ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
+No other argument. One invocation serves one workspace (`options.workspace`) and one day directory.
 
 ## Scripts
 
@@ -24,6 +23,7 @@ alone calls `ntn`, read-only. `-h` after a path lists the rest.
 
 - `watch.inputs.workspace` (required) lands as `options.workspace`; the pull
   refuses a token whose workspace differs.
+- The ticket's `min_date` clamps `since`: the pull never starts earlier.
 - The databases are passed as `--database` on `pull.py` (SKILL.md, harvest).
 - `process.exclude_rules` feeds the junk rules (SKILL.md, process).
 - `requires.credentials.notion` is `required`: the vault entry the `notion`
