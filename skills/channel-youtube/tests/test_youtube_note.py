@@ -158,8 +158,9 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
     update` with a bare 0, and `page create`/`page edit` by writing the page
     and printing what the real verb prints — the whole front door this
     script's own helpers (`open_ticket`, `post_update`, `write_page`) reach
-    through one `LLM_WIKI_OPS` — and refuses any other argv. `body` is python run before any of that, for
-    a case that wants `run` (the transcript formatter) answered its own way.
+    through one `LLM_WIKI_OPS` — and refuses any other argv. `body` is
+    python run before any of that, for a case that wants `run` (the
+    transcript formatter) answered its own way.
     `interpreter` shebangs the stub with a real venv's python, the shape a
     hosted `llm-wiki-ops`'s own console script carries, for a case that runs
     the REAL formatter through `--format-transcript` (`_ops_interpreter`).

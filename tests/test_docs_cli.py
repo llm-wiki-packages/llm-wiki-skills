@@ -237,6 +237,7 @@ def test_the_check_passes_the_shapes_that_are_right(cli, job_record):
         "`llm-wiki-cli init <dir> key=<key>` once, then `llm-wiki-cli machine doctor`\n"
         "`llm-wiki-cli wiki <key> skills ls` and `llm-wiki-cli wiki --read-only --here --json tickets show <slug>`\n"
         "`llm-wiki-ops tickets open <id>` then `llm-wiki-ops tickets update <id> stage=harvest status=ok`\n"
+        "`llm-wiki-ops inboxes fixes ls`\n"
     )
     assert _wrong(cli, job_record, fine, "channel-gmail") == []
 
