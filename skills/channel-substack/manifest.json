@@ -8,7 +8,6 @@
     "host:substack.com",
     "host:*.substack.com"
   ],
-  "kind": "channel",
   "name": "channel-substack",
   "requires": {
     "file": "optional",

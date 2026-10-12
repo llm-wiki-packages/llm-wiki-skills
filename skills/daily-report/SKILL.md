@@ -13,16 +13,16 @@ top-tier model.
 
 Scope: `$ARGUMENTS` — a date to report as, or a focus. Default: today,
 everything since the last report. `setup` runs the interview instead (§8).
-`ticket=<id> stage=routine` is the scheduled run, the `ops-morning` job's.
-Open the ticket first:
+A job's scheduled run is `<args…> ticket=<id> stage=routine`, the words
+before `ticket=` its date or focus, never `setup`. Open the ticket first:
 
 ```sh
 llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` must be `routine`; any other is not this unit's to
-run — stop and say so. Then run §1–§7 for today with nobody to answer, and
-leave the report last (§10).
+run — stop and say so. Then run §1–§7 with nobody to answer, and leave the
+report last (§10).
 
 Dream analyzes; this skill formats. It never needs operator input mid-run —
 open questions land in the report for the next `/llm-wiki:grill`.

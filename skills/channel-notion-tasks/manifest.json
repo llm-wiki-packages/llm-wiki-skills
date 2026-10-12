@@ -7,7 +7,6 @@
     "workspace",
     "host:api.notion.com"
   ],
-  "kind": "channel",
   "name": "channel-notion-tasks",
   "requires": {
     "bins": [

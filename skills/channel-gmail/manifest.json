@@ -8,7 +8,6 @@
     "host:gmailmcp.googleapis.com",
     "host:mail.google.com"
   ],
-  "kind": "channel",
   "name": "channel-gmail",
   "requires": {
     "file": "required",
