@@ -12,11 +12,27 @@ import pytest
 
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
-# The capture units. A routine unit is a `channel` too and captures nothing,
-# so it is set apart by the stage it declares; a capture unit that forgot
-# `process` stays in, for the both-stages check to catch.
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel" and "routine" not in unit_manifest(n).get("stages", {})]
+# The capture units whose body a session follows: each serves `harvest` or
+# `process`, no `routine`, and either some stage with no `script` or a
+# `watch` block, which only a unit a job is added for carries. A script-only
+# unit with no `watch` has no session body to hold to these checks; a capture
+# unit that forgot either stage stays in, for the both-stages check to catch,
+# even one whose remaining stage is a script.
+CHANNELS = [
+    n for n in SKILLS
+    if {"harvest", "process"} & set(stages := unit_manifest(n).get("stages", {}))
+    and "routine" not in stages
+    and (any("script" not in s for s in stages.values()) or unit_manifest(n).get("watch"))
+]
 ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
+
+
+def test_the_capture_and_routine_selections_are_not_empty():
+    """An empty parametrize skips; this fails, so a selection cannot drift to nothing unseen."""
+    assert CHANNELS, "no unit serves harvest or process, no routine, with a session stage"
+    assert ROUTINES, "no unit serves routine"
+
+
 # A unit's own tests ship too, but a test asserting a gone name is ABSENT is
 # not a unit telling a worker to look for it: the scan below skips them.
 SHIPPED = sorted(p for p in (ROOT / "skills").rglob("*") if p.is_file() and p.suffix in {".md", ".py", ".json"} and not {"__pycache__", "tests"} & set(p.parts))
@@ -199,15 +215,17 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
 
 
 @pytest.mark.parametrize("name", ROUTINES)
-def test_a_routine_unit_reads_its_ticket_and_leaves_a_routine_report(name):
-    """The spawner's prompt for a routine is `/<unit> ticket=<id>
-    stage=routine` (the job-record contract), so the body names that entry,
-    reads the ticket the way a capture unit does, and posts its report on the
-    routine stage, which is what the ticket's `close` reads."""
+def test_a_routine_unit_opens_and_closes_its_op_and_never_commits(name):
+    """The spawner's prompt for a routine is `/<unit> <args…> ticket=<id>
+    stage=routine` (the job-record contract), so the body names that entry.
+    Under the ticket `op close` is the report and the landing commits under
+    the unit's op (`reference skill-authoring`), so the body opens and closes
+    its op, never runs `git commit`, and posts no outcome of its own."""
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     assert "ticket=<id> stage=routine" in skill, name
-    assert "llm-wiki-ops --json tickets open <id>" in skill, name
-    assert re.search(r"llm-wiki-ops tickets update <id> stage=routine status=", skill), name
+    assert f"llm-wiki-ops op open {name}" in skill and f"llm-wiki-ops op close {name} outcome=" in skill, name
+    assert "llm-wiki-ops git commit" not in skill, name
+    assert not re.search(r"tickets update <id> stage=routine status=", skill), name
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -288,9 +306,9 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "kind", "venue", "stages", "uses", "keywords", "usage", "requires", "watch"}
+    known = {"v", "name", "version", "venue", "stages", "keywords", "usage", "requires", "watch"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
-    assert set(manifest) <= known
+    assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "file", "dir", "ops", "bins"}, manifest["requires"]
 
 

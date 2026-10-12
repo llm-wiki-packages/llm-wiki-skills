@@ -10,7 +10,6 @@
     "host:*.youtube.com",
     "host:youtu.be"
   ],
-  "kind": "channel",
   "name": "channel-youtube",
   "requires": {
     "bins": [

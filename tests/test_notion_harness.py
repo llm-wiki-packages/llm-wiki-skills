@@ -95,7 +95,7 @@ def job(ops, env, wiki, request):
     # `requires.credentials.notion` is "required": `jobs claim` refuses a
     # harvest this machine does not map the route for. The mapping, the token
     # and the vault are this case's alone, gone when it ends.
-    with local_vault(env):
+    with local_vault(ops, env):
         mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
         try:
             yield j
@@ -114,11 +114,6 @@ def test_a_harvest_is_refused_until_the_route_is_mapped(ops, env, wiki, job):
     mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
     ticket_id, _cap = claimed(ops, env, wiki, job)
     assert ticket_id
-
-
-# What `sandboxes enable` answers on plugins main for any template whose
-# probe's cwd, the wiki root, no grant of its jail covers.
-PROBE_CWD = "CWD access requires --allow-cwd"
 
 
 def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, env, wiki, job):
@@ -145,12 +140,6 @@ def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, e
                    input=json.dumps({"value": token, "host": "api.notion.com"}))
         assert done.returncode == 0, done.stdout + done.stderr
         done = run(ops, attended, "--json", "sandboxes", "enable", "notion-harvest", "--confirm")
-        if done.returncode != 0 and PROBE_CWD in done.stdout + done.stderr:
-            pytest.xfail(
-                "plugins main: `sandboxes enable` runs a template's `machine.probe` with its cwd at the wiki root "
-                "(`sandboxes/enable.py` `_run_probes`, through `execute.run`), under a jail that grants no read of "
-                "it, so nono refuses the `ntn whoami` probe before it starts"
-            )
         assert done.returncode == 0, done.stdout + done.stderr
         moved = True
         bind("notion-harvest")

@@ -11,7 +11,6 @@
     "host:spotify.com",
     "host:*.spotify.com"
   ],
-  "kind": "channel",
   "name": "channel-spotify",
   "requires": {
     "ops": ">=0.1.0"

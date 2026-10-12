@@ -36,14 +36,17 @@
    exits 0, and a refusal names `machine.probe`, its exit code and its
    stderr — fix what the stderr names, then run `/llm-wiki:enable
    channel-notion-tasks` again. On each machine that pulls, first name the
-   wiki's vault, by hand — no verb writes a `[wikis]` key — as
-   `vault = "local"` under
-   `[wikis.<key>]` (this wiki's key in `llm-wiki-cli machine wikis ls`) in
-   the file `llm-wiki-cli machine config get config_path` names; the
-   `credentials` row of `llm-wiki-ops doctor` names the same edit. Then store
-   the Notion bot token for the workspace the job names, never on a command
-   line, as `{"value": "<token>", "host": "api.notion.com"}` at the prompt —
-   the host is where the value may be spent:
+   wiki's vault, `<key>` being this wiki's key in `llm-wiki-cli machine
+   wikis ls` (the `credentials` row of `llm-wiki-ops doctor` names the same
+   line):
+
+   ```sh
+   llm-wiki-cli machine wikis vault <key> local
+   ```
+
+   Then store the Notion bot token for the workspace the job names, never
+   on a command line, as `{"value": "<token>", "host": "api.notion.com"}` at
+   the prompt — the host is where the value may be spent:
 
    ```sh
    llm-wiki-ops credentials set notion

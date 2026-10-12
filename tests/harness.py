@@ -293,11 +293,11 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
 
     A reference carrying a venue route gets it too, as the sandbox's
     `machine.allow`, so a unit declaring that binding name enables. The venue
-    template carries the same route, behind a probe that runs the venue's
-    own client; each unit's documented-path case walks the template.
-    This sandbox stands in for the template only because the plugin's
-    probe-cwd bug stops a template's probe (notion's `ntn whoami`) from
-    running; the docs still point at the template."""
+    template carries the same route, behind any probe its reference names,
+    and a probe spends the route's vault entry (notion's `ntn whoami`): this
+    sandbox stands in for the template so a case that is not about the route
+    needs no vault and no stored token. Each unit's documented-path case
+    walks the template the docs name."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     for stage, spec in unit_manifest(name).get("stages", {}).items():
         ref = spec.get("sandbox_ref")
@@ -362,22 +362,21 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
 
 
 @contextlib.contextmanager
-def local_vault(env: dict):
-    """`[wikis.harness] vault = "local"` in the session's machine config, by
-    hand, for the `with` block: no verb writes a `[wikis]` key, and the
-    doctor's `credentials` row names this edit as the fix. The provider reads
-    a route's value through it, at bind, at spawn and on each request, so a
-    case holds it across all three. The config is put back as it was found,
-    so no case leans on another having named the vault."""
+def local_vault(ops: list, env: dict):
+    """The session wiki's vault named `local` for the `with` block, by the
+    line the enable notes give, `llm-wiki-cli machine wikis vault harness
+    local`, attended as the operator runs it. The provider reads a route's
+    value through it, at bind, at spawn and on each request, so a case holds
+    it across all three. The config is put back as it was found, so no case
+    leans on another having named the vault."""
     config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
-    before = config.read_text(encoding="utf-8")
-    if 'vault = "local"' not in before:
-        assert "[wikis.harness]" in before, before
-        config.write_text(before.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"', 1), encoding="utf-8")
+    before = config.read_bytes()
+    r = run(_cli(ops), {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}, "--json", "machine", "wikis", "vault", "harness", "local")
+    assert r.returncode == 0, r.stdout + r.stderr
     try:
         yield
     finally:
-        config.write_text(before, encoding="utf-8")
+        config.write_bytes(before)
 
 
 def mapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str, host: str, value: str = "harness-token") -> str:

@@ -34,11 +34,11 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   `wiki/log.md` and `wiki/index.md` entries. The profile, the previous
   report and the template are read through the same grant.
 
-`op open`, `op close` and `git commit` write `.git` and the wiki's git lock
-under `.llm-wiki.local/`, which no sandbox can grant: the floor refuses a
-write at or inside `.git`, and a committed profile names nothing under
-`.llm-wiki.local/`. The runner grants the ticket's capture directory, where
-the routine report goes, itself.
+Nothing here writes `.git`: under the ticket, each write is listed in the
+ticket's capture directory, which the runner grants itself — a verb's by the
+verb, a Write or Edit by the wiki's `op record` hook — `op close` posts the
+run's report there, and the host commits at the landing
+(`llm-wiki-ops reference operations`).
 
 ## Credential
 

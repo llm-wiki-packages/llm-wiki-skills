@@ -11,7 +11,12 @@ import pytest
 
 from harness import ROOT, SKILLS, SOURCE, bound, enabled, rooted, run, unit_manifest
 
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel" and unit_manifest(n).get("watch")]
+# The capture units a job is added for: each serves `harvest`, no `routine`,
+# and carries the `watch` block `jobs add` reads.
+CHANNELS = [
+    n for n in SKILLS
+    if "harvest" in unit_manifest(n).get("stages", {}) and "routine" not in unit_manifest(n).get("stages", {}) and unit_manifest(n).get("watch")
+]
 
 VTT = "WEBVTT\n\n00:00:00.080 --> 00:00:02.629\nAt its peak, it grew\n"
 
@@ -39,6 +44,11 @@ def test_skill_installs_with_package_provenance_lists_clean_and_enables(ops, env
     r = run(ops, rooted(env, wiki), "--json", "skills", "enable", name, "--confirm")
     assert r.returncode == 0, r.stderr
     assert (wiki / ".agents" / "skills" / name / "SKILL.md").is_file()
+
+
+def test_the_capture_selection_is_not_empty():
+    """An empty parametrize skips; this fails, so the selection cannot drift to nothing unseen."""
+    assert CHANNELS, "no unit serves harvest, no routine, with a watch block"
 
 
 @pytest.mark.parametrize("name", CHANNELS)

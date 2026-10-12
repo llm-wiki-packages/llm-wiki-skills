@@ -9,7 +9,6 @@
     "host:circle.so",
     "host:*.circle.so"
   ],
-  "kind": "channel",
   "name": "channel-circle",
   "requires": {
     "dir": "required",
