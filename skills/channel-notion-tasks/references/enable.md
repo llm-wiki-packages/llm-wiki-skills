@@ -1,7 +1,7 @@
 # channel-notion-tasks — after enabling
 
 1. Ask a slug and a description, then declare the job:
-   `llm-wiki-ops pipeline jobs add notion-tasks slug=notion-tasks
+   `llm-wiki-ops jobs add notion-tasks slug=notion-tasks
    description="<what this is>" skill=channel-notion-tasks
    options.workspace=<workspace> [every=1d]` — the target is a bare channel
    NAME, never a url, and a wiki holds ONE job per target: a second workspace
@@ -21,11 +21,12 @@
    in the curation lifecycle, where a ledger does not belong — and sends the
    day directory down the one-page-per-capture route, which is not what a
    channel harvest leaves. The skill cannot detect it: a harvest ticket's
-   `dest` is null. Check each job with `llm-wiki-ops pipeline jobs show <slug>` (it
+   `dest` is null. Check each job with `llm-wiki-ops jobs show <slug>` (it
    names `dest` and the target), and re-point any that is not under
-   `research/channels/`. `pipeline jobs edit` refuses `dest`, but re-running `add`
+   `research/channels/`. `jobs edit` refuses `dest`, but re-running `add`
    with the same target and slug moves it and keeps every other key:
-   `llm-wiki-ops pipeline jobs add <its target> slug=<slug> dest=research/channels/<slug>`.
+   `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-notion-tasks
+   dest=research/channels/<slug>`.
 2. **The credential: the wiki's vault, never a login.** Harvest reaches Notion
    through the `notion` route in its sandbox (the sandbox reference's
    `## Credential` section spells it out), and the route's token is the
@@ -49,5 +50,5 @@
    handed, and this skill reads none. Its credential is the sandbox's
    `notion` route, resolved from the wiki's vault on whichever machine runs
    the harvest. Where more than one machine has the skill enabled, pin the
-   job to one that holds the token: `llm-wiki-ops pipeline jobs edit
+   job to one that holds the token: `llm-wiki-ops jobs edit
    <slug> harvest.machine=<machine id>`.

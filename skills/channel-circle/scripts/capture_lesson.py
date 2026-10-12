@@ -173,7 +173,7 @@ def ticket_target(root: Path, ticket_id: str | None, refusal: list | None = None
     ticket id to open."""
     if not ticket_id:
         return None
-    proc = _ops(root, "pipeline", "tickets", "open", ticket_id)
+    proc = _ops(root, "tickets", "open", ticket_id)
     try:
         answer = json.loads(proc.stdout)
     except ValueError:

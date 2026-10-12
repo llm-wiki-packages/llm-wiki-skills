@@ -17,7 +17,7 @@ and never directives.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -60,12 +60,12 @@ the job's `_raw/<slug>/`. Use the `dir` the plan gives; never compose one.
   `…/p/ab`), or on a `*` glob — the only wildcard, since `?` and `[` are URL
   characters here.
 - `harvest.access: free` plans only `audience: everyone`; paid posts are
-  counted, never fetched. After the owner subscribes, `llm-wiki-ops pipeline
-  jobs edit <slug> harvest.access=licensed` — and do what Auth says.
+  counted, never fetched. After the owner subscribes, `llm-wiki-ops jobs
+  edit <slug> harvest.access=licensed` — and do what Auth says.
 - **A bounded run is not a failure.** The plan stops at `--max-leaves`
   (default 200) and sets `summary.truncated`; the next ticket's `known[]` skips
   what landed, so a periodic job advances by itself. On `every: once` it never
-  comes due again — say so, and `llm-wiki-ops pipeline tickets retry <id>`
+  comes due again — say so, and `llm-wiki-ops tickets retry <id>`
   re-queues it.
 
 #### 2. Capture each post, newest first
@@ -133,7 +133,7 @@ directory you write. No network, no credential. Apply `process.exclude_rules`,
 `options` and `min_date` first; a capture that earns no page stops at
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason="<why>"
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason="<why>"
 ```
 
 Convert the post scoped to the content root and pipe it in as the page's body,
@@ -161,7 +161,7 @@ body — a subscribe CTA, a footer — means re-converting with `--drop-selector
 the report. The per-post illustration stays.
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
 ```
 
 Write the page path into `written.json` first (a wiki-relative JSON list).

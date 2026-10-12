@@ -184,7 +184,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -215,7 +215,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
@@ -582,8 +582,8 @@ def how_to_continue(job: dict) -> str:
     ticket, slug = job.get("ticket") or "<ticket>", job.get("slug") or "<slug>"
     return (
         f"a periodic job is pulled again on its own; an `every: once` job is NOT (a partial lands as ok) — "
-        f"`llm-wiki-ops pipeline tickets retry {ticket}` re-runs this ticket (three attempts a ticket), or "
-        f"`llm-wiki-ops pipeline jobs edit {slug} every=1h` until a run reports `ok` with nothing new, then `every=once`"
+        f"`llm-wiki-ops tickets retry {ticket}` re-runs this ticket (three attempts a ticket), or "
+        f"`llm-wiki-ops jobs edit {slug} every=1h` until a run reports `ok` with nothing new, then `every=once`"
     )
 
 

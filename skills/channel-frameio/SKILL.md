@@ -42,7 +42,7 @@ left out under `unplanned`).
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -77,7 +77,7 @@ ONE process ticket per `captured=` directory.
 #### 1. Read the job
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The fields this unit serves:
@@ -196,7 +196,7 @@ capturing machine; only its extracted text reaches the page.
 ### process
 
 One captured leaf, one page. You are started IN that leaf's capture dir. The
-fields this step reads (`llm-wiki-ops --json pipeline tickets open <id>`):
+fields this step reads (`llm-wiki-ops --json tickets open <id>`):
 
 | field | what it is here |
 | :--- | :--- |

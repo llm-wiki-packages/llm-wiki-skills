@@ -333,8 +333,8 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
 
 def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extra: str, slug: str | None = None) -> Job:
     """A real job for `unit` in the session wiki, declared the way
-    references/enable.md says to (A-11: `jobs add`/`jobs show`) — `pipeline
-    extract` reads the job a capture belongs to, so a
+    references/enable.md says to (A-11: `jobs add`/`jobs show`) — the pass
+    that lands a capture reads the job it belongs to, so a
     capture with no job behind it is refused. Idempotent for one
     (slug, target) pair; a wiki holds ONE job per target and a slug names one
     source for good, so a case wanting a job of its own passes both."""
@@ -354,9 +354,9 @@ def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extr
     # `process`. None of this suite's units declare `transcribe`, so every
     # harness job nulls the section at declare time — one real hop, harvest
     # to process, the shape `advanced()` assumes.
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"transcribe": null}')
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"transcribe": null}')
     assert r.returncode == 0, r.stdout + r.stderr
-    record = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "show", slug).data["job"]
+    record = run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"]
     return Job(slug, record["dest"], record)
 
 
@@ -366,9 +366,9 @@ def claimed(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
     `tickets show`. The job is then paused: the pass a slice's exit runs
     lands the ticket and would start the next one with no plan written yet,
     and a paused job's tickets start only when `staged` names them."""
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "claim", job.slug)
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "claim", job.slug)
     assert r.returncode == 0, r.stdout + r.stderr
-    paused = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "pause", job.slug)
+    paused = run(ops, rooted(env, wiki), "--json", "jobs", "pause", job.slug)
     assert paused.returncode == 0, paused.stdout + paused.stderr
     mine = [c for c in r.data["claimed"] if c["slug"] == job.slug]
     assert mine and mine[0]["tickets"], f"{job.slug}: claim minted no ticket: {r.stdout}"
@@ -377,7 +377,7 @@ def claimed(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
 
 
 def capture_of(ops: list, env: dict, wiki: Path, ticket: str) -> Path:
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "show", ticket)
+    r = run(ops, rooted(env, wiki), "--json", "tickets", "show", ticket)
     assert r.returncode == 0, r.stdout + r.stderr
     return wiki / r.data["tickets"][0]["capture_dir"]
 
@@ -469,7 +469,7 @@ def plugin_refused(wiki: Path, text: str) -> None:
 
 
 def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict | None = None, wait: str = "120s") -> Session:
-    """Run `ticket`'s stage the one way a unit's stage runs: `pipeline tickets
+    """Run `ticket`'s stage the one way a unit's stage runs: `tickets
     run <id> wait=` starts it behind the jail the runner composes, and the
     harness profile's command, the fake agent, stands in for the session and
     types `plan` there. `files` (name -> bytes) are the case's fixtures,
@@ -485,7 +485,7 @@ def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict
     head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)),
                             step_py=shlex.quote(_STEP_PY))
     (AGENT_DIR / f"plan.{ticket}.sh").write_text(head + plan, encoding="utf-8")
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "run", ticket, f"wait={wait}")
+    r = run(ops, rooted(env, wiki), "--json", "tickets", "run", ticket, f"wait={wait}")
     no_jail_here(r)
     assert r.returncode == 0, r.stdout + r.stderr
     waited = r.data.get("wait") or {}
@@ -505,7 +505,7 @@ def shown(ops: list, env: dict, wiki: Path, ticket: str) -> dict:
     """The ticket's record. A landing moves it between queue directories, and
     a `show` in that moment reads it `missing`: asked again, briefly."""
     for _ in range(20):
-        r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "show", ticket)
+        r = run(ops, rooted(env, wiki), "--json", "tickets", "show", ticket)
         assert r.returncode == 0, r.stdout + r.stderr
         if r.data["tickets"]:
             return r.data["tickets"][0]
@@ -516,7 +516,7 @@ def shown(ops: list, env: dict, wiki: Path, ticket: str) -> dict:
 def pending(ops: list, env: dict, wiki: Path, slug: str, stage: str = "process") -> dict[str, str]:
     """The tickets the landing of a job's last stage minted for `stage`, still
     pending: `{capture_dir: id}`. The pass a slice's exit runs is what lands it."""
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "ls")
+    r = run(ops, rooted(env, wiki), "--json", "tickets", "ls")
     assert r.returncode == 0, r.stdout + r.stderr
     ids = [t["id"] for t in r.data["tickets"] if t["slug"] == slug and t["stage"] == stage and t["state"] == "pending"]
     return {shown(ops, env, wiki, one)["capture_dir"]: one for one in ids}

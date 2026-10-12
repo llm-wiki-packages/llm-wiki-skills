@@ -3,9 +3,9 @@ has: the group, the verb and each `--flag`, read off `--help`, and each dotted
 `section.key=` of a job, read off a real job record.
 
 The docs are the interface. An agent follows SKILL.md and its references to
-the letter, so `watch add --slug …` after the CLI became `pipeline add
-slug=…` is a unit that does not work, however green its scripts are — and
-nothing else here reads prose.
+the letter, so a doc naming `watch add --slug …` where the CLI has `jobs
+add <target> slug=…` is a unit that does not work, however green its scripts
+are — and nothing else here reads prose.
 """
 
 from __future__ import annotations
@@ -25,9 +25,11 @@ DOCS = sorted([*ROOT.glob("skills/*/*.md"), *ROOT.glob("skills/*/references/*.md
 # from here — and its verbs start being checked like any other.
 UNPORTED: dict = {}
 
-# Groups the rebuild retired outright: a span that opens with one is stale
-# wherever it appears, prefixed by `llm-wiki-ops` or not.
-RETIRED = {"watch", "tactics"}
+# Groups the CLI does not have, whose verbs live elsewhere: a span that
+# opens with one is stale wherever it appears, prefixed by `llm-wiki-ops` or
+# not. `pipeline` and `schedule` are here because the job verbs sit under
+# `jobs`, `tickets` and `denylist`, and `tick` stands alone.
+RETIRED = {"watch", "tactics", "pipeline", "schedule"}
 
 # A bare `git pull` is git's, not this CLI's `git` group: a name both own is
 # only checked where the span says `llm-wiki-ops` out loud.
@@ -41,10 +43,6 @@ _COMMENT = re.compile(r"(^|\s)#\s.*$")  # `# a comment`, never the `#400` inside
 _CHAINED = re.compile(r"\s(?:&&|\|\||;|\|)\s")
 _DOTTED_KEY = re.compile(r"^([a-z_]+)\.([A-Za-z_<>-]+)=")
 _BY_PATH = re.compile(r"\S*/bin/llm-wiki-(?:ops|cli)\b")  # a CLI, named by a path instead of on PATH
-# A verb the CLI kept as a stub purely to name where it moved (`ls Retired:
-# moved to \`pipeline jobs ls\`.`), read off the stub's own `--help`. Caught
-# generically, so a group retired this way needs no entry of its own here.
-_RETIRED_STUB = re.compile(r"Retired: moved to `[^`]+`\.")
 _PLUGIN_ADDRESS = re.compile(r"\brun\s+((?:scripts|skills/[\w-]+/scripts)/[\w/.-]+\.py)")
 # The other half of `run`'s namespace: a UNIT's own script, served out of this
 # wiki's enabled copy. A doc naming one that is not in the package is the same
@@ -69,7 +67,7 @@ def _commands(text: str):
     other console script, whose groups are its own), or opening with an ops
     group by bare name. The second and third tokens are handed over
     WHATEVER they are: under a group that has verbs the second has to be
-    one, `pipeline jobs`/`pipeline tickets` nest a third, and `skills <wiki>
+    one, `inboxes fixes`/`git conflicts` nest a third, and `skills <wiki>
     list` — the retired shape — is caught by exactly that."""
     for span in _spans(text):
         tokens = span.split()
@@ -125,10 +123,10 @@ def job_record(ops, env, wiki) -> dict:
     # job names no unit, and `jobs add` refuses one it cannot resolve to an
     # installed unit's own declared stage.
     enabled(ops, env, wiki, "web-page")
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "add", "https://example.invalid/docs",
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "add", "https://example.invalid/docs",
             f"slug={slug}", f"dest=sources/scrapes/{slug}", "every=once", "skill=web-page")
     assert r.returncode == 0, r.stdout + r.stderr
-    return run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "show", slug).data["job"]
+    return run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"]
 
 
 def _subcommands(help_text: str) -> set:
@@ -162,8 +160,8 @@ def _wrong(cli, job_record, text: str, unit: str | None) -> list:
         if group == "run":
             continue  # everything after the path is the child's own argv
         path = (group, second) if verbs and second else (group,)
-        # A verb may itself be a group nesting a verb of its own — `pipeline
-        # jobs`, `pipeline tickets`, `pipeline queue` — found generically by
+        # A verb may itself be a group nesting a verb of its own — `inboxes
+        # fixes`, `git conflicts` — found generically by
         # asking whether IT has subcommands, rather than a fixed list of
         # names; the flag and dotted-key checks below then run against the
         # nested verb's own `--help`.
@@ -178,12 +176,8 @@ def _wrong(cli, job_record, text: str, unit: str | None) -> list:
         if usage is None:
             wrong.append(f"`{span}` — `{' '.join(path)} --help` failed, so nothing about it could be checked")
             continue
-        retired = _RETIRED_STUB.search(usage)
-        if retired:
-            wrong.append(f"`{span}` — {retired.group(0).strip()}")
-            continue
         wrong += [f"`{span}` — `{' '.join(path)}` takes no `{flag}`" for flag in flags if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", usage)]
-        if path in (("pipeline", "jobs", "add"), ("pipeline", "jobs", "edit")):
+        if path in (("jobs", "add"), ("jobs", "edit")):
             for section, key in keys:
                 if section == "options":  # free-form in the record: the unit's own `watch.inputs` are its keys
                     known = key.startswith("<") or key in inputs
@@ -194,24 +188,13 @@ def _wrong(cli, job_record, text: str, unit: str | None) -> list:
     return wrong
 
 
-# Verbs the docs already name ahead of plugins PR 2 (#2486) landing them —
-# `run`/`close`/`retry`/`drop`/`hold`/`wait` under `pipeline tickets`. A doc's
-# ONLY wrongness being one of these is that PR's, not this one's; anything else in the same doc still fails normally.
-_PR2_PENDING = tuple(
-    f"`pipeline tickets` has no `{verb}`" for verb in ("run", "close", "retry", "drop", "hold", "wait")
-)
-
-
 @pytest.mark.parametrize("doc", DOCS, ids=lambda p: str(p.relative_to(ROOT)))
 def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
     # `skills/<unit>/SKILL.md` and `skills/<unit>/references/*.md` both name a unit.
     parts = doc.relative_to(ROOT).parts
     unit = parts[1] if parts[0] == "skills" else None
     wrong = _wrong(cli, job_record, doc.read_text(encoding="utf-8"), unit)
-    other = [line for line in wrong if not any(p in line for p in _PR2_PENDING)]
-    assert not other, f"{doc.relative_to(ROOT)}:\n  " + "\n  ".join(other)
-    if wrong:
-        pytest.skip(f"{len(wrong)} command(s) are plugins PR 2 (#2486): {', '.join(sorted(set(wrong)))}")
+    assert not wrong, f"{doc.relative_to(ROOT)}:\n  " + "\n  ".join(wrong)
 
 
 @pytest.mark.parametrize(
@@ -223,18 +206,12 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`skills list` reporting it", "has no `list`"),
         ("`llm-wiki-ops skills install x --repo a/b`", "takes no `--repo`"),
         ("`llm-wiki-ops skills enable x --conf`", "takes no `--conf`"),
-        ("`llm-wiki-ops pipeline jobs add u slug=s harvest.maxage=3m`", "no `harvest.maxage`"),
-        ("`llm-wiki-ops pipeline jobs add u slug=s option.mailbox=m`", "no `option.mailbox`"),
-        ("`llm-wiki-ops pipeline add u slug=s`", "`pipeline` has no `add`"),
-        ("`llm-wiki-ops pipeline queue show x`", "`pipeline` has no `queue`"),
-        pytest.param(
-            "`llm-wiki-ops pipeline apply x`", "retired",
-            marks=pytest.mark.skip(reason="`apply` folds into `close` in plugins PR 2 (#2486); still real on main"),
-        ),
-        pytest.param(
-            "`llm-wiki-ops pipeline extract x`", "retired",
-            marks=pytest.mark.skip(reason="`extract` folds into `run` in plugins PR 2 (#2486); still real on main"),
-        ),
+        ("`llm-wiki-ops jobs add u slug=s harvest.maxage=3m`", "no `harvest.maxage`"),
+        ("`llm-wiki-ops jobs add u slug=s option.mailbox=m`", "no `option.mailbox`"),
+        ("`llm-wiki-ops tickets add u slug=s`", "`tickets` has no `add`"),
+        ("`llm-wiki-ops jobs queue show x`", "`jobs` has no `queue`"),
+        ("`llm-wiki-ops pipeline apply x`", "the `pipeline` group is retired"),
+        ("`llm-wiki-ops inboxes fixes nosuch`", "`inboxes fixes` has no `nosuch`"),  # a verb nested one level down
         ("`<ops dir>/bin/llm-wiki-ops skills ls`", "run by path"),  # no wiki carries a bin/
         ("```\ncd w && llm-wiki-ops skills find x\n```", "has no `find`"),
         ('```\nllm-wiki-ops skills search "ep #400" --bogus\n```', "takes no `--bogus`"),
@@ -254,12 +231,13 @@ def test_the_check_itself_catches_each_stale_shape(cli, job_record, text, caught
 
 def test_the_check_passes_the_shapes_that_are_right(cli, job_record):
     fine = (
-        "`llm-wiki-ops pipeline jobs add gmail slug=s skill=channel-gmail options.mailbox=a@b.c harvest.max_age=3m`\n"
+        "`llm-wiki-ops jobs add gmail slug=s skill=channel-gmail options.mailbox=a@b.c harvest.max_age=3m`\n"
         "`llm-wiki-ops --json skills ls channel-gmail` then a `git pull`, and `yt-dlp --dump-json <url>`\n"
         '```\nllm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py search "ep #400" --type episode\n```\n'
         "`llm-wiki-cli init <dir> key=<key>` once, then `llm-wiki-cli machine doctor`\n"
-        "`llm-wiki-cli wiki <key> skills ls` and `llm-wiki-cli wiki --read-only --here --json pipeline tickets show <slug>`\n"
-        "`llm-wiki-ops pipeline tickets open <id>` then `llm-wiki-ops pipeline tickets update <id> stage=harvest status=ok`\n"
+        "`llm-wiki-cli wiki <key> skills ls` and `llm-wiki-cli wiki --read-only --here --json tickets show <slug>`\n"
+        "`llm-wiki-ops tickets open <id>` then `llm-wiki-ops tickets update <id> stage=harvest status=ok`\n"
+        "`llm-wiki-ops inboxes fixes ls`\n"
     )
     assert _wrong(cli, job_record, fine, "channel-gmail") == []
 

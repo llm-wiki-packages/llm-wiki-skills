@@ -17,11 +17,11 @@ spawn=self` is refused for this unit's ticket.
 ## Running a ticket
 
 ```sh
-llm-wiki-ops --json pipeline run job=<slug> wait=<s>
-llm-wiki-ops --json pipeline tickets run <id> wait=<s>
+llm-wiki-ops --json jobs run job=<slug> wait=<s>
+llm-wiki-ops --json tickets run <id> wait=<s>
 ```
 
-Either starts the stage jailed. The host's `close` (`pipeline tickets close <id>`) reads whatever `tickets update` the
+Either starts the stage jailed. The host's `close` (`tickets close <id>`) reads whatever `tickets update` the
 script posted and routes it: `ok` mints the process ticket the plugin's own
 `scripts/extract.py` runs; `failed` with attempts left re-queues; `gone` (a
 refresh only) lands the page as gone. The script never closes its own ticket.

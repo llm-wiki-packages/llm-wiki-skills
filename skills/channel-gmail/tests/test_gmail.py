@@ -22,7 +22,7 @@ UNIT = "channel-gmail"
 SCRIPT = UNIT_DIR / "scripts" / "write_items.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "pull.json"
 DAY = "2026-09-18"
-# A channel's target is any bare name, and a wiki holds ONE job per target (`pipeline add` refuses a
+# A channel's target is any bare name, and a wiki holds ONE job per target (`jobs add` refuses a
 # second) — `test_install.py` declares the venue's own name in this same session wiki, so this takes another.
 # Read by the harness (`tests/harness.py::unit_tests`), not by this file.
 TARGET = "gmail-port"
@@ -70,8 +70,8 @@ def day_dir(tmp_path: Path, slug: str = "mail", day: str = DAY, **over) -> tuple
 
 
 def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code: int = 0) -> dict:
-    """A stand-in front door, reachable through `LLM_WIKI_OPS`: `pipeline
-    tickets open` answers `ticket`; `pipeline tickets update` is recorded to
+    """A stand-in front door, reachable through `LLM_WIKI_OPS`: `tickets
+    open` answers `ticket`; `tickets update` is recorded to
     `update-calls.jsonl` and ALSO writes `report.<id>.json` into the
     ticket's own capture directory — the ONE file the real host writes (CLI
     spec § 5, and the one `carried()` reads back off disk) — with `captured`
@@ -85,12 +85,12 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket or {}))})\n"
         f"CREATE_CODE, EDIT_CODE = {create_code}, {edit_code}\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
-        "    tid, kv, missing = argv[3], {}, []\n"
-        "    for a in argv[4:]:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
+        "    tid, kv, missing = argv[2], {}, []\n"
+        "    for a in argv[3:]:\n"
         "        if a.startswith('missing='):\n"
         "            host, url, why = a[len('missing='):].split(',', 2)\n"
         "            missing.append({'host': host, 'url': url.replace('%2C', ','), 'why': why})\n"

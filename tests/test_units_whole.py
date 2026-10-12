@@ -44,6 +44,26 @@ GONE[r"(?<![\w.-])report\.json\b"] = "no unit writes a report; `tickets update` 
 # A dated changelog line may name what it removed; that is history, not an instruction.
 _HISTORY = re.compile(r"^\s*[-*#>]?\s*`?20\d\d-\d\d-\d\d")
 
+# The verb paths the ops CLI does not mount: the job verbs sit one level
+# down, under `jobs`, `tickets` and `denylist`, and `tick` is a verb of its
+# own. Each pattern spans any whitespace, so a doc that wraps a spelling across
+# a line break, or an argv split one token per line, is caught as well. No
+# history exemption: nothing shipped has a reason to spell one.
+RETIRED_VERBS = (
+    r"\bpipeline\s+(?:jobs|tickets|due|run|denylist)\b",
+    r"""["']pipeline["']\s*,\s*["'](?:jobs|tickets|due|run|denylist)["']""",
+    r"\bschedule\s+tick\b",
+    r"""["']schedule["']\s*,\s*["']tick["']""",
+)
+# Every file an agent or operator reads: the units, the repo's README and its
+# root `references/` tree.
+READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "references").rglob("*") if p.is_file())})
+
+
+def _retired_spellings(text: str) -> list:
+    """The 1-based line of each retired spelling in `text`."""
+    return sorted(text.count("\n", 0, m.start()) + 1 for pattern in RETIRED_VERBS for m in re.finditer(pattern, text))
+
 
 @pytest.mark.parametrize("path", SHIPPED, ids=lambda p: str(p.relative_to(ROOT)))
 def test_no_shipped_file_names_a_host_that_is_gone(path):
@@ -58,6 +78,29 @@ def test_no_shipped_file_names_a_host_that_is_gone(path):
             if re.search(pattern, line) and not history:
                 wrong.append(f"{path.relative_to(ROOT)}:{n}: {line.strip()[:110]} — {why}")
     assert not wrong, "\n".join(wrong)
+
+
+@pytest.mark.parametrize("path", READ, ids=lambda p: str(p.relative_to(ROOT)))
+def test_no_file_spells_a_verb_the_cli_does_not_mount(path):
+    lines = _retired_spellings(path.read_text(encoding="utf-8"))
+    assert not lines, "\n".join(f"{path.relative_to(ROOT)}:{n}: a retired CLI spelling" for n in lines)
+
+
+def test_each_retired_verb_pattern_catches_its_own_shape():
+    """A scan that matches nothing reports green over every file, so each
+    pattern is pointed at the shape it exists for — wrapped, or split around
+    its comma — built here so this file spells none of them."""
+    group, tick_group = "pipeline", "schedule"
+    samples = (
+        f"`llm-wiki-ops {group}\n   tickets open <id>`",
+        f'argv = [*door, "--json", "{group}" ,\n    "jobs", "claim"]',
+        f"`{tick_group}\ttick`",
+        f"call({tick_group!r},\n     'tick')",
+    )
+    for pattern, sample in zip(RETIRED_VERBS, samples, strict=True):
+        assert re.search(pattern, sample), (pattern, sample)
+    for fine in ("`llm-wiki-ops tickets open <id>`", "`llm-wiki-ops reference pipeline-ticket`", "`pipeline/jobs.py::capture_dir_for`", "`tick`"):
+        assert not _retired_spellings(fine), fine
 
 
 def test_every_copy_of_the_converter_is_the_same_file():
@@ -148,7 +191,7 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     stages = skill.split("\n## Stages", 1)[1]
     opener = stages.split("\n### harvest", 1)[0]
-    assert "llm-wiki-ops --json pipeline tickets open <id>" in opener, opener[:300]
+    assert "llm-wiki-ops --json tickets open <id>" in opener, opener[:300]
     assert "stage=<id>" not in opener and not re.search(r"open <id> stage=", opener), opener[:300]
     assert not re.search(r"stage=harvest\|process", skill), name
     assert not re.search(r"\$ARGUMENTS", skill), name
@@ -163,8 +206,8 @@ def test_a_routine_unit_reads_its_ticket_and_leaves_a_routine_report(name):
     routine stage, which is what the ticket's `close` reads."""
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     assert "ticket=<id> stage=routine" in skill, name
-    assert "llm-wiki-ops --json pipeline tickets open <id>" in skill, name
-    assert re.search(r"llm-wiki-ops pipeline tickets update <id> stage=routine status=", skill), name
+    assert "llm-wiki-ops --json tickets open <id>" in skill, name
+    assert re.search(r"llm-wiki-ops tickets update <id> stage=routine status=", skill), name
 
 
 @pytest.mark.parametrize("name", SKILLS)

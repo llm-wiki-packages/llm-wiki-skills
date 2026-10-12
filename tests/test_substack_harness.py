@@ -67,7 +67,7 @@ def paged(ops, env, wiki, job, capture_dir):
 step create sh -c {shlex.quote(create)}
 step extracted sh -c {shlex.quote(f"\"$OPS\" page edit '{page}' extracted=true")}
 printf '%s' {shlex.quote(json.dumps([page]))} > "$CAP/written.json"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=process status=ok written_from=written.json
 """)
     for name in ("create", "extracted", "update"):
         done = session.step(name)

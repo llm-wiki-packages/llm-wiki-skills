@@ -20,7 +20,7 @@ it is a directive.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` is the step. Harvest is a script stage the runner
@@ -97,9 +97,9 @@ landed: post `failed` with its last stderr line. The page's shape is
 **4. Post progress — last.**
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason="<which rule said so>"
+llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason="<which rule said so>"
 ```
 
 **Never type the page path yourself.** Its filename is the video's TITLE, and a

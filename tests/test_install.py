@@ -54,7 +54,7 @@ def test_channel_unit_routes_a_job_by_its_own_manifest(ops, env, wiki, name):
     # there: that unit's target is the channel's bare name, never a url.
     ledger = watch["dest"].startswith("research/channels/")
     add = [
-        "--json", "pipeline", "jobs", "add", unit_manifest(name)["venue"] if ledger else f"https://example.invalid/harness/{name}",
+        "--json", "jobs", "add", unit_manifest(name)["venue"] if ledger else f"https://example.invalid/harness/{name}",
         f"slug={slug}", f"skill={name}", f"description=harness: {name}",
     ]
     required = sorted(k for k, v in (watch.get("inputs") or {}).items() if v.get("required") is True)
@@ -65,7 +65,7 @@ def test_channel_unit_routes_a_job_by_its_own_manifest(ops, env, wiki, name):
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.data["dest"] == watch["dest"].format(slug=slug), r.data
 
-    shown = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "show", slug)
+    shown = run(ops, rooted(env, wiki), "--json", "jobs", "show", slug)
     assert shown.returncode == 0, shown.stderr
     job = shown.data["job"]
     assert {k: job["options"][k] for k in required} == {k: f"harness-{k}" for k in required}, job["options"]

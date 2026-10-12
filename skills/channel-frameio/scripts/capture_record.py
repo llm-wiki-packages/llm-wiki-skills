@@ -97,7 +97,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -128,7 +128,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
@@ -411,9 +411,9 @@ def content_type_for(ext: str) -> str:
 
 
 def is_media(content_type: str) -> bool:
-    """A body the transcriber is owed rather than a reader: only `pipeline
-    extract` can mint the page that waits for one, so the unit's process step
-    hands a media capture back rather than writing a finished page over it."""
+    """A body the transcriber is owed rather than a reader: the process step
+    writes no finished page for one, only the queued stub the transcribe
+    stage reads (empty body, `extracted=queued`, and the media it waits on)."""
     return str(content_type or "").startswith(("video/", "audio/"))
 
 

@@ -27,7 +27,7 @@ UNDATED = "sources/harness-daily-report/undated.md"
 # `op open` and §6's `git commit` and `op close` are left out: they write
 # `.git` and the wiki's git lock, which no sandbox can grant a slice.
 PLAN = f"""\
-step open "$OPS" --json pipeline tickets open "$TICKET"
+step open "$OPS" --json tickets open "$TICKET"
 step overlay "$OPS" --json policy get daily-report daily-report-setup
 step latest "$OPS" --json op latest daily-report
 step changed "$OPS" --json git changed research sources filter=since:3d
@@ -39,14 +39,14 @@ step brief sh -c 'printf "<html></html>\\n" > wiki/reports/{TODAY}.html'
 step write-research sh -c 'printf x > research/daily-report.txt'
 step write-policy sh -c 'mkdir -p .llm-wiki/policy && printf x > .llm-wiki/policy/harness-routine.md'
 step listed sh -c 'printf "[\\"{REPORT}\\"]" > "$CAP/written.json"'
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=routine status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=routine status=ok written_from=written.json
 """
 
 
 def _routine_job(ops, env, wiki) -> str:
     """The seeded job whose routine names this unit, found by its skill so
     the seed's slug is not this file's to know."""
-    r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "ls")
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "ls")
     assert r.returncode == 0, r.stdout + r.stderr
     slugs = [j["slug"] for j in r.data["jobs"] if j.get("skill") == "daily-report"]
     assert len(slugs) == 1, f"no one seeded job runs daily-report: {[(j['slug'], j.get('skill')) for j in r.data['jobs']]}"
@@ -71,7 +71,7 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     assert r.returncode == 0, r.stdout + r.stderr
     slug = _routine_job(ops, env, wiki)
     for verb in ("resume", "claim", "pause"):
-        r = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", verb, slug)
+        r = run(ops, rooted(env, wiki), "--json", "jobs", verb, slug)
         assert r.returncode == 0, r.stdout + r.stderr
         if verb == "claim":
             mine = [c for c in r.data["claimed"] if c["slug"] == slug]

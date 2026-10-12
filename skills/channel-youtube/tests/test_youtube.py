@@ -174,8 +174,8 @@ def _default_ticket(cap, root, stage, **over):
 
 
 def _stub_ops(tmp_path, ticket=None):
-    """A stand-in for the front door: `pipeline tickets open` (answers
-    `ticket`), `pipeline tickets update` (a bare 0, recorded), and the page
+    """A stand-in for the front door: `tickets open` (answers
+    `ticket`), `tickets update` (a bare 0, recorded), and the page
     verbs (`page create`/`page edit`) — the one `LLM_WIKI_OPS`/`--ops` this
     script's `open_ticket`, `post_update` and `write_page` all reach through.
     It writes what the real `page create`/`page edit` would, and refuses a
@@ -186,10 +186,10 @@ def _stub_ops(tmp_path, ticket=None):
         "argv = sys.argv[1:]\n"
         "verb = [a for a in argv if not a.startswith('--')]\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if verb[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if verb[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path(os.getcwd(), 'update-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "pairs = dict(a.split('=', 1) for a in verb if '=' in a)\n"

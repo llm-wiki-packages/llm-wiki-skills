@@ -17,7 +17,7 @@ everything since the last report. `setup` runs the interview instead (§8).
 Open the ticket first:
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` must be `routine`; any other is not this unit's to
@@ -89,7 +89,7 @@ llm-wiki-ops page ls filter=under:research/channels
   `research/channels/<slug>`, one page per day. Read the ledger pages inside
   the window and nothing else: never a sibling raw capture
   (`llm-wiki-ops reference channel-ledger`). With an operator at the
-  keyboard, `llm-wiki-ops pipeline jobs ls` also names a channel job not
+  keyboard, `llm-wiki-ops jobs ls` also names a channel job not
   pulled here, which has no ledger for the gap days — note and skip. A
   scheduled run cannot list jobs, so it reports the ledgers it found.
 - **This wiki's ops digest** — the newest `research/reports/` page inside the
@@ -247,7 +247,7 @@ as one JSON list in `written.json` inside the ticket's `capture_dir`, then
 post it:
 
 ```sh
-llm-wiki-ops pipeline tickets update <id> stage=routine status=<ok|partial|failed> written_from=written.json
+llm-wiki-ops tickets update <id> stage=routine status=<ok|partial|failed> written_from=written.json
 ```
 
 `status` is §6's `outcome`, or worse where §7's brief did not land. The host
