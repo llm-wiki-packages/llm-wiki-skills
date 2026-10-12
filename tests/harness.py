@@ -315,18 +315,18 @@ class Job:
 
 
 def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | None = None, value: str = "harness-credential") -> str:
-    """`requires.credential: true`'s claim gate, satisfied for `slug` on this
+    """A `"required"` file slot's claim gate, satisfied for job `slug` on this
     session (references/enable.md): `credentials set <name>` (stdin — never a
-    command-line argument), then `credentials bind <slug> <name>` — `bind`
-    refuses a name not set here first. The VALUE is unread by everything, so
-    any placeholder does (enable.md). Returns `name`."""
+    command-line argument), then `credentials bind job <slug> file=<name>` —
+    `bind` refuses a name not set here first. The VALUE is unread by
+    everything, so any placeholder does (enable.md). Returns `name`."""
     name = name or f"{slug}-cred"
     # Both are protected writes: nobody is at a terminal for this harness
     # process, so each asks and refuses unless the session is marked attended.
     attended_env = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, attended_env, "--json", "credentials", "set", name, input=value)
     assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, attended_env, "--json", "credentials", "bind", slug, name)
+    r = run(ops, attended_env, "--json", "credentials", "bind", "job", slug, f"file={name}")
     assert r.returncode == 0, r.stdout + r.stderr
     return name
 

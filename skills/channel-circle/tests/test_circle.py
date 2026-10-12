@@ -66,7 +66,7 @@ def ticket(**over) -> dict:
         "ticket": "0123456789ab", "slug": "course", "item": TARGET, "target": TARGET,
         "capture_dir": "_raw/course/c-course-one--aaaaaaaa", "dest": None, "hosts": ["example.com"],
         "harvest": {"scope": "section", "access": "licensed", "exclude_urls": [], "assets": "reference"},
-        "options": {}, "credential": None, "min_date": None, "known": [], "refresh": False, "resource": None,
+        "options": {}, "credential_mode": "none", "min_date": None, "known": [], "refresh": False, "resource": None,
         # The host's own stamp at the move to `active/` (Q1) — `now`, as a
         # real claim would leave it moments before this ticket is opened.
         "claimed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

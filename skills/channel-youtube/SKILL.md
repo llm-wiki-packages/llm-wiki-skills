@@ -172,7 +172,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 - Cookies only: yt-dlp has no OAuth or password route to YouTube. Public videos
   need none; private, age-restricted and members-only ones need a signed-in
   session.
-- `requires.credential` is `"optional"`. Bound to a `dir` credential with
+- `requires.dir` is `"optional"`. Bound to a `dir` credential with
   `login: browser` (`llm-wiki-ops reference channel-youtube/enable`), the ticket carries
   `credential_dir` and `browser_python`; the harvest script exports a Netscape
   `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by

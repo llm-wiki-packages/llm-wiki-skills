@@ -75,7 +75,11 @@ def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name, st
         assert not MODEL & set(allow), f"{name}: the snippet still names a model endpoint; the harness profile supplies it"
 
 
-@pytest.mark.parametrize("name", [n for n in SKILLS if unit_manifest(n)["requires"].get("credential")])
+# What a unit spends: a binding name of a route, a payload file, a granted directory.
+CREDENTIAL_KEYS = ("credentials", "file", "dir")
+
+
+@pytest.mark.parametrize("name", [n for n in SKILLS if any(unit_manifest(n)["requires"].get(k) for k in CREDENTIAL_KEYS)])
 def test_a_credentialed_unit_claims_an_exact_host_its_snippet_reaches(name):
     _, doc = _reference(name)
     claims = [h for h in _hosts(name) if not h.startswith("*")]

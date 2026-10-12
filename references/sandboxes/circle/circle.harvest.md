@@ -25,12 +25,13 @@ scripts launch.
 
 ## Credential
 
-None declared (`requires.credential: false`). A members-only community
-replays the per-domain login profile `llm-wiki-ops credentials login <domain>` minted, and a
-spawned slice is granted no profile directory yet (llm-wiki-plugins#2282),
-so an authenticated harvest exits 2 or 5 in a slice and fails until the
-grant exists, unless this machine's operator lists the unit in `[unsandboxed]`
-for this wiki.
+None declared: the manifest's `requires` names no binding, no `file` and no
+`dir`. A members-only community replays the per-domain login profile
+`llm-wiki-ops credentials login <domain>` minted, which `capture_lesson.py`
+looks up by name through `credentials info`, and a slice's jail holds no
+grant on the credential store, so an authenticated harvest exits 2 or 5 in a
+slice and fails, unless this machine's operator lists the unit in
+`[unsandboxed]` for this wiki.
 
 ## Customize
 

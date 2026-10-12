@@ -174,12 +174,13 @@ gets no `published` key at all.
   harvest sandbox's `spotify` route: in the jail `SPOTIFY_TOKEN_AUTH` holds a
   phantom, `capture` sends it on the one token request, and the proxy puts the
   wiki's own grant there. You call no `credentials` verb and read no login.
-  The operator stores the grant once per machine (`llm-wiki-ops reference channel-spotify/enable`).
-- With the route enabled and no grant stored, the token request fails and the
+  The operator stores the grant and maps the route to it once per machine (`llm-wiki-ops reference channel-spotify/enable`).
+- With the route mapped to a wrong grant, the token request fails and the
   capture says so: nothing falls back to another account.
-- **Keyless degradation**: with no route, `meta`/`capture` fall back to the
-  public embed endpoint — entity name and a possibly **truncated** item list,
-  `"keyless": true`, and a warning callout on the page.
+- **Keyless degradation**: with no route (the jail omits one this machine
+  maps to nothing), `meta`/`capture` fall back to the public embed endpoint —
+  entity name and a possibly **truncated** item list, `"keyless": true`, and
+  a warning callout on the page.
 - **Rate limits.** A 429 waits the venue's `Retry-After` (+1 s; sixty seconds
   when it names none, capped at five minutes), four tries.
 - **Out of scope**: private playlists and the user library (they need user

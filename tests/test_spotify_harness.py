@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from harness import ROOT, claimed, declared_job, enabled, jsonc, pending, rooted, run, snippet, staged, unit_tests
 
@@ -161,13 +162,16 @@ def test_the_route_installs_as_the_venue_templates_machine_widening(ops, env, wi
 
 
 def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
-    """Bound to the venue template `skills install` wrote, the stage's jail
-    carries the route's variable — holding a phantom, never the stored grant."""
+    """Bound to the venue template `skills install` wrote, and the route mapped
+    to a stored grant, the stage's jail carries the route's variable — holding
+    a phantom, never the stored grant."""
     job = declared_job(ops, env, wiki, "channel-spotify", "https://open.spotify.com/show/sh00000000000000000007",
                        slug="harness-spotify-route")
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     grant = "aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA=="
+    # A route's value carries the host it may be spent at, which `bind` checks against the route's upstream.
+    stored = json.dumps({"value": grant, "host": "accounts.spotify.com"})
 
     def bind(sandbox):
         for verb in (["skills", "bind", "channel-spotify", "stage=harvest", f"sandbox={sandbox}", "--confirm"],
@@ -176,14 +180,23 @@ def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
             done = run(ops, attended, "--json", *verb)
             assert done.returncode == 0, (verb, done.stdout + done.stderr)
 
-    for verb, stdin in ((["credentials", "set", "spotify"], grant), (["sandboxes", "enable", "spotify-harvest", "--confirm"], None)):
+    for verb, stdin in ((["credentials", "set", "spotify"], stored), (["sandboxes", "enable", "spotify-harvest", "--confirm"], None)):
         done = run(ops, attended, "--json", *verb, input=stdin)
         assert done.returncode == 0, (verb, done.stdout + done.stderr)
     bind("spotify-harvest")
+    # `bind` asks the provider for the value's host, and the provider reads it from the wiki's vault, which only
+    # the operator names, by hand, in the machine config.
+    config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
+    before = config.read_text(encoding="utf-8")
     try:
+        config.write_text(before.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"'), encoding="utf-8")
+        # A route nothing maps is omitted from the jail: the skill's mapping is what fills it.
+        done = run(ops, attended, "--json", "credentials", "bind", "skill", "channel-spotify", "spotify=spotify")
+        assert done.returncode == 0, done.stdout + done.stderr
         ticket_id, _cap = claimed(ops, env, wiki, job)
         session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
     finally:
+        config.write_text(before, encoding="utf-8")
         bind("channel-spotify-harvest")  # every other case here runs on the reference's profile alone
     phantom = session.step("route")
     assert phantom.returncode == 0 and phantom.stdout.strip(), phantom

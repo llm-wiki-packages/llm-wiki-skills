@@ -36,16 +36,22 @@ profile's: a harness profile's routes ride every session jail of that
 harness, in every wiki on the machine, while this one reaches Notion only
 from this stage.
 
-The route's token is the wiki's own, in its credential vault under the
-route's name. Mint nothing else: `llm-wiki-ops credentials set notion`, the
-Notion bot token on stdin, once per machine that harvests. `sandboxes
-compose` adds the `credential_key` and the capture that read that name, so
-the fragment carries neither. `requires.credential` stays `false`: nothing
-is bound to a job and no payload file is granted.
+The route's token is the wiki's own, in its credential vault, and the
+route's name is a binding name. Once per machine that harvests, store the
+Notion bot token with the host it may be spent at,
+`llm-wiki-ops credentials set notion` with
+`{"value": "<token>", "host": "api.notion.com"}` at its prompt, then map the
+route to it, `llm-wiki-ops credentials bind skill channel-notion-tasks
+notion=notion` (`/llm-wiki:enable` asks the same).
+`sandboxes compose` adds the `credential_key` and the capture that read the
+mapped name, so the fragment carries neither. The manifest leaves the
+binding undeclared, which reads `"optional"`; it declares no `file` and no
+`dir`, so no payload file is granted.
 
 In the jail `NOTION_API_TOKEN` holds a phantom. The proxy adds the real
 token, as `Authorization: Bearer <token>`, only to requests bound for
-`api.notion.com`. The token never enters the jail, and the jail reads no
+`api.notion.com`. A machine that maps nothing runs the stage with the route
+omitted, and the pull fails `auth`. The token never enters the jail, and the jail reads no
 `~/.config/notion` and runs no `ntn login`.
 
 ## Customize

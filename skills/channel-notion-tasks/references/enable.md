@@ -31,24 +31,29 @@
    through the `notion` route in its sandbox (the sandbox reference's
    `## Credential` section spells it out), and the route's token is the
    wiki's own. On each machine that pulls, store the Notion bot token for
-   the workspace the job names, on stdin and never on a command line:
+   the workspace the job names, never on a command line, as
+   `{"value": "<token>", "host": "api.notion.com"}` at the prompt — the
+   host is where the value may be spent — then map the route to it
+   (`/llm-wiki:enable` asks the same):
 
    ```sh
    llm-wiki-ops credentials set notion
+   llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion
    ```
 
    No `ntn login`, and no route in a harness profile: the jail holds a
    phantom and the proxy supplies the token to `api.notion.com` alone.
-   Without the token a harvest reports `failed`, `auth`, on
-   `api.notion.com`.
+   Without the mapping the jail omits the route, and a harvest reports
+   `failed`, `auth`, on `api.notion.com`.
 
    ```sh
    llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
    ```
-3. **No credential to bind, and why.** `requires.credential` stays `false`:
-   `true` asks each machine to `credentials bind` a payload the slice is
-   handed, and this skill reads none. Its credential is the sandbox's
-   `notion` route, resolved from the wiki's vault on whichever machine runs
-   the harvest. Where more than one machine has the skill enabled, pin the
-   job to one that holds the token: `llm-wiki-ops jobs edit
+3. **No job binding, and why.** The manifest leaves the `notion` binding
+   undeclared, which reads `"optional"`, and declares no `file` or `dir`:
+   this skill reads no payload, so its one credential is the sandbox's
+   `notion` route, filled by the skill's mapping on whichever machine runs
+   the harvest. A machine that maps nothing still claims the harvest and
+   fails it. Where more than one machine has the skill enabled, pin the job
+   to one that maps the token: `llm-wiki-ops jobs edit
    <slug> harvest.machine=<machine id>`.

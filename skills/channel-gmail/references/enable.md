@@ -30,23 +30,25 @@
    `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-gmail
    dest=research/channels/<slug>`.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
-   not a secret. The skill declares `requires.credential: true` and never
+   not a secret. The skill declares `requires.file: "required"` and never
    reads the value: connector auth is the session's. What the binding does is
-   the claim gate (`pipeline/claims.py`): a machine with no binding for THIS
-   job is incapable of its harvest and skips it — a `bindings` doctor row,
-   nothing fails — and a binding goes `stale`, and the machine stops
-   claiming, when a peer's commit changes what the job fetches
+   the claim gate (`pipeline/claims.py`): a machine that fills no file slot
+   for THIS job is incapable of its harvest and skips it — a `bindings`
+   doctor row, nothing fails — and a job's binding goes `stale`, and the
+   machine stops claiming, when a peer's commit changes what the job fetches
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
-   mailbox". Exactly what to run, on the machine that pulls:
+   mailbox". Bind the job, never the skill: a skill's mapping answers for
+   every mailbox, so answer `none` when `/llm-wiki:enable` asks for the
+   skill's file slot. Exactly what to run, on the machine that pulls:
    `printf '%s' '<who>@example.com' | llm-wiki-ops credentials set <slug>-mailbox`
    — the name is the operator's to choose (`<slug>-mailbox` reads well in
    `credentials bindings`); the VALUE is unused by everything, so set it to
    the mailbox's address, a label, and NEVER to a real password or token
-   (a spawned slice is read-granted that one payload file). Then:
-   `llm-wiki-ops credentials bind <slug> <slug>-mailbox` — `bind` refuses a
-   name that is not set on this machine. After a peer changes the job, look
-   at what it now pulls and `bind` again. Do NOT bind on a machine whose
+   (a spawned slice is granted its own copy of that one value). Then:
+   `llm-wiki-ops credentials bind job <slug> file=<slug>-mailbox` — `bind`
+   refuses a name that is not set on this machine. After a peer changes the
+   job, look at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.
 3. Enable the skill on every OTHER machine that pulls
    (`/llm-wiki:enable channel-gmail`, which enables the bound harvest

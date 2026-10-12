@@ -12,7 +12,6 @@
   "kind": "channel",
   "name": "channel-circle",
   "requires": {
-    "credential": false,
     "ops": ">=0.1.0"
   },
   "stages": {

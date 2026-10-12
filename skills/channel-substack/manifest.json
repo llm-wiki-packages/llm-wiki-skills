@@ -11,7 +11,6 @@
   "kind": "channel",
   "name": "channel-substack",
   "requires": {
-    "credential": false,
     "ops": ">=0.1.0"
   },
   "stages": {

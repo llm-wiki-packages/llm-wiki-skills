@@ -289,7 +289,9 @@ def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
     known = {"v", "name", "version", "kind", "venue", "stages", "uses", "keywords", "usage", "requires", "watch"}
-    assert set(json.loads((ROOT / "skills" / name / "manifest.json").read_text())) <= known
+    manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
+    assert set(manifest) <= known
+    assert set(manifest.get("requires", {})) <= {"credentials", "file", "dir", "ops", "bins"}, manifest["requires"]
 
 
 @pytest.mark.parametrize("name", SKILLS)

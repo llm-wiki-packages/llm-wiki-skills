@@ -63,7 +63,7 @@ def day_dir(tmp_path: Path, slug: str = "mail", day: str = DAY, **over) -> tuple
     ticket = {
         "ticket": TICKET_ID, "slug": slug, "item": None, "target": "gmail",
         "capture_dir": f"_raw/{slug}/{day}", "options": {"mailbox": "a@example.invalid"},
-        "credential": "work-mail", "min_date": None, "known": [], "dest": f"research/channels/{slug}",
+        "credential_mode": "file", "credential_file": "work-mail", "min_date": None, "known": [], "dest": f"research/channels/{slug}",
     }
     ticket.update(over)
     return directory, ticket

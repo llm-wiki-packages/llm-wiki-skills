@@ -69,8 +69,8 @@ def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
     assert "api.notion.com" in network["allow_domain"]
     assert not any("notion" in h and h != "api.notion.com" for h in network["allow_domain"])
     assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
-    # The committed `## Profile` is read straight, and refuses every credential key.
-    assert set(network) == {"allow_domain"} and "credential" not in json.dumps(profile)
+    # The committed `## Profile` is read straight, and refuses every credential key, however it is cased.
+    assert set(network) == {"allow_domain"} and "CREDENTIAL" not in json.dumps(profile).upper()
     # A venue route is `credentials` plus `custom_credentials`, nothing else: compose
     # mints `credential_key` and the capture, so a wiki-written one is refused.
     assert _machine_fragment(text) == {"network": {
@@ -79,8 +79,9 @@ def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
             "upstream": "https://api.notion.com", "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
         }},
     }}
-    # The route is this stage's, resolved from the wiki's vault: no login, no harness-profile route.
+    # The route is this stage's, filled from the wiki's vault by the skill's mapping: no login, no harness-profile route.
     assert "llm-wiki-ops credentials set notion" in text
+    assert "llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion" in " ".join(text.split())
     assert "never the harness profile's" in " ".join(text.split())
     assert "~/.config/llm-wiki" not in text
 
@@ -89,6 +90,7 @@ def test_enable_md_names_the_vault_not_a_login_or_a_harness_profile():
     enable = (ROOT / "skills" / "channel-notion-tasks" / "references" / "enable.md").read_text(encoding="utf-8")
     flat = " ".join(enable.split())
     assert "llm-wiki-ops credentials set notion" in flat
+    assert "llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion" in flat
     assert "No `ntn login`, and no route in a harness profile" in flat
     assert "`ntn login` there" not in flat and "this machine's harness profile" not in flat
 

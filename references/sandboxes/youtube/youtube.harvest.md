@@ -21,11 +21,13 @@ harness`.
 
 ## Credential
 
-`requires.credential` is `"optional"`: unbound, the stage runs keyless and
-reaches public videos only. Bound, the credential is a `dir` with `login:
+`requires.dir` is `"optional"`: unbound, the stage runs keyless and reaches
+public videos only. Bound, the slot holds a `dir` credential with `login:
 browser` — a Chromium profile a person signed in to YouTube on through
 `credentials login`, which the ticket hands over as `credential_dir`
-(granted read-write to this slice) with `browser_python` beside it.
+(granted read-write to this slice) with `browser_python` beside it. A slot
+and not a route: yt-dlp reads cookies off disk, and no proxy can inject a
+browser session.
 
 yt-dlp takes cookies only; there is no OAuth or password route. The unit
 exports a Netscape `cookies.txt` into that same directory once (through

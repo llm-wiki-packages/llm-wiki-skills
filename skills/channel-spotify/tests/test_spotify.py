@@ -174,7 +174,7 @@ def ticket(cap: Path, **over) -> dict:
     body = {
         "v": 1, "ticket": "0123456789ab", "unit": "channel-spotify", "slug": "money-models", "item": PLAYLIST_URL,
         "target": PLAYLIST_URL, "capture_dir": "_raw/money-models/playlist--deadbeef", "dest": None, "hosts": [],
-        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential": None,
+        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential_mode": "none",
         "min_date": None, "known": [],
     }
     body.update(over)
