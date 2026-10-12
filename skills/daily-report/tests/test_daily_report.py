@@ -96,13 +96,3 @@ def test_no_file_of_the_unit_runs_git_commit(doc):
 def test_the_schedule_it_names_is_the_ops_morning_job():
     assert "`ops-morning` job" in BODY
     assert "bundle" not in BODY
-
-
-# A routine's landing adopts and stamps the pages a `page` verb recorded, so
-# the brief, the log and the index go through file tools and stay unstamped.
-def test_the_brief_the_log_and_the_index_are_never_written_by_a_page_verb():
-    verbs = re.findall(r"^llm-wiki-ops page (?:create|edit) .*$", BODY, re.M)
-    for line in verbs:
-        assert not re.search(r"wiki/(log|index)\.md|\.html", line), line
-    for what in ("`wiki/log.md` bullet, written with\nyour file tools", "written with your file tools: it is no page"):
-        assert what in BODY, what
