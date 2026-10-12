@@ -13,14 +13,16 @@ import pytest
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
 # The capture units whose body a session follows: each serves `harvest` or
-# `process`, no `routine`, and some stage with no `script`. A unit whose every
-# stage is a script has no session body to hold to these checks; a capture
-# unit that forgot either stage stays in, for the both-stages check to catch.
+# `process`, no `routine`, and either some stage with no `script` or a
+# `watch` block, which only a unit a job is added for carries. A script-only
+# unit with no `watch` has no session body to hold to these checks; a capture
+# unit that forgot either stage stays in, for the both-stages check to catch,
+# even one whose remaining stage is a script.
 CHANNELS = [
     n for n in SKILLS
     if {"harvest", "process"} & set(stages := unit_manifest(n).get("stages", {}))
     and "routine" not in stages
-    and any("script" not in s for s in stages.values())
+    and (any("script" not in s for s in stages.values()) or unit_manifest(n).get("watch"))
 ]
 ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
 

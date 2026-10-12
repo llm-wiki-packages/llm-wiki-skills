@@ -116,8 +116,9 @@ With the operator present:
    llm-wiki-ops policy retire daily-report-setup
    ```
 
-6. **Close the run** and log the pass to `wiki/log.md` with the `schema`
-   prefix. Never `git commit`: the close commits what this run wrote.
+6. **Log the pass, then close the run.** The `schema`-prefixed line goes to
+   `wiki/log.md` first: the close is the run's one commit, and a write after
+   it stays uncommitted. Never `git commit`.
 
    ```sh
    llm-wiki-ops op close grill outcome=ok summary="daily-report setup: brief (re)designed"

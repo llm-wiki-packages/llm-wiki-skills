@@ -52,7 +52,8 @@ that one pass with a person answering would tailor it. The marker pattern is
 `llm-wiki-ops reference policy-overlays`.
 
 The read writes nothing, so it needs no op. Bound for §8 — `setup` by hand,
-or the row with an operator — open nothing here. Otherwise:
+or the row with an operator — open nothing here: that run ends at §8's
+close. Otherwise:
 
 ```sh
 llm-wiki-ops op open daily-report
@@ -219,6 +220,7 @@ template, fold the section plan and tone into the overlay on the operator's
 yes, retire the marker when §1's read returned it — a redesign on a wiki
 that already ran setup got no row and skips that step — and close under the
 `grill` op, never `daily-report`, which would advance the window cursor.
+The run ends at that close; the report waits for the next invocation.
 
 ## 9. Open questions — the grill loop
 
