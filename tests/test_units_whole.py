@@ -12,13 +12,13 @@ import pytest
 
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
-# The capture units whose body a session follows: each serves `harvest`, no
-# `routine`, and some stage with no `script`. A unit whose every stage is a
-# script has no session body to hold to these checks; a capture unit that
-# forgot `process` stays in, for the both-stages check to catch.
+# The capture units whose body a session follows: each serves `harvest` or
+# `process`, no `routine`, and some stage with no `script`. A unit whose every
+# stage is a script has no session body to hold to these checks; a capture
+# unit that forgot either stage stays in, for the both-stages check to catch.
 CHANNELS = [
     n for n in SKILLS
-    if "harvest" in (stages := unit_manifest(n).get("stages", {}))
+    if {"harvest", "process"} & set(stages := unit_manifest(n).get("stages", {}))
     and "routine" not in stages
     and any("script" not in s for s in stages.values())
 ]
@@ -27,7 +27,7 @@ ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})
 
 def test_the_capture_and_routine_selections_are_not_empty():
     """An empty parametrize skips; this fails, so a selection cannot drift to nothing unseen."""
-    assert CHANNELS, "no unit serves harvest, no routine, with a session stage"
+    assert CHANNELS, "no unit serves harvest or process, no routine, with a session stage"
     assert ROUTINES, "no unit serves routine"
 
 
@@ -308,19 +308,6 @@ def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "file", "dir", "ops", "bins"}, manifest["requires"]
-
-
-# The keys the plugin refuses by name (`units.RETIRED`, `units.REQUIRES_RETIRED`):
-# install fails a unit carrying one, whatever else holds.
-RETIRED = {"match", "process_entry", "kind", "uses"}
-REQUIRES_RETIRED = {"network", "credential"}
-
-
-@pytest.mark.parametrize("name", SKILLS)
-def test_a_manifest_carries_no_key_the_plugin_retired(name):
-    manifest = unit_manifest(name)
-    assert not RETIRED & set(manifest), f"{name}: {sorted(RETIRED & set(manifest))}"
-    assert not REQUIRES_RETIRED & set(manifest.get("requires", {})), f"{name}: requires.{sorted(REQUIRES_RETIRED & set(manifest['requires']))}"
 
 
 @pytest.mark.parametrize("name", SKILLS)

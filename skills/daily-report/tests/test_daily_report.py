@@ -73,15 +73,24 @@ def test_one_op_is_opened_first_and_closed_last():
     closes = BODY.count("llm-wiki-ops op close daily-report ")
     assert (opens, closes) == (1, 1), (opens, closes)
     commands = re.findall(r"^llm-wiki-ops [a-z]+ [a-z]+", BODY, re.M)
-    assert commands[0] == "llm-wiki-ops op open", commands[:3]
+    # The overlay read decides the setup path, which runs under `grill` alone,
+    # so it is the one command before the open; it writes nothing.
+    assert commands[:2] == ["llm-wiki-ops policy get", "llm-wiki-ops op open"], commands[:3]
     # Only the search index follows the close: it posts nothing and needs no op.
     after = commands[commands.index("llm-wiki-ops op close") + 1:]
     assert set(after) <= {"llm-wiki-ops search index"}, after
 
 
 def test_the_skill_never_commits_or_posts_its_own_report():
-    for gone in ("llm-wiki-ops git commit", "tickets update", "written_from=", "written.json"):
+    for gone in ("tickets update", "written_from=", "written.json"):
         assert gone not in BODY, gone
+
+
+@pytest.mark.parametrize("doc", ["SKILL.md", *(f"references/{n}" for n in LOCAL if n.endswith(".md"))])
+def test_no_file_of_the_unit_runs_git_commit(doc):
+    """By hand and under a ticket alike, the op's close commits what the run
+    wrote; the setup path closes `grill` the same way."""
+    assert "llm-wiki-ops git commit" not in (SKILL / doc).read_text(encoding="utf-8"), doc
 
 
 def test_the_schedule_it_names_is_the_ops_morning_job():

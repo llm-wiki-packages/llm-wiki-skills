@@ -12,14 +12,16 @@ with an operator at the keyboard — the first-run seeds. Judgment-heavy: for a
 top-tier model.
 
 Scope: `$ARGUMENTS` — a date to report as, or a focus. Default: today,
-everything since the last report. `setup` runs the interview instead (§8).
-A job's scheduled run is `<args…> ticket=<id> stage=routine`, the words
-before `ticket=` its date or focus, never `setup`; it runs §1–§7 as below,
-with nobody to answer.
+everything since the last report. `setup` alone runs the interview instead
+(§8); words after it make the whole a focus. A job's scheduled run is
+`<args…> ticket=<id> stage=routine`, the words before `ticket=` its date or
+focus, with nobody to answer. Under `ticket=` a leading `setup` is never the
+interview: the run reports, noting that setup needs an operator.
 
-One run is one `daily-report` op, opened in §1 and closed at the end of §7.
-Never `git commit`: the close commits what the run wrote, by hand or at a
-scheduled run's landing (`llm-wiki-ops reference operations`).
+One run is one op: `daily-report`, opened in §1 and closed at the end of §7,
+or on the setup path `grill` alone (§8). Never `git commit`: the close
+commits what the run wrote, by hand or at a scheduled run's landing
+(`llm-wiki-ops reference operations`).
 
 Dream analyzes; this skill formats. It never needs operator input mid-run —
 open questions land in the report for the next `/llm-wiki:grill`.
@@ -31,10 +33,9 @@ open questions land in the report for the next `/llm-wiki:grill`.
 Every command below acts on this wiki. Asked to run against a different one?
 `llm-wiki-ops reference cross-wiki` says how.
 
-## 1. Frame the run and compose the overlay
+## 1. Compose the overlay, then open the run
 
 ```sh
-llm-wiki-ops op open daily-report
 llm-wiki-ops policy get daily-report daily-report-setup
 ```
 
@@ -49,6 +50,13 @@ the marker is retired. With nobody to answer, do what the row says: follow
 the seeded overlay, leave the marker exactly as found, and say in the report
 that one pass with a person answering would tailor it. The marker pattern is
 `llm-wiki-ops reference policy-overlays`.
+
+The read writes nothing, so it needs no op. Bound for §8 — `setup` by hand,
+or the row with an operator — open nothing here. Otherwise:
+
+```sh
+llm-wiki-ops op open daily-report
+```
 
 ## 2. Fix the window
 
@@ -188,9 +196,9 @@ Then close the run's one op, the last thing it posts:
 llm-wiki-ops op close daily-report outcome=ok summary="daily report 2026-09-05: <one line>"
 ```
 
-`outcome` is what moves the window: `ok` only when the report and the brief
-both landed, `partial` when some of it did — say what fell short — `failed`
-when none did.
+`outcome` is what moves the window: `ok` only when it all landed — the
+report, its promotions and the brief — `partial` when some of it did — say
+what fell short — `failed` when none did.
 
 Then, only when `whereami` reports `sandbox.jail: none` — a sandboxed session cannot
 reach the search service, and the runner indexes after this session exits:

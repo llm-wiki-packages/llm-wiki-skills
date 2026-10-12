@@ -106,7 +106,7 @@ With the operator present:
    first read answers both names at once; a redesign on a wiki that already
    ran setup got no `daily-report-setup` row and skips this step, because
    retiring a name the wiki no longer carries is a refusal that would land
-   between the overlay saved above and the commit below, leaving the
+   between the overlay saved above and the close below, leaving the
    operator's answers uncommitted. When the row came back, spend it here,
    after the overlay is saved and not before — this is the only place it is
    spent, and spending it is what stops every later run offering setup
@@ -117,10 +117,9 @@ With the operator present:
    ```
 
 6. **Close the run** and log the pass to `wiki/log.md` with the `schema`
-   prefix:
+   prefix. Never `git commit`: the close commits what this run wrote.
 
    ```sh
-   llm-wiki-ops git commit message="daily-report: template and overlay"
    llm-wiki-ops op close grill outcome=ok summary="daily-report setup: brief (re)designed"
    ```
 

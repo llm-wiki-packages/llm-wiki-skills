@@ -34,9 +34,10 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   `wiki/log.md` and `wiki/index.md` entries. The profile, the previous
   report and the template are read through the same grant.
 
-Nothing here writes `.git`: under the ticket, each verb's write is listed in
-the ticket's capture directory, which the runner grants itself, `op close`
-posts the run's report there, and the host commits at the landing
+Nothing here writes `.git`: under the ticket, each write is listed in the
+ticket's capture directory, which the runner grants itself — a verb's by the
+verb, a Write or Edit by the wiki's `op record` hook — `op close` posts the
+run's report there, and the host commits at the landing
 (`llm-wiki-ops reference operations`).
 
 ## Credential
