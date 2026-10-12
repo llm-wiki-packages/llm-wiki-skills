@@ -269,15 +269,13 @@ Say the post, the page it landed as, and stop.
 - Magic-link email login; Playwright storage state works once logged in.
 - Custom-domain newsletters may not share `substack.com` session cookies —
   save storage state per domain.
-- **A licensed capture needs this wiki's copy to DECLARE a credential**,
-  which the shipped manifest does not (its `requires` names no `file`, so
-  free jobs need no binding): undeclared, the ticket's `credential_mode` is
-  `none` and the slice may read nothing. The operator's path, all in this
-  wiki's own copy: `"file": "optional"` under `requires` in `manifest.json`,
-  `/llm-wiki:enable channel-substack`, `llm-wiki-ops credentials set <name>`
-  (the storage state on stdin), `llm-wiki-ops credentials bind job <slug>
-  file=<name>`, `harvest.access=licensed`. `"optional"` keeps free jobs
-  unbound. (Unverified end to end.)
+- **A licensed capture needs its job bound to the stored session.** The
+  manifest declares `requires.file: "optional"`, so a free job needs no
+  binding and runs with `credential_mode` `none`. The operator's path, per
+  licensed job: `llm-wiki-ops credentials set <name>` (the storage state on
+  stdin), `llm-wiki-ops credentials bind job <slug> file=<name>`,
+  `harvest.access=licensed`. Its ticket then reads `credential_mode` `file`
+  and names the value as `credential_file`. (Unverified end to end.)
 - Handed a `licensed` ticket whose `credential_mode` is not `file`, do not
   improvise: capture what a plain fetch reaches, let the previews go to
   `missing[]` as `auth`, and say in the run report that the job needs those

@@ -5,18 +5,21 @@ helpers and constants are the unit's own tests' —
 `skills/channel-spotify/tests/test_spotify.py`, which ships with the unit — so
 a case here reads exactly as it did beside them.
 
-No route is stored here, so every capture is keyless; the venue answers from
-the unit tests' own `requests` stand-in (`REQUESTS_STUB`), which the session
-puts first on `PYTHONPATH`: a URL with no canned answer fails the step.
+Every capture here is keyless: the harvest's sandbox carries the `spotify`
+route, and a route nothing maps is omitted from the jail. The one case that
+maps it drops the mapping and the stored grant again before it ends. The
+venue answers from the unit tests' own `requests` stand-in (`REQUESTS_STUB`),
+which the session puts first on `PYTHONPATH`: a URL with no canned answer
+fails the step.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
-from harness import ROOT, claimed, declared_job, enabled, jsonc, pending, rooted, run, snippet, staged, unit_tests
+from harness import (ROOT, claimed, declared_job, enabled, jsonc, mapped_route, pending, rooted, run, snippet, staged,
+                     unit_tests, unmapped_route)
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-spotify", "test_spotify"))
@@ -162,16 +165,15 @@ def test_the_route_installs_as_the_venue_templates_machine_widening(ops, env, wi
 
 
 def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
-    """Bound to the venue template `skills install` wrote, and the route mapped
-    to a stored grant, the stage's jail carries the route's variable — holding
-    a phantom, never the stored grant."""
+    """The customize and enable notes, walked through the real CLI: the
+    `spotify-harvest` template `skills install` wrote enabled, the stage bound
+    to it, then the vault named, the grant stored and the route mapped. The
+    stage's jail carries the route's variable — holding a phantom, never the
+    stored grant."""
     job = declared_job(ops, env, wiki, "channel-spotify", "https://open.spotify.com/show/sh00000000000000000007",
                        slug="harness-spotify-route")
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
-    grant = "aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA=="
-    # A route's value carries the host it may be spent at, which `bind` checks against the route's upstream.
-    stored = json.dumps({"value": grant, "host": "accounts.spotify.com"})
 
     def bind(sandbox):
         for verb in (["skills", "bind", "channel-spotify", "stage=harvest", f"sandbox={sandbox}", "--confirm"],
@@ -180,24 +182,20 @@ def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
             done = run(ops, attended, "--json", *verb)
             assert done.returncode == 0, (verb, done.stdout + done.stderr)
 
-    for verb, stdin in ((["credentials", "set", "spotify"], stored), (["sandboxes", "enable", "spotify-harvest", "--confirm"], None)):
-        done = run(ops, attended, "--json", *verb, input=stdin)
-        assert done.returncode == 0, (verb, done.stdout + done.stderr)
-    bind("spotify-harvest")
-    # `bind` asks the provider for the value's host, and the provider reads it from the wiki's vault, which only
-    # the operator names, by hand, in the machine config.
-    config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
-    before = config.read_text(encoding="utf-8")
+    moved = False
     try:
-        config.write_text(before.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"'), encoding="utf-8")
-        # A route nothing maps is omitted from the jail: the skill's mapping is what fills it.
-        done = run(ops, attended, "--json", "credentials", "bind", "skill", "channel-spotify", "spotify=spotify")
+        done = run(ops, attended, "--json", "sandboxes", "enable", "spotify-harvest", "--confirm")
         assert done.returncode == 0, done.stdout + done.stderr
+        moved = True
+        bind("spotify-harvest")
+        grant = mapped_route(ops, env, wiki, "channel-spotify", "spotify", "accounts.spotify.com",
+                             value="aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA==")
         ticket_id, _cap = claimed(ops, env, wiki, job)
         session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
     finally:
-        config.write_text(before, encoding="utf-8")
-        bind("channel-spotify-harvest")  # every other case here runs on the reference's profile alone
+        unmapped_route(ops, env, wiki, "channel-spotify", "spotify")
+        if moved:
+            bind("channel-spotify-harvest")  # every other case here runs on the harness's own sandbox
     phantom = session.step("route")
     assert phantom.returncode == 0 and phantom.stdout.strip(), phantom
     assert grant not in session.log and "harness-secret" not in session.log

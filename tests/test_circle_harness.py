@@ -15,7 +15,7 @@ import subprocess
 
 from pathlib import Path
 
-from harness import claimed, declared_job, pending, rooted, staged, unit_tests
+from harness import claimed, declared_job, pending, rooted, run, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-circle", "test_circle"))
@@ -159,3 +159,35 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr
         assert (wiki / json.loads(done.stdout)["path"]).is_file()
+
+
+def test_the_profile_the_job_maps_reaches_the_harvest_as_its_credential_dir(ops, env, wiki):
+    """SKILL.md's Auth and enable.md step 3, through the real CLI: a `dir`
+    credential mapped to the job with `credentials bind job` reaches the
+    harvest's jail as the ticket's `credential_dir`, writable, which is where
+    `capture_lesson.py` reads the profile."""
+    job = declared_job(ops, env, wiki, UNIT, f"{TARGET}-profile", slug="harness-circle-profile")
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    name = "example.com"
+    try:
+        # `login=browser` as the docs have it needs a person at a browser, and
+        # the host never grants a browser dir nobody logged in to: a dir with
+        # no login stands in, granted by the same slot.
+        done = run(ops, attended, "--json", "credentials", "set", name, "kind=dir", f"host={name}")
+        assert done.returncode == 0, done.stdout + done.stderr
+        profile = done.data["path"]
+        done = run(ops, attended, "--json", "credentials", "bind", "job", job.slug, f"dir={name}")
+        assert done.returncode == 0, done.stdout + done.stderr
+        ticket_id, _cap = claimed(ops, env, wiki, job)
+        session = staged(ops, env, wiki, ticket_id, f"""\
+step open "$OPS" --json tickets open "$TICKET"
+step write touch {shlex.quote(profile)}/harness-wrote
+""")
+    finally:
+        run(ops, attended, "--json", "credentials", "unbind", "job", job.slug)
+        run(ops, attended, "--json", "credentials", "remove", name)
+    opened = session.step("open")
+    assert opened.returncode == 0, opened
+    ticket = json.loads(opened.stdout)["ticket"]
+    assert ticket["credential_mode"] == "dir" and ticket["credential_dir"] == profile, ticket
+    assert session.step("write").returncode == 0, session.step("write")

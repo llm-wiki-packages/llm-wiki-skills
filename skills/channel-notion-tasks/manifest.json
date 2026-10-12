@@ -4,7 +4,8 @@
     "task",
     "tasks",
     "todo",
-    "workspace"
+    "workspace",
+    "host:api.notion.com"
   ],
   "kind": "channel",
   "name": "channel-notion-tasks",
@@ -18,6 +19,9 @@
         }
       }
     ],
+    "credentials": {
+      "notion": "required"
+    },
     "ops": ">=0.1.0"
   },
   "stages": {

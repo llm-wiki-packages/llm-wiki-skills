@@ -73,7 +73,7 @@ def job(ops, env, wiki, request):
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.mailbox=a@example.invalid",
                       f"dest=research/channels/{slug}", slug=slug)
     # The manifest's `requires.file: "required"` is the claim gate: `jobs claim`
-    # skips a job this machine has not bound — bind this machine's session to it.
+    # refuses a job this machine has not bound — bind this machine's session to it.
     bound_credential(ops, env, wiki, j.slug)
     return j
 

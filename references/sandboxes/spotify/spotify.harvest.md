@@ -28,15 +28,17 @@ A venue route, `spotify`, in this sandbox's `## Machine` block below:
 machine's allow file; a peer's commit grants nothing by itself. The route is
 the stage's, never the harness profile's.
 
-The route carries the client-credentials grant, not an API token. Its value
-is the wiki's own, in its credential vault: the app's
-`<client_id>:<client_secret>`, base64-encoded, stored with the host
-`accounts.spotify.com` and mapped to the route's name once per machine that
-harvests (`references/enable.md` of `channel-spotify` has the lines).
-`sandboxes compose` adds the `credential_key` and the capture that read the
-mapped name, so the fragment carries neither. The manifest leaves the
-binding undeclared, which reads `"optional"`; it declares no `file` and no
-`dir`, so no payload file is granted.
+The stage binds to the `spotify-harvest` sandbox `skills install` writes
+from this reference, the one sandbox that carries the route; one written
+from `## Profile` alone carries none. The route carries the
+client-credentials grant, not an API token. Its value is the wiki's own, in
+its credential vault: the app's `<client_id>:<client_secret>`,
+base64-encoded, stored with the host `accounts.spotify.com` and mapped to
+the route's name once per machine that harvests, after the vault is named
+(`references/enable.md` of `channel-spotify` has the lines). `sandboxes
+compose` adds the `credential_key` and the capture that read the mapped
+name, so the fragment carries neither. The manifest declares the binding
+`"optional"`, and no `file` or `dir`, so no payload file is granted.
 
 In the jail `SPOTIFY_TOKEN_AUTH` holds a phantom. `spotify.py` sends it as
 the token request's `Authorization: Basic …`; the proxy puts the real value

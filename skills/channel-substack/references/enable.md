@@ -1,13 +1,14 @@
 # channel-substack — after enabling
 
-1. **Licensed newsletters need the skill to DECLARE a credential**, which
-   the shipped manifest does not (its `requires` names no `file`, so that
-   free jobs need no binding): a slice is granted a secret only when the
-   skill declares the need and the job is bound. SKILL.md's "Auth" lists the
-   steps — declare `"file": "optional"` under `requires` in this wiki's copy,
-   re-enable, `llm-wiki-ops credentials set <name>`, `llm-wiki-ops credentials
-   bind job <slug> file=<name>` — and only the bound jobs are granted the
-   value.
+1. **Licensed newsletters need the job bound to a stored session.** The
+   manifest declares `requires.file: "optional"`: a free job needs no
+   binding, and a slice is granted the value only for a job bound to it.
+   SKILL.md's "Auth" lists the steps — `llm-wiki-ops credentials set
+   <name>`, then `llm-wiki-ops credentials bind job <slug> file=<name>` once
+   the job exists. Bind the job, not the skill: a skill's `file` is handed
+   to every job of the skill. `skills enable --confirm`, which
+   `/llm-wiki:enable` runs, maps nothing and lists the skill's `file` slot
+   as unmapped with a `bind skill` line; leave that line unrun.
 2. Declare the job, naming the skill: `llm-wiki-ops jobs add
    <archive-url> slug=<newsletter>
    description="<what this is>" skill=channel-substack

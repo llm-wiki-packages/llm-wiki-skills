@@ -65,7 +65,7 @@ def day_dir(tmp_path: Path, slug: str = "tasks", day: str = DAY, **over) -> tupl
     directory.mkdir(parents=True)
     ticket = {
         "ticket": TICKET_ID, "slug": slug, "item": None, "target": "notion-tasks",
-        "capture_dir": f"_raw/{slug}/{day}", "options": {"workspace": "harness"}, "credential_mode": "none",
+        "capture_dir": f"_raw/{slug}/{day}", "options": {"workspace": "harness"}, "credential": {}, "credential_mode": "none",
         "min_date": None, "known": [], "dest": f"research/channels/{slug}",
     }
     ticket.update(over)

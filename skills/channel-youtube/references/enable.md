@@ -25,5 +25,7 @@
    working. A harvest that fails with `auth` means the session is dead: run
    `credentials login youtube` again and the next harvest re-exports from
    the fresh profile. Public videos need none of this. Bind the job, not
-   the skill: a skill's `dir` is handed to every job of the skill, so answer
-   `none` when `/llm-wiki:enable` asks for the skill's dir slot.
+   the skill: a skill's `dir` is handed to every job of the skill.
+   `skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing
+   and lists the skill's `dir` slot as unmapped with a `bind skill` line;
+   leave that line unrun.

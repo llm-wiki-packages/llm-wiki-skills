@@ -9,10 +9,7 @@
    Circle the profile is the load-bearing half (Cloudflare's `cf_clearance`
    is fingerprint-bound to it; see the SKILL.md's Auth section).
    The credential store never syncs, so every harvesting machine repeats
-   this once. Tell the operator now: a SPAWNED slice's jail is granted no
-   profile directory today, so until it is, an authenticated capture fails
-   in its jail unless the operator lists this unit in `[unsandboxed]` for this
-   wiki — see the SKILL.md's Auth section.
+   this once, and maps the profile to the job once the job exists (step 3).
 2. Declare the job, naming the skill: `llm-wiki-ops jobs add
    <space-root-url> slug=<community> description="<what this is>"
    skill=channel-circle` — the skill's manifest supplies `every=once`,
@@ -29,3 +26,11 @@
    pulled again by itself: re-queue it with `llm-wiki-ops tickets
    retry <id>` (three attempts per ticket), or declare a period
    (`every=1d`) until the course is held — each run skips what it already has.
+3. **Map the profile to the job**, on each machine that harvests:
+   `llm-wiki-ops credentials bind job <slug> dir=<domain>`. The slice is then
+   granted that directory read-write, and the ticket names it as
+   `credential_dir`; unmapped, a capture exits 2 naming this line. Bind the
+   job, not the skill: a skill's `dir` is handed to every job of the skill,
+   unattended. `skills enable` maps nothing by itself (`/llm-wiki:enable`
+   runs it with `--confirm`, which asks no question and lists this line as
+   unmapped).

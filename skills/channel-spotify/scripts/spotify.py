@@ -389,8 +389,9 @@ def get_token():
         time.sleep(backoff_seconds(r))
     if r.status_code != 200:
         die(
-            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is mapped and its grant "
-            f"is wrong: `llm-wiki-ops credentials set spotify` (references/enable.md)"
+            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is mapped to a grant Spotify "
+            f"refuses: store the right one under the name `llm-wiki-ops credentials bindings` shows for it "
+            f"(references/enable.md)"
         )
     tok = r.json()
     _token_cache = {"token": tok["access_token"], "expires_at": time.time() + tok.get("expires_in", 3600)}

@@ -4,9 +4,16 @@
    catalog only; no user login exists in this skill). It is the harvest
    sandbox's `spotify` route (`sandboxes enable` asks before it writes the
    route to this machine's allow file), and its value is the wiki's own, in
-   its credential vault, mapped to the route on this machine. Have the
-   operator create an app at developer.spotify.com → Dashboard; then the
-   OPERATOR runs this at a terminal, once per machine that harvests:
+   its credential vault, mapped to the route on this machine. The stage is
+   bound to the `spotify-harvest` sandbox (`references/customize.md`). Once
+   per machine that harvests, name the wiki's vault, by hand — no verb
+   writes a `[wikis]` key — as `vault = "local"` under `[wikis.<key>]` (this
+   wiki's key in `llm-wiki-cli machine wikis ls`) in the file
+   `llm-wiki-cli machine config get config_path` names; the `credentials`
+   row of `llm-wiki-ops doctor` names the same edit, and `bind` refuses
+   until it is made. Have the operator create an app at
+   developer.spotify.com → Dashboard; then the OPERATOR runs this at a
+   terminal, once per machine that harvests:
 
    ```sh
    printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
@@ -20,8 +27,9 @@
    value without echo — paste that line there. Neither puts it in an
    argument (argv is readable in `ps` and lands in shell history), and
    `credentials set` asks only at a terminal: its stdin is not a pipe. The
-   third maps the route to it (`/llm-wiki:enable` asks the same); `bind`
-   refuses a value whose host is not the route's. In the harvest's jail the
+   third maps the route to it; `bind` refuses a value whose host is not the
+   route's. `skills enable --confirm`, which `/llm-wiki:enable` runs, maps
+   nothing: it lists `spotify` as unmapped, with that line. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
    token request bound for `accounts.spotify.com`. With the route mapped to a
    wrong grant, the token request fails and the harvest says so; with the

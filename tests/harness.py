@@ -84,8 +84,9 @@ atexit.register(shutil.rmtree, SCRATCH, ignore_errors=True)
 # session cannot rewrite what it was told to do.
 AGENT_DIR = SCRATCH / "harness-bin"
 FAKE_AGENT = Path(__file__).with_name("fake_agent.sh")
-# First on the harness's PATH as `bin/yt-dlp`: see the file.
+# First on the harness's PATH as `bin/yt-dlp` and `bin/ntn`: see each file.
 FAKE_YT_DLP = Path(__file__).with_name("fake_yt_dlp.sh")
+FAKE_NTN = Path(__file__).with_name("fake_ntn.sh")
 YT_FIXTURES = AGENT_DIR / "yt"
 
 
@@ -117,8 +118,8 @@ def rooted(env: dict, wiki: Path) -> dict:
 def machine_harness(home: Path) -> Path:
     """The machine's default harness profile, pointing at the fake agent: a
     session stage's jail starts it where a real box starts `claude`, with no
-    agent binary on PATH and no login route. Beside it, the `yt-dlp` stand-in
-    the harness's PATH leads with, a git identity, uv set offline, and
+    agent binary on PATH and no login route. Beside it, the `yt-dlp` and `ntn`
+    stand-ins the harness's PATH leads with, a git identity, uv set offline, and
     `bins.jsonc` naming `uv`, which `run` needs for a script with PEP 723
     dependencies and a jail's PATH does not carry."""
     AGENT_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,6 +130,8 @@ def machine_harness(home: Path) -> Path:
     (AGENT_DIR / "bin" / "yt-dlp").write_text(
         FAKE_YT_DLP.read_text(encoding="utf-8").replace("@YT_FIXTURES@", shlex.quote(str(YT_FIXTURES))), encoding="utf-8")
     (AGENT_DIR / "bin" / "yt-dlp").chmod(0o755)
+    shutil.copy2(FAKE_NTN, AGENT_DIR / "bin" / "ntn")
+    (AGENT_DIR / "bin" / "ntn").chmod(0o755)
     profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
     profile.parent.mkdir(parents=True, exist_ok=True)
     profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
@@ -268,12 +271,29 @@ def snippet(reference: str) -> str:
     return fences[0]
 
 
+def machine_fragment(reference: str) -> dict | None:
+    """The one fenced `json` block under a reference's `## Machine`: the nono
+    fragment carrying its venue route, which `skills install` writes to the
+    venue template's `machine.allow`. None where the reference has no such
+    section."""
+    match = re.search(r"^## Machine\n(.*?)(?=^## |\Z)", reference, re.M | re.S)
+    if not match:
+        return None
+    (fence,) = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
+    return json.loads(fence)
+
+
 def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
     """Every stage of the installed unit that names a `sandbox_ref`, bound the
     way `/llm-wiki:sandbox` and `/llm-wiki:enable` do it: the reference read
     through the CLI, its snippet written and committed as a wiki sandbox, that
     sandbox enabled, the stage bound. A snippet key the policy reader does not
-    admit fails here, at `sandboxes enable`."""
+    admit fails here, at `sandboxes enable`.
+
+    A reference carrying a venue route gets it too, as the sandbox's
+    `machine.allow`, so a unit declaring that binding name enables. The venue
+    template carries the same route, behind a probe that runs the venue's
+    own client; each unit's documented-path case walks the template."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     for stage, spec in unit_manifest(name).get("stages", {}).items():
         ref = spec.get("sandbox_ref")
@@ -285,13 +305,19 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
         sandbox = f"{name}-{stage}"
         template = wiki / ops_dir / "sandboxes" / f"{sandbox}.jsonc"
         template.parent.mkdir(parents=True, exist_ok=True)
-        template.write_text(snippet(r.data["text"]), encoding="utf-8")
+        route = machine_fragment(r.data["text"])
+        if route is None:
+            template.write_text(snippet(r.data["text"]), encoding="utf-8")
+        else:
+            template.write_text(json.dumps({**jsonc(snippet(r.data["text"])), "machine": {"allow": [route]}}), encoding="utf-8")
         for verb in (
             ["git", "commit", str(template.relative_to(wiki)), f"message=sandboxes: {sandbox} from {ref}"],
             ["sandboxes", "enable", sandbox, "--confirm"],
             ["skills", "bind", name, f"stage={stage}", f"sandbox={sandbox}", "--confirm"],
         ):
-            r = run(ops, rooted(env, wiki), "--json", *verb)
+            # A machine widening — the route — is enabled only on an attended yes.
+            attended = {"LLM_WIKI_SESSION_ATTENDED": "1"} if route is not None and verb[0] == "sandboxes" else {}
+            r = run(ops, {**rooted(env, wiki), **attended}, "--json", *verb)
             assert r.returncode == 0, r.stdout + r.stderr
 
 
@@ -329,6 +355,41 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     r = run(ops, attended_env, "--json", "credentials", "bind", "job", slug, f"file={name}")
     assert r.returncode == 0, r.stdout + r.stderr
     return name
+
+
+def local_vault(env: dict) -> None:
+    """`[wikis.harness] vault = "local"` in the session's machine config, by
+    hand: no verb writes a `[wikis]` key, and the doctor's `credentials` row
+    names this edit as the fix. The provider reads a route's value through
+    it, and `credentials bind` asks it for that value's host. Idempotent."""
+    config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
+    text = config.read_text(encoding="utf-8")
+    if 'vault = "local"' not in text:
+        assert "[wikis.harness]" in text, text
+        config.write_text(text.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"', 1), encoding="utf-8")
+
+
+def mapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str, host: str, value: str = "harness-token") -> str:
+    """`unit`'s venue route `route` mapped on this machine, the way its
+    references/enable.md says: the vault named, the value stored under the
+    route's name with the one host it may be spent at, then `credentials bind
+    skill`. Returns the stored value."""
+    local_vault(env)
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    r = run(ops, attended, "--json", "credentials", "set", route, input=json.dumps({"value": value, "host": host}))
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = run(ops, attended, "--json", "credentials", "bind", "skill", unit, f"{route}={route}")
+    assert r.returncode == 0, r.stdout + r.stderr
+    return value
+
+
+def unmapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str) -> None:
+    """`mapped_route` undone, for a `finally`: the skill's mapping dropped and
+    the stored value removed. A case that stopped early may have made
+    neither, so neither refusal is an error here."""
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    run(ops, attended, "--json", "credentials", "unbind", "skill", unit)
+    run(ops, attended, "--json", "credentials", "remove", route)
 
 
 def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extra: str, slug: str | None = None) -> Job:

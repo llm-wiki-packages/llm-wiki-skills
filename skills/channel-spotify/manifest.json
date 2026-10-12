@@ -14,6 +14,9 @@
   "kind": "channel",
   "name": "channel-spotify",
   "requires": {
+    "credentials": {
+      "spotify": "optional"
+    },
     "ops": ">=0.1.0"
   },
   "stages": {

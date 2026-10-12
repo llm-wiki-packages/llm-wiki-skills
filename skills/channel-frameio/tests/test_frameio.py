@@ -81,7 +81,7 @@ def _ticket(**over):
         "v": 1, "ticket": "0123456789ab", "unit": UNIT, "slug": "talks", "item": SHARE, "target": SHARE,
         "capture_dir": "_raw/talks/share-0000--deadbeef", "dest": None, "hosts": ["*.frame.io", "frame.io"],
         "harvest": {"scope": "domain", "access": "free", "exclude_urls": [], "assets": "download"},  # the shipped default
-        "options": {}, "credential_mode": "none", "min_date": None, "known": [],
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": None, "known": [],
         "worker": "spawn-1",  # the slice id `open` answers (P-8); a test that respawns rotates it
     }
     ticket.update(over)

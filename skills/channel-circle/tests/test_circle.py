@@ -66,7 +66,7 @@ def ticket(**over) -> dict:
         "ticket": "0123456789ab", "slug": "course", "item": TARGET, "target": TARGET,
         "capture_dir": "_raw/course/c-course-one--aaaaaaaa", "dest": None, "hosts": ["example.com"],
         "harvest": {"scope": "section", "access": "licensed", "exclude_urls": [], "assets": "reference"},
-        "options": {}, "credential_mode": "none", "min_date": None, "known": [], "refresh": False, "resource": None,
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": None, "known": [], "refresh": False, "resource": None,
         # The host's own stamp at the move to `active/` (Q1) — `now`, as a
         # real claim would leave it moments before this ticket is opened.
         "claimed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -618,10 +618,10 @@ def stub_front_door(tmp_path: Path, answer: dict, rc: int = 0) -> tuple[dict, Pa
     return env, seen
 
 
-def stub_capture_front_door(tmp_path: Path, ticket_dict: dict, profile_answer: dict, rc: int = 0) -> tuple[dict, Path]:
-    """`capture_lesson.py`'s own front door reaches two verbs: `tickets open`
-    (its `--ticket`'s target) and `credentials info` (the auth
-    profile's dir credential). This stub answers both for real and records the LAST argv."""
+def stub_capture_front_door(tmp_path: Path, ticket_dict: dict) -> tuple[dict, Path]:
+    """`capture_lesson.py`'s own front door reaches one verb, `tickets open`:
+    its `--ticket`'s target, and the auth profile the ticket grants as
+    `credential_dir`. This stub answers it for real and records the LAST argv."""
     home = tmp_path / ".ops-stub"
     home.mkdir(exist_ok=True)
     stub, seen = home / "ops_stub.py", home / "seen.json"
@@ -631,13 +631,9 @@ def stub_capture_front_door(tmp_path: Path, ticket_dict: dict, profile_answer: d
         f"json.dump({{'argv': argv}}, open({str(seen)!r}, 'w'))\n"
         "argv = [a for a in argv if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        f"PROFILE = json.loads({json.dumps(json.dumps(profile_answer))})\n"
         "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:2] == ['credentials', 'info']:\n"
-        f"    print(json.dumps(PROFILE))\n"
-        f"    sys.exit({rc})\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
     )
     return {**os.environ, "LLM_WIKI_OPS": shlex.join([sys.executable, str(stub)])}, seen
@@ -704,28 +700,31 @@ def test_capture_lesson_resolve_job_falls_back_to_the_generic_line_on_a_silent_r
     assert why == "no --ticket names a target"
 
 
-def test_capture_lesson_the_documented_way_reads_the_profile_answer(wiki_root, tmp_path_factory):
+def test_capture_lesson_the_documented_way_reads_the_granted_profile(wiki_root, tmp_path_factory):
     """No browser here — and none is needed to reach the answer that matters:
-    `<root> --out <capture_dir>`, cwd the wiki root, relative paths."""
+    `<root> --out <capture_dir> --ticket <id>`, cwd the wiki root, relative paths."""
     root, rel = wiki_root
     t = ticket()
-    env, seen = stub_capture_front_door(
-        tmp_path_factory.mktemp("door"), t, {"name": "example.com", "kind": "dir", "state": "none", "path": "/nowhere/profile", "exists": False},
-    )
+    env, seen = stub_capture_front_door(tmp_path_factory.mktemp("door"), t)
     done = cli(CAPTURE, ".", "--out", rel, "--ticket", t["ticket"], cwd=root, env=env)
-    assert done.returncode == 2 and "no auth profile" in done.stderr, done.stderr  # absent: a login is what fixes it
-    assert json.loads(seen.read_text(encoding="utf-8"))["argv"] == ["--json", "credentials", "info", "example.com"]
-    # The store unreachable — what a jail with no grant on it answers: 5, never 2.
-    env, _ = stub_capture_front_door(tmp_path_factory.mktemp("door5"), t, {"error": "permission denied"}, rc=1)
-    assert cli(CAPTURE, ".", "--out", rel, "--ticket", t["ticket"], cwd=root, env=env).returncode == 5
-    # `--leaf`, the documented way.
+    # Absent: the ticket grants no profile, and the hint is the operator's whole fix, for THIS job.
+    assert done.returncode == 2 and "no auth profile granted" in done.stderr, done.stderr
+    assert "llm-wiki-ops credentials bind job course dir=example.com" in done.stderr, done.stderr
+    assert json.loads(seen.read_text(encoding="utf-8"))["argv"] == ["--json", "tickets", "open", t["ticket"]]
+    # A granted directory this run cannot read: 5, never 2 — no login fixes it.
+    gone = ticket(credential_mode="dir", credential_dir=str(tmp_path_factory.mktemp("gone") / "profile"))
+    env, _ = stub_capture_front_door(tmp_path_factory.mktemp("door5"), gone)
+    assert cli(CAPTURE, ".", "--out", rel, "--ticket", gone["ticket"], cwd=root, env=env).returncode == 5
+    # `--leaf`, the documented way: the ticket rides it, for the profile.
     t = ticket()
     assert cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path_factory.mktemp("ticket-door"), ticket_dict=t).returncode == 0
-    env, seen = stub_front_door(tmp_path_factory.mktemp("door2"), {"name": "example.com", "kind": "dir", "state": "none", "path": "/nowhere", "exists": False})
+    env, seen = stub_capture_front_door(tmp_path_factory.mktemp("door2"), t)
     plan = last_json_plan(cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path_factory.mktemp("ticket-door2"), ticket_dict=t))
+    done = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 1, "--ticket", t["ticket"], cwd=root, env=env)
+    assert done.returncode == 2 and (root / plan["leaves"][0]["dir"]).is_dir(), done.stderr
     done = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 1, cwd=root, env=env)
-    assert done.returncode == 2 and (root / plan["leaves"][0]["dir"]).is_dir()
-    assert cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 7, cwd=root, env=env).returncode == 4
+    assert done.returncode == 2 and "no --ticket" in done.stderr, done.stderr
+    assert cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 7, "--ticket", t["ticket"], cwd=root, env=env).returncode == 4
 
 
 # --- S5: stop before the cap, and make "resume" real ----------------------------

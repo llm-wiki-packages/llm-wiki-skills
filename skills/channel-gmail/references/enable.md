@@ -39,8 +39,10 @@
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
    mailbox". Bind the job, never the skill: a skill's mapping answers for
-   every mailbox, so answer `none` when `/llm-wiki:enable` asks for the
-   skill's file slot. Exactly what to run, on the machine that pulls:
+   every mailbox. `skills enable --confirm`, which `/llm-wiki:enable` runs,
+   maps nothing and lists the skill's `file` slot as unmapped with a `bind
+   skill` line; leave that line unrun. Exactly what to run, on the machine
+   that pulls:
    `printf '%s' '<who>@example.com' | llm-wiki-ops credentials set <slug>-mailbox`
    — the name is the operator's to choose (`<slug>-mailbox` reads well in
    `credentials bindings`); the VALUE is unused by everything, so set it to

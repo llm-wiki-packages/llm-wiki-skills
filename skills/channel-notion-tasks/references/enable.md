@@ -27,33 +27,41 @@
    with the same target and slug moves it and keeps every other key:
    `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-notion-tasks
    dest=research/channels/<slug>`.
-2. **The credential: the wiki's vault, never a login.** Harvest reaches Notion
-   through the `notion` route in its sandbox (the sandbox reference's
-   `## Credential` section spells it out), and the route's token is the
-   wiki's own. On each machine that pulls, store the Notion bot token for
-   the workspace the job names, never on a command line, as
-   `{"value": "<token>", "host": "api.notion.com"}` at the prompt — the
-   host is where the value may be spent — then map the route to it
-   (`/llm-wiki:enable` asks the same):
+2. **The vault and the token, before the sandbox.** Harvest reaches Notion
+   through the `notion` route of the `notion-harvest` sandbox (the sandbox
+   reference's `## Credential` section spells it out), and the route's
+   token is the wiki's own. The sandbox's probe spends it, so where
+   `/llm-wiki:enable` stopped at `sandboxes enable notion-harvest`, these
+   are why: do them, then run `/llm-wiki:enable channel-notion-tasks`
+   again. On each machine that pulls, first name the wiki's vault, by hand
+   — no verb writes a `[wikis]` key — as `vault = "local"` under
+   `[wikis.<key>]` (this wiki's key in `llm-wiki-cli machine wikis ls`) in
+   the file `llm-wiki-cli machine config get config_path` names; the
+   `credentials` row of `llm-wiki-ops doctor` names the same edit. Then store
+   the Notion bot token for the workspace the job names, never on a command
+   line, as `{"value": "<token>", "host": "api.notion.com"}` at the prompt —
+   the host is where the value may be spent:
 
    ```sh
    llm-wiki-ops credentials set notion
-   llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion
    ```
 
    No `ntn login`, and no route in a harness profile: the jail holds a
    phantom and the proxy supplies the token to `api.notion.com` alone.
-   Without the mapping the jail omits the route, and a harvest reports
-   `failed`, `auth`, on `api.notion.com`.
 
    ```sh
    llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
    ```
-3. **No job binding, and why.** The manifest leaves the `notion` binding
-   undeclared, which reads `"optional"`, and declares no `file` or `dir`:
-   this skill reads no payload, so its one credential is the sandbox's
-   `notion` route, filled by the skill's mapping on whichever machine runs
-   the harvest. A machine that maps nothing still claims the harvest and
-   fails it. Where more than one machine has the skill enabled, pin the job
-   to one that maps the token: `llm-wiki-ops jobs edit
-   <slug> harvest.machine=<machine id>`.
+3. **Map the route, once the stage is bound to `notion-harvest`.**
+   `skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing:
+   it lists `notion` as unmapped, with the line to run. On each machine that
+   pulls:
+
+   ```sh
+   llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion
+   ```
+
+   The manifest declares the binding `"required"`, so a machine that maps
+   nothing claims no harvest: `jobs claim` refuses, "harvest requires
+   notion and this machine fills none of it". No job binding: this skill
+   reads no payload, so its one credential is the sandbox's `notion` route.

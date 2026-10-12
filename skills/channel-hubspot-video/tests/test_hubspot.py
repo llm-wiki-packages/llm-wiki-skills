@@ -136,7 +136,7 @@ def ticket(cap: Path, root: Path, **over) -> dict:
         "ticket": "0123456789ab", "slug": "site-learn", "item": SECTION, "target": SECTION,
         "capture_dir": str(cap.relative_to(root)), "dest": None, "hosts": ["www.example-hubspot.invalid"],
         "harvest": {"scope": "section", "exclude_urls": [], "assets": "download"},
-        "options": {}, "credential_mode": "none", "min_date": "2026-01-01", "known": [], "refresh": False, "resource": None,
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": "2026-01-01", "known": [], "refresh": False, "resource": None,
     }
     body.update(over)
     cap.mkdir(parents=True, exist_ok=True)
