@@ -37,8 +37,9 @@ base64-encoded, stored with the host `accounts.spotify.com` and mapped to
 the route's name once per machine that harvests, after the vault is named
 (`references/enable.md` of `channel-spotify` has the lines). `sandboxes
 compose` adds the `credential_key` and the capture that read the mapped
-name, so the fragment carries neither. The manifest declares the binding
-`"optional"`, and no `file` or `dir`, so no payload file is granted.
+name, so the fragment carries neither. The manifest leaves the binding
+undeclared, which reads `"optional"`, and declares no `file` or `dir`, so no
+payload file is granted.
 
 In the jail `SPOTIFY_TOKEN_AUTH` holds a phantom. `spotify.py` sends it as
 the token request's `Authorization: Basic …`; the proxy puts the real value

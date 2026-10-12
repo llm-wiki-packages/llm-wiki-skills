@@ -30,11 +30,14 @@
 2. **The vault and the token, before the sandbox.** Harvest reaches Notion
    through the `notion` route of the `notion-harvest` sandbox (the sandbox
    reference's `## Credential` section spells it out), and the route's
-   token is the wiki's own. The sandbox's probe spends it, so where
-   `/llm-wiki:enable` stopped at `sandboxes enable notion-harvest`, these
-   are why: do them, then run `/llm-wiki:enable channel-notion-tasks`
-   again. On each machine that pulls, first name the wiki's vault, by hand
-   — no verb writes a `[wikis]` key — as `vault = "local"` under
+   token is the wiki's own. The sandbox's probe, `ntn whoami`, runs at
+   `sandboxes enable notion-harvest` and spends that token, so do these
+   first. That enable must pass the probe: nothing is enabled until it
+   exits 0, and a refusal names `machine.probe`, its exit code and its
+   stderr — fix what the stderr names, then run `/llm-wiki:enable
+   channel-notion-tasks` again. On each machine that pulls, first name the
+   wiki's vault, by hand — no verb writes a `[wikis]` key — as
+   `vault = "local"` under
    `[wikis.<key>]` (this wiki's key in `llm-wiki-cli machine wikis ls`) in
    the file `llm-wiki-cli machine config get config_path` names; the
    `credentials` row of `llm-wiki-ops doctor` names the same edit. Then store

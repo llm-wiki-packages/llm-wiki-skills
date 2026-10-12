@@ -722,8 +722,12 @@ def test_capture_lesson_the_documented_way_reads_the_granted_profile(wiki_root, 
     plan = last_json_plan(cli(PLAN, "plan", rel, cwd=root, tmp_path=tmp_path_factory.mktemp("ticket-door2"), ticket_dict=t))
     done = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 1, "--ticket", t["ticket"], cwd=root, env=env)
     assert done.returncode == 2 and (root / plan["leaves"][0]["dir"]).is_dir(), done.stderr
-    done = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 1, cwd=root, env=env)
-    assert done.returncode == 2 and "no --ticket" in done.stderr, done.stderr
+    # No `--ticket` is a usage error, never the auth exit: nothing is opened or started.
+    seen.unlink()
+    for line in (("--plan", f"{rel}/plan.json", "--leaf", 2), ("--out", rel)):
+        done = cli(CAPTURE, ".", *line, cwd=root, env=env)
+        assert done.returncode == 7 and "--ticket <id> is required" in done.stderr, done.stderr
+    assert not seen.exists() and not (root / plan["leaves"][1]["dir"]).exists()
     assert cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 7, "--ticket", t["ticket"], cwd=root, env=env).returncode == 4
 
 
@@ -795,7 +799,7 @@ def test_past_the_deadline_record_says_stop_and_no_new_lesson_is_started(wiki_ro
     assert (root / plan["leaves"][0]["dir"] / "capture.json").is_file(), "exit 3 means recorded AND stop — the leaf landed"
     # …and the next lesson is refused before any browser (or credential lookup) is started.
     env, seen = stub_front_door(tmp_path_factory.mktemp("door"), {"path": "/x", "exists": True})
-    refused = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 2, cwd=root, env=env)
+    refused = cli(CAPTURE, ".", "--plan", f"{rel}/plan.json", "--leaf", 2, "--ticket", t["ticket"], cwd=root, env=env)
     assert refused.returncode == 6 and "deadline" in refused.stderr and not seen.exists()
     assert not (root / plan["leaves"][1]["dir"]).exists()
 

@@ -122,14 +122,6 @@ def test_a_ticket_granting_no_profile_is_absent_and_names_the_bind(circle, front
         assert line in refused[1], refused
 
 
-def test_no_ticket_is_absent_without_asking(circle, front_door, tmp_path):
-    seen = front_door(0, circle_ticket())
-    path, refused = circle.profile_dir(tmp_path, None, "community.example")
-    assert path is None and refused[0] == "absent" and "no --ticket" in refused[1], refused
-    with pytest.raises(FileNotFoundError):
-        seen()
-
-
 def test_a_granted_directory_that_is_gone_is_unreachable(circle, front_door, tmp_path):
     """No login fixes a grant this run cannot read: never `absent`."""
     front_door(0, circle_ticket(credential_mode="dir", credential_dir=str(tmp_path / "gone")))

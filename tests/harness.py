@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import atexit
+import contextlib
 import importlib.util
 import json
 import os
@@ -293,7 +294,10 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
     A reference carrying a venue route gets it too, as the sandbox's
     `machine.allow`, so a unit declaring that binding name enables. The venue
     template carries the same route, behind a probe that runs the venue's
-    own client; each unit's documented-path case walks the template."""
+    own client; each unit's documented-path case walks the template.
+    This sandbox stands in for the template only because the plugin's
+    probe-cwd bug stops a template's probe (notion's `ntn whoami`) from
+    running; the docs still point at the template."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     for stage, spec in unit_manifest(name).get("stages", {}).items():
         ref = spec.get("sandbox_ref")
@@ -357,24 +361,30 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     return name
 
 
-def local_vault(env: dict) -> None:
+@contextlib.contextmanager
+def local_vault(env: dict):
     """`[wikis.harness] vault = "local"` in the session's machine config, by
-    hand: no verb writes a `[wikis]` key, and the doctor's `credentials` row
-    names this edit as the fix. The provider reads a route's value through
-    it, and `credentials bind` asks it for that value's host. Idempotent."""
+    hand, for the `with` block: no verb writes a `[wikis]` key, and the
+    doctor's `credentials` row names this edit as the fix. The provider reads
+    a route's value through it, at bind, at spawn and on each request, so a
+    case holds it across all three. The config is put back as it was found,
+    so no case leans on another having named the vault."""
     config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
-    text = config.read_text(encoding="utf-8")
-    if 'vault = "local"' not in text:
-        assert "[wikis.harness]" in text, text
-        config.write_text(text.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"', 1), encoding="utf-8")
+    before = config.read_text(encoding="utf-8")
+    if 'vault = "local"' not in before:
+        assert "[wikis.harness]" in before, before
+        config.write_text(before.replace("[wikis.harness]", '[wikis.harness]\nvault = "local"', 1), encoding="utf-8")
+    try:
+        yield
+    finally:
+        config.write_text(before, encoding="utf-8")
 
 
 def mapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str, host: str, value: str = "harness-token") -> str:
     """`unit`'s venue route `route` mapped on this machine, the way its
-    references/enable.md says: the vault named, the value stored under the
-    route's name with the one host it may be spent at, then `credentials bind
-    skill`. Returns the stored value."""
-    local_vault(env)
+    references/enable.md says: the value stored under the route's name with
+    the one host it may be spent at, then `credentials bind skill`. The caller
+    holds `local_vault`, which `bind` reads. Returns the stored value."""
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, attended, "--json", "credentials", "set", route, input=json.dumps({"value": value, "host": host}))
     assert r.returncode == 0, r.stdout + r.stderr

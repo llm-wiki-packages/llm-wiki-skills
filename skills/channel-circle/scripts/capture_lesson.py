@@ -52,7 +52,8 @@ distinct from "no profile yet"; re-running the login helper will not fix it.
 `--leaf` the plan does not hold, or a target that is not http(s).
 6 if `--leaf` was asked after the plan's `deadline`: NOTHING was started — run
 `section_plan.py report` and exit (the slice is killed at 30 minutes, and a
-killed slice posts no update).
+killed slice posts no update). 7 if no `--ticket` was given: a usage error,
+nothing was started.
 
 History:
   2026-07-11  created — first Circle course capture.
@@ -146,8 +147,6 @@ def profile_dir(root, ticket_id, domain):
         f"Run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, "
         f"llm-wiki-ops credentials login {domain}, then llm-wiki-ops credentials bind job <slug> dir={domain}"
     )
-    if not ticket_id:
-        return None, ("absent", f"no --ticket, so no granted auth profile for {domain}. {absent}")
     proc = _ops(root, "tickets", "open", ticket_id)
     try:
         answer = json.loads(proc.stdout)
@@ -200,6 +199,8 @@ def ticket_target(root: Path, ticket_id: str | None, refusal: list | None = None
 
 EXIT_NOTHING_TO_CAPTURE = 4
 EXIT_PAST_DEADLINE = 6
+# A usage error: every call names its ticket, the one place the profile is.
+EXIT_NO_TICKET = 7
 
 
 def under(root, given) -> Path:
@@ -297,6 +298,9 @@ def main() -> int:
     ap.add_argument("--timeout-ms", type=int, default=45000)
     args = ap.parse_args()
 
+    if not args.ticket:
+        print("error: --ticket <id> is required: the auth profile is the ticket's credential_dir", file=sys.stderr)
+        return EXIT_NO_TICKET
     args.url, out, is_ticket_target, refused = resolve_job(args.root, args.out, args.plan, args.leaf, args.ticket)
     if refused:
         print(f"error: {refused[1]}", file=sys.stderr)

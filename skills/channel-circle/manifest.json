@@ -12,7 +12,7 @@
   "kind": "channel",
   "name": "channel-circle",
   "requires": {
-    "dir": "optional",
+    "dir": "required",
     "ops": ">=0.1.0"
   },
   "stages": {

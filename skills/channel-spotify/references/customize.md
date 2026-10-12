@@ -15,7 +15,6 @@ channel-spotify` binds the stage. **Reuse the `spotify-harvest` sandbox
 `skills install` wrote; never write a `channel-spotify-harvest` from the
 snippet.** The `spotify` route is the reference's `## Machine` block, which
 install puts in that sandbox's `machine.allow` and a sandbox written from
-`## Profile` alone lacks, and the manifest declares
-`requires.credentials.spotify`: `skills enable` refuses a stage bound to a
-sandbox that carries no `spotify` route. `process` names no sandbox and runs
-with no network.
+`## Profile` alone lacks: bound to one of those, the stage still enables,
+but nothing can map the route and every capture is keyless. `process` names
+no sandbox and runs with no network.

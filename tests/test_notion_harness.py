@@ -93,9 +93,27 @@ def job(ops, env, wiki, request):
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.workspace=harness",
                      slug=f"harness-notion-{own}"[:60])
     # `requires.credentials.notion` is "required": `jobs claim` refuses a
-    # harvest this machine does not map the route for.
+    # harvest this machine does not map the route for. The mapping, the token
+    # and the vault are this case's alone, gone when it ends.
+    with local_vault(env):
+        mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
+        try:
+            yield j
+        finally:
+            unmapped_route(ops, env, wiki, UNIT, "notion")
+
+
+def test_a_harvest_is_refused_until_the_route_is_mapped(ops, env, wiki, job):
+    """`requires.credentials.notion` is "required", on a sandbox that carries
+    the route: with nothing mapped, `jobs claim` refuses and mints no ticket;
+    mapped (enable.md step 3), the same claim mints the harvest."""
+    unmapped_route(ops, env, wiki, UNIT, "notion")
+    refused = run(ops, rooted(env, wiki), "--json", "jobs", "claim", job.slug)
+    said = refused.stdout + refused.stderr
+    assert refused.returncode == 2 and "harvest requires notion and this machine fills none of it" in said, said
     mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
-    return j
+    ticket_id, _cap = claimed(ops, env, wiki, job)
+    assert ticket_id
 
 
 # What `sandboxes enable` answers on plugins main for any template whose
@@ -123,7 +141,6 @@ def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, e
     unmapped_route(ops, env, wiki, UNIT, "notion")  # the job fixture's mapping: this case makes its own
     moved = False
     try:
-        local_vault(env)
         done = run(ops, attended, "--json", "credentials", "set", "notion",
                    input=json.dumps({"value": token, "host": "api.notion.com"}))
         assert done.returncode == 0, done.stdout + done.stderr

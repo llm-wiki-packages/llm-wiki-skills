@@ -113,8 +113,6 @@ def profile_dir(root, ticket_id, domain):
         f"Run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, "
         f"llm-wiki-ops credentials login {domain}, then llm-wiki-ops credentials bind job <slug> dir={domain}"
     )
-    if not ticket_id:
-        return None, ("absent", f"no --ticket, so no granted auth profile for {domain}. {absent}")
     proc = _ops(root, "tickets", "open", ticket_id)
     try:
         answer = json.loads(proc.stdout)

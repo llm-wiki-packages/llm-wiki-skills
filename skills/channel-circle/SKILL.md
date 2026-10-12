@@ -94,7 +94,8 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
    auth expired, 3 = a Cloudflare challenge that did not clear — both need a
    person (see Auth), so stop fetching the domain and report `--auth-expired`;
    5 = the ticket or its granted profile could not be read, `error` and never
-   `auth`, because no login fixes it; 4 = nothing usable to capture; 6 = the deadline passed, nothing started.
+   `auth`, because no login fixes it; 4 = nothing usable to capture; 6 = the
+   deadline passed, nothing started; 7 = no `--ticket`, a usage error: fix it.
    `record`: 3 with `"stop": true` = the leaf landed AND the deadline passed —
    start no further lesson, report, exit.
 
@@ -159,13 +160,13 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
 
 ## Auth (one-time, per domain)
 
-- **The secret is a directory** — `requires.dir: "optional"`. What
+- **The secret is a directory** — `requires.dir: "required"`. What
   authenticates a capture is the persistent Chrome PROFILE the login helper
   minted for the domain, granted to the slice read-write as the ticket's
   `credential_dir` (`credential_mode` `dir`); `capture_lesson.py` and
-  `outage_probe.py` read it off `tickets open`. A ticket with no
-  `credential_dir` means this machine maps no logged-in profile to the job:
-  the host never grants a browser dir nobody has logged in to.
+  `outage_probe.py` read it off `tickets open`. A machine that maps no
+  logged-in profile to the job claims none of its harvests: the host never
+  grants a browser dir nobody has logged in to.
 - One-time manual login, by a person at a browser, which the host arranges
   and a worker never does: `llm-wiki-ops credentials set <domain> kind=dir
   login=browser host=<domain>`, then `llm-wiki-ops credentials login <domain>`.

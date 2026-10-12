@@ -18,8 +18,8 @@ from __future__ import annotations
 import json
 import re
 
-from harness import (ROOT, claimed, declared_job, enabled, jsonc, mapped_route, pending, rooted, run, snippet, staged,
-                     unit_tests, unmapped_route)
+from harness import (ROOT, claimed, declared_job, enabled, jsonc, local_vault, mapped_route, pending, rooted, run,
+                     snippet, staged, unit_tests, unmapped_route)
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-spotify", "test_spotify"))
@@ -183,19 +183,20 @@ def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
             assert done.returncode == 0, (verb, done.stdout + done.stderr)
 
     moved = False
-    try:
-        done = run(ops, attended, "--json", "sandboxes", "enable", "spotify-harvest", "--confirm")
-        assert done.returncode == 0, done.stdout + done.stderr
-        moved = True
-        bind("spotify-harvest")
-        grant = mapped_route(ops, env, wiki, "channel-spotify", "spotify", "accounts.spotify.com",
-                             value="aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA==")
-        ticket_id, _cap = claimed(ops, env, wiki, job)
-        session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
-    finally:
-        unmapped_route(ops, env, wiki, "channel-spotify", "spotify")
-        if moved:
-            bind("channel-spotify-harvest")  # every other case here runs on the harness's own sandbox
+    with local_vault(env):
+        try:
+            done = run(ops, attended, "--json", "sandboxes", "enable", "spotify-harvest", "--confirm")
+            assert done.returncode == 0, done.stdout + done.stderr
+            moved = True
+            bind("spotify-harvest")
+            grant = mapped_route(ops, env, wiki, "channel-spotify", "spotify", "accounts.spotify.com",
+                                 value="aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA==")
+            ticket_id, _cap = claimed(ops, env, wiki, job)
+            session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
+        finally:
+            unmapped_route(ops, env, wiki, "channel-spotify", "spotify")
+            if moved:
+                bind("channel-spotify-harvest")  # every other case here runs on the harness's own sandbox
     phantom = session.step("route")
     assert phantom.returncode == 0 and phantom.stdout.strip(), phantom
     assert grant not in session.log and "harness-secret" not in session.log

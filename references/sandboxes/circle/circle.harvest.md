@@ -25,12 +25,12 @@ scripts launch.
 
 ## Credential
 
-`requires.dir` is `"optional"`. A members-only community replays the
+`requires.dir` is `"required"`. A members-only community replays the
 per-domain login profile `llm-wiki-ops credentials login <domain>` minted:
 mapped to the job (`credentials bind job <slug> dir=<domain>`), it is
 granted to this slice read-write and the ticket hands it over as
 `credential_dir`, which `capture_lesson.py` reads off `tickets open`.
-Unmapped, the capture exits 2 and fetches nothing. A slot and not a route:
+Unmapped, this machine claims no harvest of the job. A slot and not a route:
 the profile carries the `cf_clearance` Chrome replays, and no proxy can
 inject a browser session.
 

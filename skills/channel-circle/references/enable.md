@@ -29,7 +29,9 @@
 3. **Map the profile to the job**, on each machine that harvests:
    `llm-wiki-ops credentials bind job <slug> dir=<domain>`. The slice is then
    granted that directory read-write, and the ticket names it as
-   `credential_dir`; unmapped, a capture exits 2 naming this line. Bind the
+   `credential_dir`. The manifest declares the slot `"required"`, so a
+   machine that maps nothing claims none of the job's harvests: `jobs claim`
+   refuses, "harvest requires dir and this machine fills none of it". Bind the
    job, not the skill: a skill's `dir` is handed to every job of the skill,
    unattended. `skills enable` maps nothing by itself (`/llm-wiki:enable`
    runs it with `--confirm`, which asks no question and lists this line as
