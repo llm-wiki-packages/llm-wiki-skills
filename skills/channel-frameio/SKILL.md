@@ -95,8 +95,8 @@ The fields this unit serves:
 | `refresh`, `resource` | a refresh ticket: re-capture exactly that one leaf viewer — see below |
 
 Not consulted, and why: `harvest.access` (a guest share has no free/paid
-split), `min_date` (a listing card carries no date), `credential` (always
-null; the link authorizes), `dest` (null here).
+split), `min_date` (a listing card carries no date), `credential_mode`
+(always `none`; the link authorizes), `dest` (null here).
 
 #### 2. Enumerate the tree (once, before any downloads)
 
@@ -335,8 +335,9 @@ alone. A copy is kept beside the capture as `page.md`.
 
 ### Auth
 
-- None. No credential, no stored session, no login helper: `credential` is
-  null on every ticket and the manifest declares `requires.credential: false`.
+- None. No credential, no stored session, no login helper: the manifest's
+  `requires` declares nothing to spend, so every ticket's `credential_mode`
+  is `none`.
 
 ### Quirks log
 

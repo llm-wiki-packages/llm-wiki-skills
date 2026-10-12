@@ -19,8 +19,9 @@ be empty. So the fix signal is: the wrapper gains real child content AND no
 
 Loads the page with the persistent auth profile (channel="chrome" + the
 per-domain profile that earned cf_clearance; created by
-`llm-wiki-ops credentials login <domain>`), records every >=500 response,
-and measures the wrapper's rendered size.
+`llm-wiki-ops credentials login <domain>`, and granted as the ticket's
+`credential_dir`), records every >=500 response, and measures the wrapper's
+rendered size.
 
 Usage:
   llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py \
@@ -96,38 +97,47 @@ def _ops(root, *args):
     return subprocess.run([*(front_door() or [OPS]), "--json", *args], cwd=str(root), env=env, capture_output=True, text=True)
 
 
-def profile_dir(root, domain):
-    """`(path, None)` for a profile a login has verified; else `(None, (kind,
+def profile_dir(root, ticket_id, domain):
+    """`(path, None)` for the profile this run was granted; else `(None, (kind,
     why))`, kind `absent` or `unreachable`.
 
-    The profile is the directory of the `dir` credential named for the domain
-    (`credentials info`). It answers exit 0 for a dir that is only SET: the
-    default directory exists, empty, from `credentials set` on. So `verified`
-    is the answer — what `credentials login` records — never the exit code or
-    `exists` alone. Launching a persistent context on an unlogged-in directory
-    would run the whole capture logged out without a word."""
-    proc = _ops(root, "credentials", "info", domain)
+    The profile is the ticket's `credential_dir`, through `tickets open`: the
+    directory of the `dir` credential this machine maps to the job or the
+    skill, granted read-write to the slice. A jail holds no grant on the
+    credential store, so the ticket is the one place a slice can learn it. The
+    host never grants a browser dir nobody has logged in to, so a granted one
+    is a login's. `absent` is the operator's to fix, with the commands it
+    names; `unreachable` is a ticket or a directory that cannot be read, which
+    no login fixes."""
+    absent = (
+        f"Run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, "
+        f"llm-wiki-ops credentials login {domain}, then llm-wiki-ops credentials bind job <slug> dir={domain}"
+    )
+    proc = _ops(root, "tickets", "open", ticket_id)
     try:
         answer = json.loads(proc.stdout)
     except ValueError:
         answer = None
-    detail = answer.get("error") if isinstance(answer, dict) else None
-    if proc.returncode != 0 and isinstance(detail, str) and detail.startswith("no credential named"):
-        return None, ("absent", f"no auth profile for {domain}")
-    if proc.returncode != 0 or not isinstance(answer, dict) or not answer.get("path"):
+    ticket = answer.get("ticket") if isinstance(answer, dict) else None
+    if proc.returncode != 0 or not isinstance(ticket, dict):
+        detail = answer.get("error") if isinstance(answer, dict) else None
         detail = detail or (proc.stderr or proc.stdout or "").strip()
-        return None, ("unreachable", f"credential store unreachable ({proc.returncode}): {detail[:200]}")
-    if answer.get("kind") != "dir" or answer.get("exists") is not True or not answer.get("verified"):
-        return None, ("absent", f"no auth profile for {domain}")
-    return Path(answer["path"]), None
+        return None, ("unreachable", f"ticket unreadable ({proc.returncode}): {detail[:200]}")
+    granted = ticket.get("credential_dir")
+    if not isinstance(granted, str) or not granted:
+        slug = ticket.get("slug") if isinstance(ticket.get("slug"), str) else "<slug>"
+        return None, ("absent", f"no auth profile granted for {domain}. {absent.replace('<slug>', slug)}")
+    if not Path(granted).is_dir():
+        return None, ("unreachable", f"the granted profile {granted} is not a directory this run can read")
+    return Path(granted), None
 
 
 def domain_of(url: str) -> str:
-    # The domain is the dir credential's NAME, which the CLI validates against
-    # [a-z0-9][a-z0-9._-]*: `.hostname` already lowercases and drops the port,
-    # but a non-ASCII host is not IDNA-encoded here, so the CLI refuses the
-    # name (rc 2, "invalid credential name") and it reads as unreachable (5).
-    # No IDN Circle community has been observed.
+    # The domain is the dir credential's name the absent hint suggests, which
+    # the CLI validates against [a-z0-9][a-z0-9._-]*: `.hostname` already
+    # lowercases and drops the port, but a non-ASCII host is not IDNA-encoded
+    # here, so `credentials set` would refuse it. No IDN Circle community has
+    # been observed.
     return urlsplit(url).hostname or ""
 
 
@@ -158,7 +168,7 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", help="wiki root path")
-    ap.add_argument("--ticket", required=True, help="the ticket id, opened for its own `target`")
+    ap.add_argument("--ticket", required=True, help="the ticket id, opened for its own `target` and its granted auth profile")
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--timeout-ms", type=int, default=45000)
     ap.add_argument("--settle-ms", type=int, default=8000, help="Wait after load for XHRs to fire / content to render")
@@ -173,15 +183,12 @@ def main() -> int:
     domain = domain_of(args.url)
 
     try:
-        profile, refused = profile_dir(args.root, domain)
+        profile, refused = profile_dir(args.root, args.ticket, domain)
     except OSError as e:
-        print(json.dumps({"fixed": False, "error": f"credential store unreachable ({e.__class__.__name__}: {e})"}))
+        print(json.dumps({"fixed": False, "error": f"front door unreachable ({e.__class__.__name__}: {e})"}))
         return 0
     if refused:
-        kind, why = refused
-        if kind == "absent":
-            why += f" — run: llm-wiki-ops credentials set {domain} kind=dir login=browser host={domain}, then credentials login {domain}"
-        print(json.dumps({"fixed": False, "error": why}))
+        print(json.dumps({"fixed": False, "error": refused[1]}))
         return 0
 
     errors_5xx = []

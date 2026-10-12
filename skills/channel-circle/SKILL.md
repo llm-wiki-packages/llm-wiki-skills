@@ -67,7 +67,7 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py plan <capture
    between requests to the one host, never parallel within the domain:
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> [--headed] [--timeout-ms 45000]
+llm-wiki-ops run ops/skills/channel-circle/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> --ticket <id> [--headed] [--timeout-ms 45000]
 llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py detect <capture_dir> --leaf <n>
 llm-wiki-ops run scripts/assets.py download <leaf.dir>/assets.json --dest _raw/<slug>/assets
 llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py record <capture_dir> --leaf <n>
@@ -90,11 +90,12 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
    status behind. Do not record a lesson whose `page.html` is a login wall or
    an outage (see Outage): `--missing-leaf <n> error` instead.
 
-   Exit codes. `capture_lesson.py`: 2 = no auth profile or auth expired, 3 = a
-   Cloudflare challenge that did not clear — both need a person (see Auth), so
-   stop fetching the domain and report `--auth-expired`; 5 = the credential
-   store could not be reached, `error` and never `auth`, because no login fixes
-   it; 4 = nothing usable to capture; 6 = the deadline passed, nothing started.
+   Exit codes. `capture_lesson.py`: 2 = the ticket grants no auth profile, or
+   auth expired, 3 = a Cloudflare challenge that did not clear — both need a
+   person (see Auth), so stop fetching the domain and report `--auth-expired`;
+   5 = the ticket or its granted profile could not be read, `error` and never
+   `auth`, because no login fixes it; 4 = nothing usable to capture; 6 = the
+   deadline passed, nothing started; 7 = no `--ticket`, a usage error: fix it.
    `record`: 3 with `"stop": true` = the leaf landed AND the deadline passed —
    start no further lesson, report, exit.
 
@@ -159,32 +160,32 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
 
 ## Auth (one-time, per domain)
 
-- **This unit reads no secret** — `requires.credential: false`, so the
-  ticket's own `credential` is null. What authenticates a capture is the
-  persistent Chrome PROFILE the login helper minted for the domain;
-  `capture_lesson.py` asks `llm-wiki-ops --json credentials info
-  <domain>` for it; a `dir` no login has verified means none has run here.
+- **The secret is a directory** — `requires.dir: "required"`. What
+  authenticates a capture is the persistent Chrome PROFILE the login helper
+  minted for the domain, granted to the slice read-write as the ticket's
+  `credential_dir` (`credential_mode` `dir`); `capture_lesson.py` and
+  `outage_probe.py` read it off `tickets open`. A machine that maps no
+  logged-in profile to the job claims none of its harvests: the host never
+  grants a browser dir nobody has logged in to.
 - One-time manual login, by a person at a browser, which the host arranges
   and a worker never does: `llm-wiki-ops credentials set <domain> kind=dir
   login=browser host=<domain>`, then `llm-wiki-ops credentials login <domain>`.
-  It saves a persistent Chrome profile in the credential's directory.
+  It saves a persistent Chrome profile in the credential's directory. Then
+  `llm-wiki-ops credentials bind job <slug> dir=<domain>` maps it to the job.
 - **Cloudflare-fronted — the profile is what replays, and `<domain>.storage`
   is deliberately unused here.** A fresh bundled-Chromium context gets a
   Turnstile challenge; real Chrome (`channel="chrome"`) with the persistent
   per-domain profile clears it, because the profile carries the `cf_clearance`
   the human's login earned and that clearance is fingerprint-bound. Never
   attempt to solve a challenge.
-- **A spawned slice's jail is granted no profile directory**, so an
-  authenticated capture is expected to fail in the jail the runner composes.
-  The one way past is the operator's: a machine that lists this unit in
-  `[unsandboxed]` for this wiki can drive its ticket with `tickets run <id>
-  spawn=self`, with its own logins. `capture_lesson.py` then
-  exits 5, or a browser that cannot write its profile dies on launch: report
-  `--missing-leaf <n> error`, or for the root `--reason "profile_dir
-  unreachable inside the slice"` — `error`, **never `auth`**, because `auth`
-  tells the host a fresh login fixes it and no login can fix a missing
-  grant. Do not work around it (no copying a profile into `_raw/`, no
-  bare-Chromium attempt).
+- **A capture inside the jail is unverified end to end**: whether real
+  Chrome launches on the granted profile under the jail the runner composes
+  has not been measured. Where `capture_lesson.py` exits 5, or a browser that
+  cannot write its profile dies on launch, report `--missing-leaf <n> error`,
+  or for the root `--reason "profile_dir unreachable inside the slice"` —
+  `error`, **never `auth`**, because `auth` tells the host a fresh login
+  fixes it and no login can fix a missing grant. Do not work around it (no
+  copying a profile into `_raw/`, no bare-Chromium attempt).
 - Auth expiry mid-walk is permanent until a person logs in again: every
   remaining lesson goes to `missing[]` as `auth` (`--auth-expired`), and
   nothing more is fetched from the domain.

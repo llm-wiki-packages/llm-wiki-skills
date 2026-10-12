@@ -50,7 +50,7 @@ def _ticket(slug="news", **over):
         "v": 1, "ticket": "0123456789ab", "unit": UNIT, "slug": slug, "item": ARCHIVE, "target": ARCHIVE,
         "capture_dir": f"_raw/{slug}/archive--4fbca949", "dest": None, "hosts": ["example-newsletter.invalid"],
         "harvest": {"scope": "domain", "access": "free", "max_age": None, "refresh": "never", "exclude_urls": [], "assets": "reference"},
-        "options": {}, "credential": None, "min_date": None, "known": [],
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": None, "known": [],
     }
     ticket.update(over)
     return ticket

@@ -4,25 +4,38 @@
    catalog only; no user login exists in this skill). It is the harvest
    sandbox's `spotify` route (`sandboxes enable` asks before it writes the
    route to this machine's allow file), and its value is the wiki's own, in
-   its credential vault. Have the operator create an app at
+   its credential vault, mapped to the route on this machine. The stage is
+   bound to the `spotify-harvest` sandbox (`references/customize.md`). Once
+   per machine that harvests, name the wiki's vault, by hand — no verb
+   writes a `[wikis]` key — as `vault = "local"` under `[wikis.<key>]` (this
+   wiki's key in `llm-wiki-cli machine wikis ls`) in the file
+   `llm-wiki-cli machine config get config_path` names; the `credentials`
+   row of `llm-wiki-ops doctor` names the same edit, and `bind` refuses
+   until it is made. Have the operator create an app at
    developer.spotify.com → Dashboard; then the OPERATOR runs this at a
    terminal, once per machine that harvests:
 
    ```sh
-   tr -d '\n' | base64 | tr -d '\n'; echo
+   printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
    llm-wiki-ops credentials set spotify
+   llm-wiki-ops credentials bind skill channel-spotify spotify=spotify
    ```
 
    The first line reads `<client_id>:<client_secret>` typed at the terminal
-   (Enter, then Ctrl-D) and prints the grant, base64 of that pair; the second
-   asks for the value without echo — paste the grant there. Neither puts it in
-   an argument (argv is readable in `ps` and lands in shell history), and
-   `credentials set` asks only at a terminal: its stdin is not a pipe. In the harvest's jail the
+   (Enter, then Ctrl-D) and prints the value to store: the grant, base64 of
+   that pair, with the one host it may be spent at. The second asks for the
+   value without echo — paste that line there. Neither puts it in an
+   argument (argv is readable in `ps` and lands in shell history), and
+   `credentials set` asks only at a terminal: its stdin is not a pipe. The
+   third maps the route to it; `bind` refuses a value whose host is not the
+   route's. `skills enable --confirm`, which `/llm-wiki:enable` runs, maps
+   nothing: it lists `spotify` as unmapped, with that line. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
-   token request bound for `accounts.spotify.com`. With the route enabled and
-   no grant stored, the token request fails and the harvest says so; with no
-   route the capture degrades to the keyless embed fallback: possibly-truncated
-   item lists, flagged `"keyless": true` and with a warning callout in the note.
+   token request bound for `accounts.spotify.com`. With the route mapped to a
+   wrong grant, the token request fails and the harvest says so; with the
+   route unmapped the jail omits it, and the capture degrades to the keyless
+   embed fallback: possibly-truncated item lists, flagged `"keyless": true`
+   and with a warning callout in the note.
 2. **Non-URL requests** ("add the Lex Fridman podcast episode 400"): ask the
    operator for the entity's Spotify URL, then watch that. Nothing in this
    unit searches the catalog.
@@ -64,9 +77,10 @@ deliberate — do not try to finish the allowlist.
 
 ## The route, and nothing else
 
-This skill declares `requires.credential: false`: a job is bound to no
-credential and its slice is granted no payload file. The `spotify` route is
-the one way the grant reaches a capture, and the script calls no
-`credentials` verb. A route in a harness profile, or `SPOTIFY_CLIENT_ID` in
+The manifest leaves the `spotify` binding undeclared, which reads
+`"optional"`, and declares no `file` or `dir`: its slice is granted no
+payload file. The `spotify` route, filled by this machine's mapping, is the
+one way the grant reaches a capture, and the script calls no `credentials`
+verb. A route in a harness profile, or `SPOTIFY_CLIENT_ID` in
 an environment, reaches nothing here. Unverified live: no capture has run
 against Spotify through the route.

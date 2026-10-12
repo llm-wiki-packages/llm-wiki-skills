@@ -36,16 +36,29 @@ profile's: a harness profile's routes ride every session jail of that
 harness, in every wiki on the machine, while this one reaches Notion only
 from this stage.
 
-The route's token is the wiki's own, in its credential vault under the
-route's name. Mint nothing else: `llm-wiki-ops credentials set notion`, the
-Notion bot token on stdin, once per machine that harvests. `sandboxes
-compose` adds the `credential_key` and the capture that read that name, so
-the fragment carries neither. `requires.credential` stays `false`: nothing
-is bound to a job and no payload file is granted.
+The stage binds to the `notion-harvest` sandbox `skills install` writes
+from this reference, the one sandbox that carries the route; one written
+from `## Profile` alone carries none. The route's token is the wiki's own,
+in its credential vault, and the route's name is a binding name. Once per
+machine that harvests, in this order: name the vault (`vault = "local"`
+under `[wikis.<key>]` in the file `llm-wiki-cli machine config get
+config_path` names, by hand — no verb writes a `[wikis]` key, and the
+doctor's `credentials` row names the same edit); store the Notion bot token
+with the host it may be spent at, `llm-wiki-ops credentials set notion` with
+`{"value": "<token>", "host": "api.notion.com"}` at its prompt; enable this
+sandbox, whose probe spends that entry; bind the stage; then map the route,
+`llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion`.
+`skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing: it
+lists `notion` as unmapped, with that line. `sandboxes compose` adds the
+`credential_key` and the capture that read the mapped name, so the fragment
+carries neither. The manifest declares the binding `"required"`, and no
+`file` or `dir`, so no payload file is granted.
 
 In the jail `NOTION_API_TOKEN` holds a phantom. The proxy adds the real
 token, as `Authorization: Bearer <token>`, only to requests bound for
-`api.notion.com`. The token never enters the jail, and the jail reads no
+`api.notion.com`. A machine that maps nothing claims no harvest: `jobs
+claim` refuses, "harvest requires notion and this machine fills none of
+it". The token never enters the jail, and the jail reads no
 `~/.config/notion` and runs no `ntn login`.
 
 ## Customize
