@@ -12,10 +12,10 @@ import pytest
 
 from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
-# The capture units. A routine unit is a `channel` too and captures nothing,
-# so it is set apart by the stage it declares; a capture unit that forgot
-# `process` stays in, for the both-stages check to catch.
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel" and "routine" not in unit_manifest(n).get("stages", {})]
+# The capture units: each declares the `watch` its capture job reads. A
+# capture unit that forgot `process` stays in, for the both-stages check to
+# catch.
+CHANNELS = [n for n in SKILLS if unit_manifest(n).get("watch")]
 ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
 # A unit's own tests ship too, but a test asserting a gone name is ABSENT is
 # not a unit telling a worker to look for it: the scan below skips them.
@@ -288,7 +288,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "kind", "venue", "stages", "uses", "keywords", "usage", "requires", "watch"}
+    known = {"v", "name", "version", "venue", "stages", "keywords", "usage", "requires", "watch"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known
     assert set(manifest.get("requires", {})) <= {"credentials", "file", "dir", "ops", "bins"}, manifest["requires"]

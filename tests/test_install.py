@@ -11,7 +11,7 @@ import pytest
 
 from harness import ROOT, SKILLS, SOURCE, bound, enabled, rooted, run, unit_manifest
 
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel" and unit_manifest(n).get("watch")]
+CHANNELS = [n for n in SKILLS if unit_manifest(n).get("watch")]
 
 VTT = "WEBVTT\n\n00:00:00.080 --> 00:00:02.629\nAt its peak, it grew\n"
 

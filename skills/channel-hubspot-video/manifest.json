@@ -8,7 +8,6 @@
     "player",
     "host:play.hubspotvideo.com"
   ],
-  "kind": "channel",
   "name": "channel-hubspot-video",
   "requires": {
     "ops": ">=0.1.0"

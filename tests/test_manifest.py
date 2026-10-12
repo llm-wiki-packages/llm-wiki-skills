@@ -19,8 +19,8 @@ def test_check_manifest_passes_on_the_tree():
     assert cp.returncode == 0, cp.stderr
 
 
-@pytest.mark.parametrize("name", [n for n in SKILLS if unit_manifest(n).get("kind") == "channel"])
-def test_every_channel_unit_declares_its_ops_floor(name):
+@pytest.mark.parametrize("name", SKILLS)
+def test_every_unit_declares_its_ops_floor(name):
     floor = (unit_manifest(name).get("requires") or {}).get("ops")
     assert isinstance(floor, str) and _FLOOR.match(floor), f"{name}: requires.ops is {floor!r}"
 
