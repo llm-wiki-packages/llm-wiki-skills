@@ -1,5 +1,6 @@
 """What the daily-report skill's body claims about its own directory."""
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -50,7 +51,6 @@ def test_the_setup_marker_is_retired_only_when_it_was_found():
 # stage=routine`; the claim gate admits that job only where the enabled
 # manifest serves `routine`.
 MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
-ROUTINE = BODY.split("\n## 10. ", 1)[1].split("\n## ", 1)[0] if "\n## 10. " in BODY else ""
 
 
 def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
@@ -59,21 +59,29 @@ def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
     assert routine["sandbox_ref"].endswith(":daily-report/daily-report.routine"), routine
 
 
-def test_a_scheduled_run_checks_its_ticket_is_a_routine():
+def test_the_scope_names_the_scheduled_entry():
     scope = BODY.split("\n## 1. ", 1)[0]
-    assert "ticket=<id> stage=routine" in scope, "the scope names no scheduled entry"
-    assert "tickets open <id>" in scope and "`stage` must be `routine`" in scope
+    assert "<args…> ticket=<id> stage=routine" in scope, "the scope names no scheduled entry"
 
 
-def test_a_scheduled_run_reports_last_listing_only_the_pages_it_created():
-    assert ROUTINE, "no §10 for the scheduled run's report"
-    assert "after §7's last close" in ROUTINE
-    assert "stage=routine" in ROUTINE and "written_from=written.json" in ROUTINE
-    # `close` stamps the job's `job` and `meta` on every listed page, so a
-    # page the run only edited — a same-day rerun's report among them — is
-    # never listed.
-    assert "created with `page create`" in ROUTINE
-    assert "same-day rerun edited" in ROUTINE and "only edited" in ROUTINE and "the HTML" in ROUTINE
+# The host stamps and the skill reports: one op, opened first and closed last,
+# by hand and under a ticket alike. The close commits by hand and reports to
+# the ticket under one, so a commit or a report of the skill's own would
+# split the run's record.
+def test_one_op_is_opened_first_and_closed_last():
+    opens = BODY.count("llm-wiki-ops op open daily-report")
+    closes = BODY.count("llm-wiki-ops op close daily-report ")
+    assert (opens, closes) == (1, 1), (opens, closes)
+    commands = re.findall(r"^llm-wiki-ops [a-z]+ [a-z]+", BODY, re.M)
+    assert commands[0] == "llm-wiki-ops op open", commands[:3]
+    # Only the search index follows the close: it posts nothing and needs no op.
+    after = commands[commands.index("llm-wiki-ops op close") + 1:]
+    assert set(after) <= {"llm-wiki-ops search index"}, after
+
+
+def test_the_skill_never_commits_or_posts_its_own_report():
+    for gone in ("llm-wiki-ops git commit", "tickets update", "written_from=", "written.json"):
+        assert gone not in BODY, gone
 
 
 def test_the_schedule_it_names_is_the_ops_morning_job():

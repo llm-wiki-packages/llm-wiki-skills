@@ -293,11 +293,11 @@ def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
 
     A reference carrying a venue route gets it too, as the sandbox's
     `machine.allow`, so a unit declaring that binding name enables. The venue
-    template carries the same route, behind a probe that runs the venue's
-    own client; each unit's documented-path case walks the template.
-    This sandbox stands in for the template only because the plugin's
-    probe-cwd bug stops a template's probe (notion's `ntn whoami`) from
-    running; the docs still point at the template."""
+    template carries the same route, behind any probe its reference names,
+    and a probe spends the route's vault entry (notion's `ntn whoami`): this
+    sandbox stands in for the template so a case that is not about the route
+    needs no vault and no stored token. Each unit's documented-path case
+    walks the template the docs name."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
     for stage, spec in unit_manifest(name).get("stages", {}).items():
         ref = spec.get("sandbox_ref")

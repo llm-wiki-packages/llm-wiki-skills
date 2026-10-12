@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import subprocess
 
 from harness import enabled, rooted, run, shown, staged
 
@@ -20,14 +21,15 @@ LEDGER = f"research/channels/harness-daily-report/{TODAY}.md"
 # A `sources/` page `page lint` flags: the sweep skips a tree it cannot read
 # without a word, so only a finding there shows the jail reaches it.
 UNDATED = "sources/harness-daily-report/undated.md"
+SUMMARY = f"harness daily report {TODAY}"
 
-# The ticket's own steps (scope, §10), the reads §1–§3 make, and the writes
-# the sandbox has to decide, as the run types them. A read the sandbox does
-# not reach answers empty or refuses, so each is checked for its data. §1's
-# `op open` and §6's `git commit` and `op close` are left out: they write
-# `.git` and the wiki's git lock, which no sandbox can grant a slice.
+# The run as SKILL.md has it typed: §1's `op open`, the reads §1–§3 make, the
+# writes the sandbox has to decide, and §7's `op close` last. A read the
+# sandbox does not reach answers empty or refuses, so each is checked for its
+# data. The `git commit` is the step the skill never takes: a ticketed run is
+# refused it by name.
 PLAN = f"""\
-step open "$OPS" --json tickets open "$TICKET"
+step op-open "$OPS" --json op open daily-report
 step overlay "$OPS" --json policy get daily-report daily-report-setup
 step latest "$OPS" --json op latest daily-report
 step changed "$OPS" --json git changed research sources filter=since:3d
@@ -38,8 +40,8 @@ step report sh -c 'printf "The lead.\\n" | "$OPS" --json page create title={TODA
 step brief sh -c 'printf "<html></html>\\n" > wiki/reports/{TODAY}.html'
 step write-research sh -c 'printf x > research/daily-report.txt'
 step write-policy sh -c 'mkdir -p .llm-wiki/policy && printf x > .llm-wiki/policy/harness-routine.md'
-step listed sh -c 'printf "[\\"{REPORT}\\"]" > "$CAP/written.json"'
-step update "$OPS" --json tickets update "$TICKET" stage=routine status=ok written_from=written.json
+step commit "$OPS" --json git commit message=harness
+step op-close "$OPS" --json op close daily-report outcome=ok "summary={SUMMARY}"
 """
 
 
@@ -57,8 +59,9 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     """The claim gate admits the paused seed once the enabled copy serves
     `routine`; its slice writes `wiki/` and nothing else the sandbox does not
     name, reads the overlay, the op log, `research/` and `sources/`, asks the
-    router for the stage's model, and its report lands the listed page
-    stamped with the job."""
+    router for the stage's model, and its `op close` is the report: the
+    landing commits the page it wrote under the skill's own op, so `op
+    latest` reads the scheduled run as it reads a hand run."""
     enabled(ops, env, wiki, "daily-report")
     for rel, body in ((DIGEST, "The digest.\n"), (LEDGER, "- a line\n")):
         where, name = rel.rsplit("/", 1)
@@ -80,10 +83,7 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
 
     session = staged(ops, env, wiki, ticket_id, PLAN)
 
-    opened = session.step("open")
-    assert opened.returncode == 0, opened.stdout + opened.stderr
-    assert opened.data["ticket"]["stage"] == "routine", opened.data
-    for step in ("overlay", "latest", "changed", "ledgers", "digest", "lint", "report", "brief", "listed", "update"):
+    for step in ("op-open", "overlay", "latest", "changed", "ledgers", "digest", "lint", "report", "brief", "op-close"):
         assert session.step(step).returncode == 0, (step, session.step(step))
     assert "daily-report" in [o["name"] for o in session.step("overlay").data["overlays"]], session.step("overlay").stdout
     assert {DIGEST, LEDGER} <= set(session.step("changed").data["files"]), session.step("changed").stdout
@@ -93,6 +93,8 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     for step in ("write-research", "write-policy"):
         assert session.step(step).returncode != 0, f"{step}: the routine sandbox let the run write outside `wiki/`"
     assert not (wiki / ".llm-wiki" / "policy" / "harness-routine.md").exists()
+    commit = session.step("commit")
+    assert commit.returncode != 0 and "a ticketed run commits nothing" in commit.stdout + commit.stderr, commit
 
     assert session.update["status"] == "ok" and session.update["written"] == [REPORT], session.update
     record = shown(ops, env, wiki, ticket_id)
@@ -100,3 +102,15 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     assert "frontier" in (record.get("model_from") or ""), record.get("model_from")
     page = (wiki / REPORT).read_text(encoding="utf-8")
     assert f"\njob: {slug}\n" in page, page[:600]
+
+    latest = run(ops, rooted(env, wiki), "--json", "op", "latest", "daily-report", "filter=outcome:ok")
+    assert latest.returncode == 0 and latest.data["found"] is True, latest.stdout + latest.stderr
+    def message(rev: str) -> str:
+        return subprocess.run(["git", "-C", str(wiki), "log", "-1", "--format=%B", rev], capture_output=True, text=True, check=True).stdout
+    close = subprocess.run(["git", "-C", str(wiki), "log", "--format=%H", f"--grep=^{SUMMARY}$", "-n", "1"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    assert close, f"no landing commit carries the summary {SUMMARY!r}"
+    trailers = message(close)
+    assert "Op: daily-report" in trailers and "Outcome: ok" in trailers and "Op: pass" not in trailers, trailers
+    pages = subprocess.run(["git", "-C", str(wiki), "log", "--format=%H", "-n", "1", "--", REPORT], capture_output=True, text=True, check=True).stdout.strip()
+    assert "Op: daily-report" in message(pages) and "Op: pass" not in message(pages), message(pages)

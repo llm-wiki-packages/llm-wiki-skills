@@ -213,15 +213,17 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
 
 
 @pytest.mark.parametrize("name", ROUTINES)
-def test_a_routine_unit_reads_its_ticket_and_leaves_a_routine_report(name):
+def test_a_routine_unit_opens_and_closes_its_op_and_never_commits(name):
     """The spawner's prompt for a routine is `/<unit> <args…> ticket=<id>
-    stage=routine` (the job-record contract), so the body names that entry,
-    reads the ticket the way a capture unit does, and posts its report on the
-    routine stage, which is what the ticket's `close` reads."""
+    stage=routine` (the job-record contract), so the body names that entry.
+    Under the ticket `op close` is the report and the landing commits under
+    the unit's op (`reference skill-authoring`), so the body opens and closes
+    its op, never runs `git commit`, and posts no outcome of its own."""
     skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
     assert "ticket=<id> stage=routine" in skill, name
-    assert "llm-wiki-ops --json tickets open <id>" in skill, name
-    assert re.search(r"llm-wiki-ops tickets update <id> stage=routine status=", skill), name
+    assert f"llm-wiki-ops op open {name}" in skill and f"llm-wiki-ops op close {name} outcome=" in skill, name
+    assert "llm-wiki-ops git commit" not in skill, name
+    assert not re.search(r"tickets update <id> stage=routine status=", skill), name
 
 
 @pytest.mark.parametrize("name", SKILLS)
