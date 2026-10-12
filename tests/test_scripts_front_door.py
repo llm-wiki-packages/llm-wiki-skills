@@ -1,12 +1,12 @@
 """The unit scripts that ask the front door a question read its ANSWER, not
 just its exit code.
 
-`llm-wiki-ops credentials info` prints prose for a person unless asked for
-`--json`, and exits 0 for a dir that no login has verified. A caller that
-trusts the exit code and takes stdout for a path launches a browser on a
-directory named after three lines of prose — silently logged out. Each stub
-below answers in the shape the real CLI's verb answers, prose included, so a
-caller that forgets `--json` fails here instead of on a wiki.
+`llm-wiki-ops tickets open` prints prose for a person unless asked for
+`--json`. A caller that trusts the exit code and takes stdout for a path
+launches a browser on a directory named after a line of prose — silently
+logged out. Each stub below answers in the shape the real CLI's verb answers,
+prose included, so a caller that forgets `--json` fails here instead of on a
+wiki.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from harness import rooted, run
 
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
-PROFILE = "/home/u/.config/llm-wiki/credentials/realm/profiles/community.example"
+PROFILE = "/home/u/.local/share/llm-wiki/credentials/community.example"
 # The CLI's own no-wiki `error` (1.97.0 prints it on stdout under `--json`,
 # beside a `_cmd_` block, and exits 2). The scripts read the no-wiki arm off a
 # non-zero exit, so what this stub has to get right is refusing.
@@ -84,8 +84,12 @@ def front_door(tmp_path, monkeypatch):
 
 # --- channel-circle: both scripts carry the same `profile_dir` -----------------
 
-CIRCLE_INFO = {"name": "community.example", "kind": "dir", "login": "browser", "state": "verified", "host": "community.example",
-               "path": PROFILE, "exists": True, "verified": "2026-10-05T07:36:58Z"}
+TICKET_ID = "0123456789ab"
+
+
+def circle_ticket(**over) -> dict:
+    """`tickets open`'s answer: the ticket, with `credential_dir` where the host granted a profile."""
+    return {"ticket": {"ticket": TICKET_ID, "slug": "course", "credential": {}, "credential_mode": "none", **over}}
 
 
 @pytest.fixture(params=["capture_lesson.py", "outage_probe.py"])
@@ -93,12 +97,14 @@ def circle(request):
     return _load("channel-circle", request.param)
 
 
-def test_a_logged_in_profile_is_the_path_the_cli_named(circle, front_door, tmp_path):
-    seen = front_door(0, CIRCLE_INFO, "name: community.example\n")
-    path, refused = circle.profile_dir(tmp_path, "community.example")
-    assert (path, refused) == (Path(PROFILE), None)
+def test_a_granted_profile_is_the_tickets_credential_dir(circle, front_door, tmp_path):
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    seen = front_door(0, circle_ticket(credential_mode="dir", credential_dir=str(profile)), "ticket: …\n")
+    path, refused = circle.profile_dir(tmp_path, TICKET_ID, "community.example")
+    assert (path, refused) == (profile, None)
     got = seen()
-    assert got["argv"] == ["--json", "credentials", "info", "community.example"], got
+    assert got["argv"] == ["--json", "tickets", "open", TICKET_ID], got
     assert Path(got["cwd"]) == tmp_path.resolve(), got
     # CLAUDE_PROJECT_DIR is the harness's project dir, never a wiki root; the
     # CLI does not read it, and the unit drops it so the nested call carries
@@ -106,60 +112,47 @@ def test_a_logged_in_profile_is_the_path_the_cli_named(circle, front_door, tmp_p
     assert got["inherited"] == [], got
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"exists": False, "state": "none"},
-        {"state": "unverified", "verified": None},
-        {"kind": "value", "login": "paste"},
-    ],
-    ids=["directory gone", "set but never logged in", "not a dir credential"],
-)
-def test_a_credential_no_login_has_verified_is_absent_though_the_cli_exits_zero(circle, front_door, tmp_path, overrides):
-    """Exit 0 for all of these. A default dir exists, empty, the moment it is
-    set, so `exists` alone would launch the whole capture logged out."""
-    front_door(0, {**CIRCLE_INFO, **overrides}, "prose\n")
-    path, refused = circle.profile_dir(tmp_path, "community.example")
+def test_a_ticket_granting_no_profile_is_absent_and_names_the_bind(circle, front_door, tmp_path):
+    front_door(0, circle_ticket())
+    path, refused = circle.profile_dir(tmp_path, TICKET_ID, "community.example")
     assert path is None and refused[0] == "absent", (path, refused)
+    for line in ("llm-wiki-ops credentials set community.example kind=dir login=browser host=community.example",
+                 "llm-wiki-ops credentials login community.example",
+                 "llm-wiki-ops credentials bind job course dir=community.example"):
+        assert line in refused[1], refused
 
 
-def test_a_credential_the_wiki_never_declared_is_absent_not_unreachable(circle, front_door, tmp_path):
-    front_door(2, {"error": "no credential named 'community.example' in this wiki \u2014 exact names only:\nNAME  KIND"})
-    path, refused = circle.profile_dir(tmp_path, "community.example")
-    assert path is None and refused[0] == "absent", (path, refused)
+def test_a_granted_directory_that_is_gone_is_unreachable(circle, front_door, tmp_path):
+    """No login fixes a grant this run cannot read: never `absent`."""
+    front_door(0, circle_ticket(credential_mode="dir", credential_dir=str(tmp_path / "gone")))
+    path, refused = circle.profile_dir(tmp_path, TICKET_ID, "community.example")
+    assert path is None and refused[0] == "unreachable", (path, refused)
 
 
 def test_a_cli_that_could_not_answer_is_unreachable_not_absent(circle, front_door, tmp_path):
-    """Exit 1 is every "could not answer". It used to be read as "no auth
-    profile — run login.py", which sends an operator to log in to fix a wiki
-    that is not there."""
+    """Exit 1 is every "could not answer". Reading it as "no auth profile"
+    sends an operator to log in to fix a wiki that is not there."""
     front_door(1, NO_WIKI)
-    path, refused = circle.profile_dir(tmp_path, "community.example")
+    path, refused = circle.profile_dir(tmp_path, TICKET_ID, "community.example")
     assert path is None and refused[0] == "unreachable" and "no wiki here" in refused[1], refused
 
 
 def test_prose_on_stdout_is_never_taken_for_a_path(circle, front_door, tmp_path):
     """A CLI that answers prose even to `--json` — an older one — is an
-    unreachable store, never `Path("name: …\\npath: …")`."""
-    front_door(0, {}, f"name: community.example\npath: {PROFILE}\n", honors_json=False)
-    path, refused = circle.profile_dir(tmp_path, "community.example")
+    unreadable ticket, never `Path("credential_dir: …")`."""
+    front_door(0, {}, f"credential_dir: {PROFILE}\n", honors_json=False)
+    path, refused = circle.profile_dir(tmp_path, TICKET_ID, "community.example")
     assert path is None and refused[0] == "unreachable", (path, refused)
 
 
 def test_the_real_cli_answers_what_circle_reads(circle, wiki, env, ops, monkeypatch):
-    """No stub: the verb exists, and a credential the documented `set` made
-    reads as set-but-not-logged-in until a login verifies it."""
-    attended = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
-    done = run(ops, rooted(attended, wiki), "credentials", "set", "circle-probe.example", "kind=dir", "login=browser",
-               "host=circle-probe.example", cwd=wiki)
-    assert done.returncode == 0, done.stdout + done.stderr
-    for key, value in attended.items():
+    """No stub: `tickets open` of a ticket that is not there is a refusal the
+    unit reads as unreachable, never as a missing login."""
+    for key, value in env.items():
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("LLM_WIKI_ROOT", raising=False)
-    path, refused = circle.profile_dir(wiki, "circle-probe.example")
-    assert path is None and refused[0] == "absent", (path, refused)
-    path, refused = circle.profile_dir(wiki, "never-declared.example")
-    assert path is None and refused[0] == "absent", (path, refused)
+    path, refused = circle.profile_dir(wiki, "ffffffffffff", "circle-probe.example")
+    assert path is None and refused[0] == "unreachable", (path, refused)
 
 
 def test_no_circle_hint_names_a_login_script_the_unit_does_not_ship():

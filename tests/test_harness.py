@@ -16,8 +16,8 @@ def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
     job = declared_job(ops, env, wiki, "channel-frameio", "https://next.frame.io/share/00000000-0000-0000-0000-00000000aaaa",
                        slug="harness-staged")
     ticket_id, capture_dir = claimed(ops, env, wiki, job)
-    session = staged(ops, env, wiki, ticket_id, 'step jail printenv LLM_WIKI_JAIL\nstep open "$OPS" --json pipeline tickets open "$TICKET"\n'
-                     'step update "$OPS" --json pipeline tickets update "$TICKET" stage=harvest status=ok\n')
+    session = staged(ops, env, wiki, ticket_id, 'step jail printenv LLM_WIKI_JAIL\nstep open "$OPS" --json tickets open "$TICKET"\n'
+                     'step update "$OPS" --json tickets update "$TICKET" stage=harvest status=ok\n')
     assert session.step("jail").stdout.strip() == "nono"
     opened = session.step("open")
     assert opened.returncode == 0, opened.stdout + opened.stderr

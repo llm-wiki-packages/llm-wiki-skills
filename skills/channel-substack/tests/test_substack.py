@@ -50,7 +50,7 @@ def _ticket(slug="news", **over):
         "v": 1, "ticket": "0123456789ab", "unit": UNIT, "slug": slug, "item": ARCHIVE, "target": ARCHIVE,
         "capture_dir": f"_raw/{slug}/archive--4fbca949", "dest": None, "hosts": ["example-newsletter.invalid"],
         "harvest": {"scope": "domain", "access": "free", "max_age": None, "refresh": "never", "exclude_urls": [], "assets": "reference"},
-        "options": {}, "credential": None, "min_date": None, "known": [],
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": None, "known": [],
     }
     ticket.update(over)
     return ticket
@@ -337,8 +337,8 @@ def _py(name, *argv, cwd, env=None):
 
 
 def _stub_ops(root, ticket=None):
-    """A stand-in front door: `pipeline tickets open` answers `ticket`;
-    `pipeline tickets update` is recorded to `update-calls.jsonl` and
+    """A stand-in front door: `tickets open` answers `ticket`;
+    `tickets update` is recorded to `update-calls.jsonl` and
     answers a bare 0 — the one `LLM_WIKI_OPS` `open_ticket`/`post_update`
     both reach through when these scripts run as real subprocesses."""
     stub = root / "ops_stub.py"
@@ -346,10 +346,10 @@ def _stub_ops(root, ticket=None):
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path('update-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -375,6 +375,16 @@ def _root_with_post_ticket(tmp_path, **over):
     ticket = _ticket(item=POST, target=POST, capture_dir=OWN, **over)
     env = {"LLM_WIKI_OPS": _stub_ops(root, ticket=ticket)}
     return root, ticket, env
+
+
+def test_both_scripts_open_their_ticket_by_the_verb_the_front_door_mounts(tmp_path, monkeypatch):
+    """Each script carries its own `open_ticket`; the stand-in answers the
+    one verb the CLI mounts for it and refuses any other argv, so a script
+    asking by another spelling exits here."""
+    root, ticket, env = _root_with_post_ticket(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_OPS", env["LLM_WIKI_OPS"])
+    for name in ("capture_posts", "enumerate_archive"):
+        assert _module(name).open_ticket(ticket["ticket"], "harvest") == ticket, name
 
 
 def _litter(root):
@@ -416,7 +426,7 @@ def test_the_enumerator_and_the_report_run_from_the_wiki_root_on_relative_paths(
     wrote = _py("capture_posts.py", "--capture-dir", OWN, "--report", "--ticket", ticket["ticket"], cwd=root, env=env)
     assert wrote.returncode == 0, wrote.stderr
     call = _updates(root)[-1]
-    assert call[3] == ticket["ticket"] and _kv(call)["status"] == "failed"
+    assert call[2] == ticket["ticket"] and _kv(call)["status"] == "failed"
 
     # A malformed `--missing` is refused before anything is posted.
     before = len(_updates(root))
@@ -458,7 +468,7 @@ def test_a_process_ticket_reports_the_page_it_wrote(tmp_path):
     assert wrote.returncode == 0, wrote.stderr
     call = _updates(root)[-1]
     kv = _kv(call)
-    assert call[3] == ticket["ticket"] and kv["stage"] == "process" and kv["status"] == "ok"
+    assert call[2] == ticket["ticket"] and kv["stage"] == "process" and kv["status"] == "ok"
     assert kv["written_from"] == "written.json"
 
     # A capture that earns no page says so instead, with no `--written-from` behind it.

@@ -25,12 +25,14 @@ scripts launch.
 
 ## Credential
 
-None declared (`requires.credential: false`). A members-only community
-replays the per-domain login profile `llm-wiki-ops credentials login <domain>` minted, and a
-spawned slice is granted no profile directory yet (llm-wiki-plugins#2282),
-so an authenticated harvest exits 2 or 5 in a slice and fails until the
-grant exists, unless this machine's operator lists the unit in `[unsandboxed]`
-for this wiki.
+`requires.dir` is `"required"`. A members-only community replays the
+per-domain login profile `llm-wiki-ops credentials login <domain>` minted:
+mapped to the job (`credentials bind job <slug> dir=<domain>`), it is
+granted to this slice read-write and the ticket hands it over as
+`credential_dir`, which `capture_lesson.py` reads off `tickets open`.
+Unmapped, this machine claims no harvest of the job. A slot and not a route:
+the profile carries the `cf_clearance` Chrome replays, and no proxy can
+inject a browser session.
 
 ## Customize
 

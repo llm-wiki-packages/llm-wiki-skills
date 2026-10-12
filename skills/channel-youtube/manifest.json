@@ -10,7 +10,6 @@
     "host:*.youtube.com",
     "host:youtu.be"
   ],
-  "kind": "channel",
   "name": "channel-youtube",
   "requires": {
     "bins": [
@@ -23,7 +22,7 @@
         }
       }
     ],
-    "credential": "optional",
+    "dir": "optional",
     "ops": ">=0.1.0"
   },
   "stages": {

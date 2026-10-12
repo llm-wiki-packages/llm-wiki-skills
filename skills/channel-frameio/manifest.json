@@ -9,7 +9,6 @@
     "host:frame.io",
     "host:*.frame.io"
   ],
-  "kind": "channel",
   "name": "channel-frameio",
   "requires": {
     "bins": [
@@ -22,7 +21,6 @@
         }
       }
     ],
-    "credential": false,
     "ops": ">=0.1.0"
   },
   "stages": {

@@ -153,13 +153,14 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
     """A recording `llm-wiki-ops` first on PATH.
 
     It appends every call — argv, cwd, the binding it inherited, whatever arrived on
-    stdin — to `seen.jsonl`, then answers `pipeline tickets open` with `ticket`
-    (default: the standard `_default_ticket("process")`), `pipeline tickets
+    stdin — to `seen.jsonl`, then answers `tickets open` with `ticket`
+    (default: the standard `_default_ticket("process")`), `tickets
     update` with a bare 0, and `page create`/`page edit` by writing the page
     and printing what the real verb prints — the whole front door this
     script's own helpers (`open_ticket`, `post_update`, `write_page`) reach
-    through one `LLM_WIKI_OPS`. `body` is python run before any of that, for
-    a case that wants `run` (the transcript formatter) answered its own way.
+    through one `LLM_WIKI_OPS` — and refuses any other argv. `body` is
+    python run before any of that, for a case that wants `run` (the
+    transcript formatter) answered its own way.
     `interpreter` shebangs the stub with a real venv's python, the shape a
     hosted `llm-wiki-ops`'s own console script carries, for a case that runs
     the REAL formatter through `--format-transcript` (`_ops_interpreter`).
@@ -181,10 +182,10 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         f"{body or 'pass'}\n"
         "verb = [a for a in argv if not a.startswith('--')]\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if verb[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if verb[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
         "if verb[:1] == ['page']:\n"
         "    pairs = dict(a.split('=', 1) for a in argv if '=' in a and not a.startswith('--'))\n"
@@ -197,6 +198,7 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         "    out.write_text(stdin)\n"
         "    print(json.dumps({'path': rel, 'status': 'draft'}))\n"
         "    sys.exit(0)\n"
+        "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
     )
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
     return {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "LLM_WIKI_OPS": str(stub)}, seen
@@ -430,6 +432,22 @@ def test_a_machine_without_the_front_door_is_told_so(tmp_path, monkeypatch):
     assert "`llm-wiki-ops` is not on PATH" in str(exc.value) and "front door" in str(exc.value)
 
 
+def test_progress_is_posted_by_the_verb_the_front_door_mounts(tmp_path, monkeypatch):
+    """`post_update` against the stand-in, which answers `tickets update` and
+    refuses any other argv: a script posting by another spelling is refused
+    here, not first on a wiki."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("youtube_note", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    path, seen = _stub_front_door(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_OPS", path["LLM_WIKI_OPS"])
+    assert mod.post_update(TICKET_ID, "process", "ok", written_from="written.json") == 0
+    (call,) = _calls(seen)
+    assert call["argv"][:4] == ["--json", "tickets", "update", TICKET_ID] and "written_from=written.json" in call["argv"]
+
+
 def test_the_front_door_a_hosted_run_names_wins_over_the_bare_name(tmp_path):
     """`llm-wiki-ops run` exports `LLM_WIKI_OPS`, naming the CLI it was reached
     by — a jail is not promised the `~/.local/bin` entry the bare name is."""
@@ -450,5 +468,5 @@ def test_the_ticket_is_opened_with_the_right_stage(tmp_path):
     cap = _capture(tmp_path)
     path, seen = _stub_front_door(tmp_path, ticket=_default_ticket("harvest"))
     _run(tmp_path, cap, mode=["--record"], formatter=None, extra_env=path)
-    opens = [c["argv"] for c in _calls(seen) if c["argv"][:3] == ["--json", "pipeline", "tickets"]]
-    assert any(a[3:5] == ["open", TICKET_ID] and "stage=harvest" in a for a in opens), opens
+    opens = [c["argv"] for c in _calls(seen) if c["argv"][:2] == ["--json", "tickets"]]
+    assert any(a[2:4] == ["open", TICKET_ID] and "stage=harvest" in a for a in opens), opens

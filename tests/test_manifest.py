@@ -19,8 +19,18 @@ def test_check_manifest_passes_on_the_tree():
     assert cp.returncode == 0, cp.stderr
 
 
-@pytest.mark.parametrize("name", [n for n in SKILLS if unit_manifest(n).get("kind") == "channel"])
-def test_every_channel_unit_declares_its_ops_floor(name):
+# The units a session runs: some stage of each carries no `script`, so an
+# agent follows its body, and the body spells ops verbs of the version it pins.
+SESSION_UNITS = [n for n in SKILLS if any("script" not in s for s in unit_manifest(n).get("stages", {}).values())]
+
+
+def test_the_session_unit_selection_is_not_empty():
+    """An empty parametrize skips; this fails, so the selection cannot drift to nothing unseen."""
+    assert SESSION_UNITS, "no unit declares a stage a session runs"
+
+
+@pytest.mark.parametrize("name", SESSION_UNITS)
+def test_every_session_unit_declares_its_ops_floor(name):
     floor = (unit_manifest(name).get("requires") or {}).get("ops")
     assert isinstance(floor, str) and _FLOOR.match(floor), f"{name}: requires.ops is {floor!r}"
 

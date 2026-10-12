@@ -12,17 +12,16 @@ with an operator at the keyboard — the first-run seeds. Judgment-heavy: for a
 top-tier model.
 
 Scope: `$ARGUMENTS` — a date to report as, or a focus. Default: today,
-everything since the last report. `setup` runs the interview instead (§8).
-`ticket=<id> stage=routine` is the scheduled run, the `ops-morning` job's.
-Open the ticket first:
+everything since the last report. `setup` alone runs the interview instead
+(§8); words after it make the whole a focus. A job's scheduled run is
+`<args…> ticket=<id> stage=routine`, the words before `ticket=` its date or
+focus, with nobody to answer. Under `ticket=` a leading `setup` is never the
+interview: the run reports, noting that setup needs an operator.
 
-```sh
-llm-wiki-ops --json pipeline tickets open <id>
-```
-
-The answer's own `stage` must be `routine`; any other is not this unit's to
-run — stop and say so. Then run §1–§7 for today with nobody to answer, and
-leave the report last (§10).
+One run is one op: `daily-report`, opened in §1 and closed at the end of §7,
+or on the setup path `grill` alone (§8). Never `git commit`: the close
+commits what the run wrote, by hand or at a scheduled run's landing
+(`llm-wiki-ops reference operations`).
 
 Dream analyzes; this skill formats. It never needs operator input mid-run —
 open questions land in the report for the next `/llm-wiki:grill`.
@@ -34,10 +33,9 @@ open questions land in the report for the next `/llm-wiki:grill`.
 Every command below acts on this wiki. Asked to run against a different one?
 `llm-wiki-ops reference cross-wiki` says how.
 
-## 1. Frame the run and compose the overlay
+## 1. Compose the overlay, then open the run
 
 ```sh
-llm-wiki-ops op open daily-report
 llm-wiki-ops policy get daily-report daily-report-setup
 ```
 
@@ -52,6 +50,14 @@ the marker is retired. With nobody to answer, do what the row says: follow
 the seeded overlay, leave the marker exactly as found, and say in the report
 that one pass with a person answering would tailor it. The marker pattern is
 `llm-wiki-ops reference policy-overlays`.
+
+The read writes nothing, so it needs no op. Bound for §8 — `setup` by hand,
+or the row with an operator — open nothing here: that run ends at §8's
+close. Otherwise:
+
+```sh
+llm-wiki-ops op open daily-report
+```
 
 ## 2. Fix the window
 
@@ -89,7 +95,7 @@ llm-wiki-ops page ls filter=under:research/channels
   `research/channels/<slug>`, one page per day. Read the ledger pages inside
   the window and nothing else: never a sibling raw capture
   (`llm-wiki-ops reference channel-ledger`). With an operator at the
-  keyboard, `llm-wiki-ops pipeline jobs ls` also names a channel job not
+  keyboard, `llm-wiki-ops jobs ls` also names a channel job not
   pulled here, which has no ledger for the gap days — note and skip. A
   scheduled run cannot list jobs, so it reports the ledgers it found.
 - **This wiki's ops digest** — the newest `research/reports/` page inside the
@@ -168,20 +174,6 @@ If the newest `dream` run is older than a day or absent —
 overwrites. `wiki/index.md` gets ONE directory-level line for
 `wiki/reports/`, never a line per day.
 
-Then commit and close, NOW — an attended run dying mid-§7 still has its
-promotions recorded. A scheduled run's commit is its landing's, which
-commits only the pages §10 lists: the HTML, a same-day rerun's edit of the
-report, the log and index lines and §5's edits stay uncommitted until the
-wiki's next commit.
-
-```sh
-llm-wiki-ops git commit message="daily-report 2026-09-05"
-llm-wiki-ops op close daily-report outcome=ok summary="daily report 2026-09-05: <one line>"
-```
-
-`outcome` is what moves the window: `ok` only when it all landed, `partial`
-when some of it did — say what fell short — `failed` when none did.
-
 ## 7. Author the day's brief
 
 Run `llm-wiki-ops reference daily-report/setup` first (it prints `references/setup.md`) — the
@@ -199,16 +191,15 @@ carries why it matters, a next step, and a copyable draft where a reply IS
 the next step; every claim carries its receipt; no wiki operations on the
 glass; self-contained.
 
-Then a SECOND run whose one job is recording the brief:
+Then close the run's one op, the last thing it posts:
 
 ```sh
-llm-wiki-ops op open daily-report
-llm-wiki-ops git commit message="daily-report 2026-09-05: brief"
-llm-wiki-ops op close daily-report outcome=ok summary="daily report 2026-09-05: brief"
+llm-wiki-ops op close daily-report outcome=ok summary="daily report 2026-09-05: <one line>"
 ```
 
-Never a better outcome than §6 recorded: an `ok` here after a `partial` there
-would advance the window past the days §6 called short.
+`outcome` is what moves the window: `ok` only when it all landed — the
+report, its promotions and the brief — `partial` when some of it did — say
+what fell short — `failed` when none did.
 
 Then, only when `whereami` reports `sandbox.jail: none` — a sandboxed session cannot
 reach the search service, and the runner indexes after this session exits:
@@ -229,6 +220,7 @@ template, fold the section plan and tone into the overlay on the operator's
 yes, retire the marker when §1's read returned it — a redesign on a wiki
 that already ran setup got no row and skips that step — and close under the
 `grill` op, never `daily-report`, which would advance the window cursor.
+The run ends at that close; the report waits for the next invocation.
 
 ## 9. Open questions — the grill loop
 
@@ -238,30 +230,11 @@ the newest report as top-priority gaps. When a question persists across
 reports, print the instruction in the report and on the brief: **type
 `/llm-wiki:grill`**.
 
-## 10. The scheduled run's report
-
-Only under `ticket=<id> stage=routine`, and only after §7's last close. List
-the pages this run created with `page create` — the day's markdown report
-when this run created it, and each entity stub §5 created — wiki-relative,
-as one JSON list in `written.json` inside the ticket's `capture_dir`, then
-post it:
-
-```sh
-llm-wiki-ops pipeline tickets update <id> stage=routine status=<ok|partial|failed> written_from=written.json
-```
-
-`status` is §6's `outcome`, or worse where §7's brief did not land. The host
-commits each listed page and stamps it with the job's `job` and `meta`, so
-list only what this run created: never a report a same-day rerun edited, a
-page §5 only edited, `wiki/log.md`, `wiki/index.md` or the HTML. Created
-none: leave `written_from=` off. A routine report carries no `captured=` or
-`missing=`. The update is the last act; then exit.
-
 ## Never
 
 - Write outside the report's markdown and HTML, the interactive-only first-run
-  seeds, the promotion list, the `wiki/log.md` and `wiki/index.md` entries,
-  and a scheduled run's `written.json`.
+  seeds, the promotion list, and the `wiki/log.md` and `wiki/index.md`
+  entries.
 - Read a raw channel capture, or touch another wiki in any writing way.
 - Resolve contradictions, merge topic or concept pages, or downgrade stale
   facts — dream owns all three.

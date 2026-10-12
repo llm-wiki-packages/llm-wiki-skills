@@ -1,7 +1,7 @@
 # channel-gmail — after enabling
 
 1. One watch per mailbox. Ask a slug and a description for each, then:
-   `llm-wiki-ops pipeline jobs add <slug> slug=<slug>
+   `llm-wiki-ops jobs add <slug> slug=<slug>
    description="<whose mailbox>" skill=channel-gmail
    options.mailbox=<who>@example.com [every=1d]` — the target is a bare
    channel NAME, never a url, and a wiki holds ONE job per target: a second
@@ -23,29 +23,34 @@
    says `ok`, and the days pile up as pages in the staged tree that nothing
    reads and curate is left to judge. The skill cannot detect it: `dest` is
    the job's answer, and a harvest ticket does not carry one at all. Check
-   each job with `llm-wiki-ops pipeline jobs show <slug>` (it names `dest` and the
+   each job with `llm-wiki-ops jobs show <slug>` (it names `dest` and the
    target), and re-point any that is not under `research/channels/`.
-   `pipeline jobs edit` refuses `dest`, but re-running `add` with the same target
+   `jobs edit` refuses `dest`, but re-running `add` with the same target
    and slug moves it and keeps every other key:
-   `llm-wiki-ops pipeline jobs add <its target> slug=<slug> dest=research/channels/<slug>`.
+   `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-gmail
+   dest=research/channels/<slug>`.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
-   not a secret. The skill declares `requires.credential: true` and never
+   not a secret. The skill declares `requires.file: "required"` and never
    reads the value: connector auth is the session's. What the binding does is
-   the claim gate (`pipeline/claims.py`): a machine with no binding for THIS
-   job is incapable of its harvest and skips it — a `bindings` doctor row,
-   nothing fails — and a binding goes `stale`, and the machine stops
-   claiming, when a peer's commit changes what the job fetches
+   the claim gate (`pipeline/claims.py`): a machine that fills no file slot
+   for THIS job is incapable of its harvest and skips it — a `bindings`
+   doctor row, nothing fails — and a job's binding goes `stale`, and the
+   machine stops claiming, when a peer's commit changes what the job fetches
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
-   mailbox". Exactly what to run, on the machine that pulls:
+   mailbox". Bind the job, never the skill: a skill's mapping answers for
+   every mailbox. `skills enable --confirm`, which `/llm-wiki:enable` runs,
+   maps nothing and lists the skill's `file` slot as unmapped with a `bind
+   skill` line; leave that line unrun. Exactly what to run, on the machine
+   that pulls:
    `printf '%s' '<who>@example.com' | llm-wiki-ops credentials set <slug>-mailbox`
    — the name is the operator's to choose (`<slug>-mailbox` reads well in
    `credentials bindings`); the VALUE is unused by everything, so set it to
    the mailbox's address, a label, and NEVER to a real password or token
-   (a spawned slice is read-granted that one payload file). Then:
-   `llm-wiki-ops credentials bind <slug> <slug>-mailbox` — `bind` refuses a
-   name that is not set on this machine. After a peer changes the job, look
-   at what it now pulls and `bind` again. Do NOT bind on a machine whose
+   (a spawned slice is granted its own copy of that one value). Then:
+   `llm-wiki-ops credentials bind job <slug> file=<slug>-mailbox` — `bind`
+   refuses a name that is not set on this machine. After a peer changes the
+   job, look at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.
 3. Enable the skill on every OTHER machine that pulls
    (`/llm-wiki:enable channel-gmail`, which enables the bound harvest

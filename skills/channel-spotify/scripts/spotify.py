@@ -56,9 +56,10 @@ Paths: `llm-wiki-ops run` starts this script in the WIKI ROOT, so
       `--capture-dir` is the ticket's `capture_dir` verbatim (wiki-relative),
       and so is any other relative path.
 
-Keyless degradation: with no route, `meta` and `capture` fall back to
-the public embed endpoint (open.spotify.com/embed/...), which exposes the
-entity name and a POSSIBLY TRUNCATED item list. The output carries
+Keyless degradation: with no route (the jail omits one this machine maps
+to nothing), `meta` and `capture` fall back to the public embed endpoint
+(open.spotify.com/embed/...), which exposes the entity name and a POSSIBLY
+TRUNCATED item list. The output carries
 "keyless": true so nobody mistakes it for a complete enumeration.
 
 History:
@@ -281,7 +282,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -312,7 +313,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
@@ -388,8 +389,9 @@ def get_token():
         time.sleep(backoff_seconds(r))
     if r.status_code != 200:
         die(
-            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is enabled and its grant "
-            f"is missing or wrong: `llm-wiki-ops credentials set spotify` (references/enable.md)"
+            f"token request failed ({r.status_code}): {r.text[:200]} — the `spotify` route is mapped to a grant Spotify "
+            f"refuses: store the right one under the name `llm-wiki-ops credentials bindings` shows for it "
+            f"(references/enable.md)"
         )
     tok = r.json()
     _token_cache = {"token": tok["access_token"], "expires_at": time.time() + tok.get("expires_in", 3600)}
@@ -1341,7 +1343,7 @@ def render_page_md(meta):
         L.append("")
         L.append(
             "> [!warning] Keyless capture — item list may be truncated; "
-            "store the `spotify` route's credential and re-capture for the full set."
+            "map the `spotify` route to a stored grant and re-capture for the full set."
         )
     cut = meta.get("truncated")
     if isinstance(cut, dict):

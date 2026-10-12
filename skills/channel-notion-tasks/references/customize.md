@@ -25,10 +25,17 @@ reaches, and why:
 llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
 ```
 
-`/llm-wiki:sandbox channel-notion-tasks` reviews it into a wiki sandbox, and
-`/llm-wiki:enable channel-notion-tasks` binds the stage. The wiki sandbox
-holds only the `## Profile` block — the wiki writes no credential route at
-all here. A harvest also needs a `notion` route in this machine's harness
-profile (see the reference's `## Credential` section); prefer the profile
-scoped to this wiki alone. `process` names no sandbox and runs with no
-network.
+`/llm-wiki:sandbox channel-notion-tasks` reviews it, and
+`/llm-wiki:enable channel-notion-tasks` binds the stage. **Reuse the
+`notion-harvest` sandbox `skills install` wrote; never write a
+`channel-notion-tasks-harvest` from the snippet.** The `notion` route is the
+reference's `## Machine` block, which install puts in that sandbox's
+`machine.allow` and a sandbox written from `## Profile` alone lacks, and
+the manifest declares `requires.credentials.notion` `"required"`: `skills
+enable` refuses a stage bound to a sandbox that carries no `notion` route.
+Its probe, `ntn whoami`, runs at `sandboxes enable notion-harvest` and
+spends the wiki's vault entry `notion`, so on each machine name the vault
+and store the token BEFORE `/llm-wiki:enable` enables it (steps 2 and 3 of
+`llm-wiki-ops reference channel-notion-tasks/enable`). No route in a harness
+profile: the route is the stage's. `process` names no sandbox and runs with
+no network.

@@ -9,10 +9,9 @@
     "host:circle.so",
     "host:*.circle.so"
   ],
-  "kind": "channel",
   "name": "channel-circle",
   "requires": {
-    "credential": false,
+    "dir": "required",
     "ops": ">=0.1.0"
   },
   "stages": {

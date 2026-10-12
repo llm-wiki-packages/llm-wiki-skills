@@ -25,7 +25,7 @@ the wiki root) and write your own files as `./<name>`. Never compose a path.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -176,8 +176,8 @@ Where the runtime named the host a call was refused on, put that host in
 
 ## The binding
 
-The manifest declares `requires.credential: true` and **the value is never
-read** — not by this unit, not by its script. `credentials bind <slug> <name>`
-is the operator's per-machine consent: "this machine's session is signed into
-THIS mailbox", and a machine without one skips this job's harvest. How to
-make one: `llm-wiki-ops reference channel-gmail/enable`.
+The manifest declares `requires.file: "required"` and **the value is never
+read** — not by this unit, not by its script. `credentials bind job <slug>
+file=<name>` is the operator's per-machine consent: "this machine's session
+is signed into THIS mailbox", and a machine without one skips this job's
+harvest. How to make one: `llm-wiki-ops reference channel-gmail/enable`.

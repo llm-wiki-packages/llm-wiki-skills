@@ -45,9 +45,9 @@ def front_door(tmp_path, ticket):
         "argv = sys.argv[1:]\n"
         "verb = [a for a in argv if not a.startswith('--')]\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if verb[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET})); sys.exit(0)\n"
-        "if verb[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if verb[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path(os.environ['FAKE_UPDATES']).open('a').write(json.dumps(argv) + '\\n'); sys.exit(0)\n"
         "sys.exit(9)\n"
     )

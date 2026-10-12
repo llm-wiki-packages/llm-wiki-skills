@@ -54,7 +54,7 @@
    `/llm-wiki:enable channel-hubspot-video` — because `run` and the
    slice serve the ENABLED copy, and steps 2–4 edited the wiki's.
 5. **Declare the job.**
-   `llm-wiki-ops pipeline jobs add <section-root-url> slug=<site-section>
+   `llm-wiki-ops jobs add <section-root-url> slug=<site-section>
    description="<what this is>" skill=channel-hubspot-video` — the skill's
    manifest supplies `every=once`, `harvest.scope=section`,
    `harvest.assets=download`, `transcribe.options.when=always` (the video IS
@@ -68,8 +68,8 @@
    is killed at thirty minutes, and one run attempts six pages by default, so
    a section reports `partial` many times. `every=once` — the default above —
    is NOT pulled again after a `partial`: either
-   `llm-wiki-ops pipeline tickets retry <id>` (three attempts a ticket), or
-   declare the job with a period while it fills (`every=1h`, at `pipeline jobs
-   add` or `llm-wiki-ops pipeline jobs edit <slug> every=1h`) and set
+   `llm-wiki-ops tickets retry <id>` (three attempts a ticket), or
+   declare the job with a period while it fills (`every=1h`, at `jobs add`
+   or `llm-wiki-ops jobs edit <slug> every=1h`) and set
    `every=once` when a run reports `ok` with nothing new. The report's
    `reason` says the same.

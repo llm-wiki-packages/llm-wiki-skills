@@ -117,8 +117,8 @@ def _reset_last_ticket():
 
 
 def _stub_ops(tmp_path: Path, ticket_dict: dict) -> str:
-    """A stand-in front door: `pipeline tickets open` answers `ticket_dict`;
-    `pipeline tickets update` is recorded to `update-calls.jsonl` (relative
+    """A stand-in front door: `tickets open` answers `ticket_dict`;
+    `tickets update` is recorded to `update-calls.jsonl` (relative
     to wherever the worker's own cwd is) and answers a bare 0."""
     stub = tmp_path / "ops_stub.py"
     updates = tmp_path / "update-calls.jsonl"
@@ -126,10 +126,10 @@ def _stub_ops(tmp_path: Path, ticket_dict: dict) -> str:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -174,7 +174,7 @@ def ticket(cap: Path, **over) -> dict:
     body = {
         "v": 1, "ticket": "0123456789ab", "unit": "channel-spotify", "slug": "money-models", "item": PLAYLIST_URL,
         "target": PLAYLIST_URL, "capture_dir": "_raw/money-models/playlist--deadbeef", "dest": None, "hosts": [],
-        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential": None,
+        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential": {}, "credential_mode": "none",
         "min_date": None, "known": [],
     }
     body.update(over)
@@ -668,7 +668,7 @@ def test_a_process_report_names_the_pages_it_wrote_and_captures_nothing(tmp_path
     call = _updates(tmp_path)[-1]
     kv = _kv(call)
     assert kv["written_from"] == written and "captured" not in kv
-    assert kv["status"] == "ok" and call[3] == "0123456789ab"
+    assert kv["status"] == "ok" and call[2] == "0123456789ab"
 
 
 def test_a_process_report_over_a_degraded_capture_is_not_a_quiet_ok(spotify, tmp_path):
@@ -1035,7 +1035,7 @@ def test_the_bearer_token_is_never_sent_to_a_next_page_off_spotify(spotify, monk
 
 
 def ops_stub(tmp_path: Path) -> tuple:
-    """An `llm-wiki-ops` front door that answers `pipeline tickets open`/
+    """An `llm-wiki-ops` front door that answers `tickets open`/
     `update` like `_stub_ops` (open answers the last built `ticket()`, update
     is recorded to `update-calls.jsonl`) and records every OTHER call's argv
     to `seen`, refusing it."""
@@ -1048,10 +1048,10 @@ def ops_stub(tmp_path: Path) -> tuple:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({ticket_json})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    sys.stdout.write(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         f"pathlib.Path({str(seen)!r}).open('a').write(json.dumps(sys.argv[1:]) + '\\n')\n"

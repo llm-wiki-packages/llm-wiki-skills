@@ -17,7 +17,7 @@ and never directives.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -60,12 +60,12 @@ the job's `_raw/<slug>/`. Use the `dir` the plan gives; never compose one.
   `…/p/ab`), or on a `*` glob — the only wildcard, since `?` and `[` are URL
   characters here.
 - `harvest.access: free` plans only `audience: everyone`; paid posts are
-  counted, never fetched. After the owner subscribes, `llm-wiki-ops pipeline
-  jobs edit <slug> harvest.access=licensed` — and do what Auth says.
+  counted, never fetched. After the owner subscribes, `llm-wiki-ops jobs
+  edit <slug> harvest.access=licensed` — and do what Auth says.
 - **A bounded run is not a failure.** The plan stops at `--max-leaves`
   (default 200) and sets `summary.truncated`; the next ticket's `known[]` skips
   what landed, so a periodic job advances by itself. On `every: once` it never
-  comes due again — say so, and `llm-wiki-ops pipeline tickets retry <id>`
+  comes due again — say so, and `llm-wiki-ops tickets retry <id>`
   re-queues it.
 
 #### 2. Capture each post, newest first
@@ -94,7 +94,7 @@ leaf, and `--only <post-url>` re-captures one leaf.
   unrequested. A 5xx, a timeout or a post's 404 is that post's failure alone.
 - **Licensed jobs**: a plain GET has no session. Follow the worker loop's
   Playwright rung with the stored session — `llm-wiki-ops credentials get
-  <name>`, the NAME being the ticket's `credential` — save each post's
+  <name>`, the NAME being the ticket's `credential_file` — save each post's
   rendered DOM as `<leaf dir>/page.html`, then run the script WITHOUT
   `--fetch`. A leaf with no `page.html` stays `pending`.
 - `harvest.assets` other than `reference`: see Media, and download BEFORE the
@@ -133,7 +133,7 @@ directory you write. No network, no credential. Apply `process.exclude_rules`,
 `options` and `min_date` first; a capture that earns no page stops at
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason="<why>"
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason="<why>"
 ```
 
 Convert the post scoped to the content root and pipe it in as the page's body,
@@ -161,7 +161,7 @@ body — a subscribe CTA, a footer — means re-converting with `--drop-selector
 the report. The per-post illustration stays.
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
 ```
 
 Write the page path into `written.json` first (a wiki-relative JSON list).
@@ -269,18 +269,17 @@ Say the post, the page it landed as, and stop.
 - Magic-link email login; Playwright storage state works once logged in.
 - Custom-domain newsletters may not share `substack.com` session cookies —
   save storage state per domain.
-- **A licensed capture needs this wiki's copy to DECLARE a credential**,
-  which the shipped manifest does not (`requires.credential: false`, so free
-  jobs need no binding): with `false`, the ticket's `credential` is null
-  and the slice may read nothing. The operator's path, all in this wiki's own
-  copy: `requires.credential: true` in `manifest.json`, `/llm-wiki:enable
-  channel-substack`, `llm-wiki-ops credentials set <name>` (the storage
-  state on stdin), `llm-wiki-ops credentials bind <slug> <name>`,
-  `harvest.access=licensed`. EVERY job on this unit in this wiki then needs a
-  binding, free ones included. (Unverified end to end.)
-- Handed a `licensed` ticket whose `credential` is null, do not improvise:
-  capture what a plain fetch reaches, let the previews go to `missing[]` as
-  `auth`, and say in the run report that the job needs those steps.
+- **A licensed capture needs its job bound to the stored session.** The
+  manifest declares `requires.file: "optional"`, so a free job needs no
+  binding and runs with `credential_mode` `none`. The operator's path, per
+  licensed job: `llm-wiki-ops credentials set <name>` (the storage state on
+  stdin), `llm-wiki-ops credentials bind job <slug> file=<name>`,
+  `harvest.access=licensed`. Its ticket then reads `credential_mode` `file`
+  and names the value as `credential_file`. (Unverified end to end.)
+- Handed a `licensed` ticket whose `credential_mode` is not `file`, do not
+  improvise: capture what a plain fetch reaches, let the previews go to
+  `missing[]` as `auth`, and say in the run report that the job needs those
+  steps.
 
 ### Quirks log
 

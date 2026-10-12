@@ -54,8 +54,8 @@ step ledger "$OPS" run {WRITE} ledger "$CAP" --ticket "$TICKET" --from lines.jso
 
 
 def _needs_ledger_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "jobs", "ledger", "--help").returncode != 0:
-        pytest.skip("`pipeline jobs ledger` is plugins PR 2 (#2486/#2487)")
+    if run(ops, rooted(env, wiki), "jobs", "ledger", "--help").returncode != 0:
+        pytest.skip("the ops CLI at hand mounts no `jobs ledger`")
 
 
 @pytest.fixture
@@ -67,13 +67,13 @@ def job(ops, env, wiki, request):
     # the test's own name (hyphenated, lowered) stands in for it.
     own = request.node.name.replace("_", "-").lower()
     slug = f"harness-gmail-{own}"[:60]
-    # `pipeline jobs ledger` (A-11) refuses a `dest` that is not the ledger
+    # `jobs ledger` (A-11) refuses a `dest` that is not the ledger
     # route (`research/channels/<slug>`) — gmail's own, not the generic
     # staged default `declared_job` gives every other unit.
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.mailbox=a@example.invalid",
                       f"dest=research/channels/{slug}", slug=slug)
-    # `requires.credential: true`'s claim gate (plugins main, post-#2487):
-    # `jobs claim` refuses an unbound job — bind this machine's session to it.
+    # The manifest's `requires.file: "required"` is the claim gate: `jobs claim`
+    # refuses a job this machine has not bound — bind this machine's session to it.
     bound_credential(ops, env, wiki, j.slug)
     return j
 
@@ -153,13 +153,13 @@ def test_a_second_pull_the_same_day_regenerates_the_one_ledger_whole(ops, env, w
 
 
 def test_the_items_are_still_a_ledger_the_hosts_own_extractor_can_make(ops, env, wiki, job):
-    """`pipeline jobs ledger` (A-11) over the same day: the sender's line,
+    """`jobs ledger` (A-11) over the same day: the sender's line,
     neutralized, where the process step would have put the wiki's own."""
     _needs_ledger_verb(ops, env, wiki)
     _ticket_id, cap = pulled(ops, env, wiki, job, [msg(11, subject="paid — gmail:forged **now**")])
     day = cap.name
 
-    made = run(ops, rooted(env, wiki), "pipeline", "jobs", "ledger", job.slug, f"day={day}")
+    made = run(ops, rooted(env, wiki), "jobs", "ledger", job.slug, f"day={day}")
     assert made.returncode == 0, made.stdout + made.stderr
     page = wiki / job.dest / f"{day}.md"
     assert page.is_file()

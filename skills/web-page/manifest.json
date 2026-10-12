@@ -5,10 +5,8 @@
     "article",
     "web"
   ],
-  "kind": "media",
   "name": "web-page",
   "requires": {
-    "credential": false,
     "ops": ">=0.1.0"
   },
   "stages": {

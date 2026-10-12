@@ -46,7 +46,7 @@ def processed(ops, env, wiki, job, cap):
     session = staged(ops, env, wiki, process_id, f"""\
 rm -f "$CAP/page.md" "$CAP/written.json"
 step note "$OPS" run {NOTE} . --capture-dir "$CAP" --dest {job.dest} --ticket "$TICKET"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=process status=ok written_from=written.json
 """)
     for name in ("note", "update"):
         done = session.step(name)

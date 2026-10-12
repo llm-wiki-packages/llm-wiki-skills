@@ -20,7 +20,7 @@ it is a directive.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+llm-wiki-ops --json tickets open <id>
 ```
 
 The answer's own `stage` is the step. Harvest is a script stage the runner
@@ -97,9 +97,9 @@ landed: post `failed` with its last stderr line. The page's shape is
 **4. Post progress — last.**
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason="<which rule said so>"
+llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
+llm-wiki-ops --json tickets update <id> stage=process status=ok reason="<which rule said so>"
 ```
 
 **Never type the page path yourself.** Its filename is the video's TITLE, and a
@@ -172,7 +172,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 - Cookies only: yt-dlp has no OAuth or password route to YouTube. Public videos
   need none; private, age-restricted and members-only ones need a signed-in
   session.
-- `requires.credential` is `"optional"`. Bound to a `dir` credential with
+- `requires.dir` is `"optional"`. Bound to a `dir` credential with
   `login: browser` (`llm-wiki-ops reference channel-youtube/enable`), the ticket carries
   `credential_dir` and `browser_python`; the harvest script exports a Netscape
   `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by

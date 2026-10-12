@@ -81,7 +81,7 @@ def _ticket(**over):
         "v": 1, "ticket": "0123456789ab", "unit": UNIT, "slug": "talks", "item": SHARE, "target": SHARE,
         "capture_dir": "_raw/talks/share-0000--deadbeef", "dest": None, "hosts": ["*.frame.io", "frame.io"],
         "harvest": {"scope": "domain", "access": "free", "exclude_urls": [], "assets": "download"},  # the shipped default
-        "options": {}, "credential": None, "min_date": None, "known": [],
+        "options": {}, "credential": {}, "credential_mode": "none", "min_date": None, "known": [],
         "worker": "spawn-1",  # the slice id `open` answers (P-8); a test that respawns rotates it
     }
     ticket.update(over)
@@ -299,8 +299,8 @@ def _share_dir(tmp_path, leaves, **ticket_over):
 
 
 def _stub_ops(home: Path, ticket_dict: dict | None) -> tuple[str, Path]:
-    """A stand-in front door: `pipeline tickets open` answers `ticket_dict`;
-    `pipeline tickets update` is recorded to `update-calls.jsonl` and answers
+    """A stand-in front door: `tickets open` answers `ticket_dict`;
+    `tickets update` is recorded to `update-calls.jsonl` and answers
     a bare 0. A fresh `home` per call keeps one call's posts from another's."""
     home.mkdir(parents=True, exist_ok=True)
     stub = home / "ops_stub.py"
@@ -309,12 +309,12 @@ def _stub_ops(home: Path, ticket_dict: dict | None) -> tuple[str, Path]:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    if TICKET is None:\n"
         "        sys.exit('ops_stub: no ticket')\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -350,7 +350,7 @@ def _last_update(updates: Path, root: Path) -> dict:
         host, url, why = a.split("=", 1)[1].split(",", 2)
         missing.append({"host": host, "url": url.replace("%2C", ","), "why": why})
     return {
-        "ticket": argv[3] if len(argv) > 3 else None, "outcome": kv.get("status"), "reason": kv.get("reason"),
+        "ticket": argv[2] if len(argv) > 2 else None, "outcome": kv.get("status"), "reason": kv.get("reason"),
         "captured": captured, "missing": missing, "written": [], "discovered": [],
     }
 
@@ -586,10 +586,10 @@ def test_a_refused_update_is_not_swallowed_into_exit_0(monkeypatch, capsys, tmp_
         "import json, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    sys.exit('ops_stub: refused')\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
     )
@@ -882,10 +882,10 @@ def _stub_front_door(tmp, ticket_dict=None):
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         "stdin = sys.stdin.read() if argv[:1] == ['page'] else ''\n"
         f"open({str(seen)!r}, 'a').write(json.dumps({{'argv': sys.argv[1:], 'stdin': stdin}}) + '\\n')\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
         "print(json.dumps({'ok': True}))\n"
     )
@@ -1025,7 +1025,7 @@ def test_the_real_argv_chain_carries_a_file_named_like_an_option(tmp_path):
     )
     assert done.returncode == 0, done.stderr
     calls = [json.loads(line) for line in seen.read_text().splitlines()]
-    update_call = [c for c in calls if c["argv"][1:4] == ["pipeline", "tickets", "update"]][-1]
+    update_call = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]][-1]
     kv = _kv(update_call["argv"])
     assert kv["status"] == "ok" and "missing" not in kv, [json.loads(p.read_text()) for p in root.glob("_raw/talks/*/error.json")]
     captured_dirs = [a.split("=", 1)[1] for a in update_call["argv"] if a.startswith("captured=")]
