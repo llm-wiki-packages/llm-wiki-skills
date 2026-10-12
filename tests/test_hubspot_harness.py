@@ -27,7 +27,7 @@ LEAVES = "ops/skills/channel-hubspot-video/scripts/leaves.py"
 
 def _needs_retry_verb(ops, env, wiki):
     if run(ops, rooted(env, wiki), "tickets", "retry", "--help").returncode != 0:
-        pytest.skip("`tickets retry` is plugins PR 2 (#2486)")
+        pytest.skip("the ops CLI at hand mounts no `tickets retry`")
 
 
 def test_a_cadence_change_and_a_retry_refusal_are_real(ops, env, wiki):

@@ -377,6 +377,16 @@ def _root_with_post_ticket(tmp_path, **over):
     return root, ticket, env
 
 
+def test_both_scripts_open_their_ticket_by_the_verb_the_front_door_mounts(tmp_path, monkeypatch):
+    """Each script carries its own `open_ticket`; the stand-in answers the
+    one verb the CLI mounts for it and refuses any other argv, so a script
+    asking by another spelling exits here."""
+    root, ticket, env = _root_with_post_ticket(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_OPS", env["LLM_WIKI_OPS"])
+    for name in ("capture_posts", "enumerate_archive"):
+        assert _module(name).open_ticket(ticket["ticket"], "harvest") == ticket, name
+
+
 def _litter(root):
     return sorted(path.name for path in root.iterdir() if path.name not in ("_raw", "ops_stub.py", "update-calls.jsonl"))
 

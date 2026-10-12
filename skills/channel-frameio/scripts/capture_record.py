@@ -411,9 +411,9 @@ def content_type_for(ext: str) -> str:
 
 
 def is_media(content_type: str) -> bool:
-    """A body the transcriber is owed rather than a reader: only `pipeline
-    extract` can mint the page that waits for one, so the unit's process step
-    hands a media capture back rather than writing a finished page over it."""
+    """A body the transcriber is owed rather than a reader: the process step
+    writes no finished page for one, only the queued stub the transcribe
+    stage reads (empty body, `extracted=queued`, and the media it waits on)."""
     return str(content_type or "").startswith(("video/", "audio/"))
 
 

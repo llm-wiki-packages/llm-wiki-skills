@@ -103,9 +103,7 @@ History:
               page through `page create`/`page edit` itself, and writes
               `report.json` naming it in `written[]`.
   2026-09-19  a video leaf gets a page too — the transcribe stage's queued
-              stub, minted here. It was reported `skipped` for a day, on the
-              reading that only a host step could set `extracted` and
-              `media`; measuring `page create` showed otherwise.
+              stub, minted here.
   2026-09-25  moved to the CLI-verb worker contract: `--ticket <id>` opens
               `process.bundle_media` through `tickets open` instead of a file
               beside the leaf dir, and the report is posted `tickets update`
@@ -160,10 +158,10 @@ EXISTS = "already exists"
 TYPE_DOC = "doc"
 TYPE_VIDEO = "video"
 
-# Where `process.bundle_media: true` puts the media, relative to `dest`. The
-# process slice is granted rw on `dest`, and this step writes the page itself
-# through `page create`, so no host step lands these pages and the copy is
-# this step's to make.
+# Where `process.bundle_media: true` puts the media, relative to `dest`. Media
+# bundling lives in the plugin's extractor, which runs only for a unit that
+# declares harvest alone; this unit declares process and holds the pen, so it
+# copies its own media into `dest` (its process slice is granted rw there).
 ASSETS = "assets"
 
 #: Cap on inlined text. A page is read by people and by search; a 300-page

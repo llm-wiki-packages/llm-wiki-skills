@@ -158,7 +158,7 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
     update` with a bare 0, and `page create`/`page edit` by writing the page
     and printing what the real verb prints — the whole front door this
     script's own helpers (`open_ticket`, `post_update`, `write_page`) reach
-    through one `LLM_WIKI_OPS`. `body` is python run before any of that, for
+    through one `LLM_WIKI_OPS` — and refuses any other argv. `body` is python run before any of that, for
     a case that wants `run` (the transcript formatter) answered its own way.
     `interpreter` shebangs the stub with a real venv's python, the shape a
     hosted `llm-wiki-ops`'s own console script carries, for a case that runs
@@ -197,6 +197,7 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         "    out.write_text(stdin)\n"
         "    print(json.dumps({'path': rel, 'status': 'draft'}))\n"
         "    sys.exit(0)\n"
+        "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
     )
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
     return {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "LLM_WIKI_OPS": str(stub)}, seen
@@ -428,6 +429,22 @@ def test_a_machine_without_the_front_door_is_told_so(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         mod.open_ticket("some-id")
     assert "`llm-wiki-ops` is not on PATH" in str(exc.value) and "front door" in str(exc.value)
+
+
+def test_progress_is_posted_by_the_verb_the_front_door_mounts(tmp_path, monkeypatch):
+    """`post_update` against the stand-in, which answers `tickets update` and
+    refuses any other argv: a script posting by another spelling is refused
+    here, not first on a wiki."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("youtube_note", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    path, seen = _stub_front_door(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_OPS", path["LLM_WIKI_OPS"])
+    assert mod.post_update(TICKET_ID, "process", "ok", written_from="written.json") == 0
+    (call,) = _calls(seen)
+    assert call["argv"][:4] == ["--json", "tickets", "update", TICKET_ID] and "written_from=written.json" in call["argv"]
 
 
 def test_the_front_door_a_hosted_run_names_wins_over_the_bare_name(tmp_path):

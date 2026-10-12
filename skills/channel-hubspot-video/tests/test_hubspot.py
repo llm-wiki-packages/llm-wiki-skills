@@ -143,6 +143,14 @@ def ticket(cap: Path, root: Path, **over) -> dict:
     return body
 
 
+def test_render_reads_the_page_off_the_ticket_the_front_door_opens(tmp_path, monkeypatch):
+    """`render --ticket` names no url: the page is the ticket's own `item`,
+    asked of the front door by the verb it mounts. The stand-in answers that
+    verb and refuses any other argv, so a misspelled one exits here."""
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path, ticket(tmp_path / "_raw" / "s" / "leaf", tmp_path, item=LESSON)))
+    assert capturer.ticket_item("0123456789ab") == LESSON
+
+
 # ------------------------------------------------------------ pure logic
 
 

@@ -55,7 +55,7 @@ step ledger "$OPS" run {WRITE} ledger "$CAP" --ticket "$TICKET" --from lines.jso
 
 def _needs_ledger_verb(ops, env, wiki):
     if run(ops, rooted(env, wiki), "jobs", "ledger", "--help").returncode != 0:
-        pytest.skip("`jobs ledger` is plugins PR 2 (#2486/#2487)")
+        pytest.skip("the ops CLI at hand mounts no `jobs ledger`")
 
 
 @pytest.fixture
