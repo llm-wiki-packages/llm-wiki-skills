@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime
 import json
 import subprocess
+import time
 
 from harness import declared_job, enabled, no_jail_here, plugin_refused, rooted, run, shown
 
@@ -36,6 +37,11 @@ def _ran(ops, env, wiki, slug: str) -> dict:
         with open(path, encoding="utf-8", errors="replace") as f:
             log = f.read()
         plugin_refused(wiki, log)
+    # `wait=` answers at the worker's exit; the pass that exit runs lands the ticket a moment later.
+    deadline = time.monotonic() + 60
+    while shown(ops, env, wiki, ticket_id)["state"] == "active":
+        assert time.monotonic() < deadline, f"{ticket_id}: still active 60s after its worker exited"
+        time.sleep(0.5)
     return {"id": ticket_id, "update": waited["table"][0].get("update"), "log": log}
 
 
