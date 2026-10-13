@@ -31,8 +31,18 @@
     },
     {
       "type": "skill",
+      "name": "channel-github",
+      "path": "skills/channel-github"
+    },
+    {
+      "type": "skill",
       "name": "channel-gmail",
       "path": "skills/channel-gmail"
+    },
+    {
+      "type": "skill",
+      "name": "channel-gmail-gws",
+      "path": "skills/channel-gmail-gws"
     },
     {
       "type": "skill",

@@ -1,0 +1,910 @@
+#!/usr/bin/env python3
+"""Both steps of one gmail mailbox: the day's items, then the day's actionable ledger.
+
+  harvest (driven by `harvest.py`, which pulls through gws and calls these):
+  write_items.py since <capture_dir> [--lookback-days 7]
+  write_items.py write <capture_dir> [--from pull.json] \\
+                 [--exclude-label L]... [--exclude-sender a@b.c|@b.c]... [--cap 200] \\
+                 [--partial <reason>] [--missing <host> <url> <denied|timeout|auth|error>]...
+  write_items.py write <capture_dir> --failed <reason> [--missing ...]
+
+  process:
+  write_items.py ledger <capture_dir> [--from lines.json] [--partial <reason>]
+
+`<capture_dir>` is the ticket's own `capture_dir`, VERBATIM — the job's DAY
+directory, `_raw/<slug>/<YYYY-MM-DD>`, WIKI-RELATIVE: `llm-wiki-ops run` starts
+a script at the wiki root, not in the capture directory the worker stands
+in, so `.` is the wrong answer here. Every verb takes `--ticket <id>`, read
+through `llm-wiki-ops tickets open` for the `capture_dir` the report
+names, `options.mailbox`, `min_date` and — on `ledger` — `dest`; a run with no
+ticket is refused, and nothing stands in for one. A bare `--from` name is
+looked for INSIDE the capture directory; no `--from` is `pull.json` there,
+else stdin.
+
+`since` answers where this pull starts, as JSON: the cursor's
+`newest_internal_date` when `_raw/<slug>/.cursor.json` is there, else
+now minus the lookback; never earlier than the ticket's `min_date`.
+
+`write` takes the messages the worker read off the connector — a JSON list on
+stdin or in `--from` — and writes them down as they arrived, judging nothing:
+
+    [{"id": "<msg-id>", "internal_date": <epoch-ms>, "thread": "…", "from": "…",
+      "to": "…", "date": "…", "subject": "<the sender's>", "labels": ["…"],
+      "attachments": [{"name": "…", "mime": "…"}], "body": "<plain text>"}]
+
+Oldest `--cap` first, so the cursor it leaves is a clean resume point; then
+the mechanical filters (labels, senders, `min_date`, already behind the
+cursor); then one file per message under
+`<capture_dir>/items/<internal-date>--<msg-id>.json`, and a flat
+`capture.json` naming that directory as the pull's payload.
+
+`ledger` is the process step, and the one that judges. It reads the day's
+items, takes one verdict per item from `--from` —
+
+    [{"id": "gmail:<msg-id>", "category": "needs-reply" | "action" | "waiting" | "fyi",
+      "line": "<one factual line, in the WIKI's words>", "due": null | "YYYY-MM-DD",
+      "junk": null | "<the rule that discards it>"}]
+
+— and writes the day's page WHOLE through the front door: `page create`, or
+`page edit` over the page a earlier pull of the same day already left. Each
+bullet leads with its category, actionable first; an item with no line keeps
+its bullet, untagged and last, with the sender's own subject standing in.
+
+What the plugin's extractor reads from an item file, on a day it reaches
+first, is `subject|title|summary|text` (first present) and `id|source`
+(`pipeline/extract.py::_item_bullet`) — so the sender's line is stored twice:
+neutralized under `subject`, which is what such a bullet would carry, and
+untouched under `venue_subject`, which nothing reads by accident. What a
+folding leaves live is swapped for look-alikes (`host_line`): raw HTML's `<`
+`>`, the ` — ` a bullet puts before its pointer, a bare url, `*` and `|`.
+
+An item with an id and no trustworthy time — none, unparseable, or more than
+a day ahead of this machine's clock (one seconds/ms/µs slip) — is KEPT, filed
+under the pull's own clock, marked `time_untrusted` and counted `bad_time`; it
+never moves the cursor. A cursor file that is unreadable or ahead of the
+clock is ignored, out loud, and the lookback stands in.
+
+Then `tickets update`, and only THEN the cursor (never backwards, never past
+the clock, never by a failed pull). `capture.json` is (re)written whenever
+`items/` holds a file — not only when THIS invocation wrote one — so a
+rerun never leaves the host's own `captured[]` default empty over items no
+ledger has; and a report this ticket's own earlier `write` left, read back
+off `report.<id>.json` (`carried`), is never downgraded: a later failure
+makes it `partial` and says why. `close` mints the process ticket from a
+harvest `ok`/`partial`'s `captured[]`, and `ledger` regenerates the day's
+page WHOLE, posting `written_from=` naming the page.
+
+Wiki-owned, stdlib only, imports nothing from the plugin, and no PEP 723
+block: `run` then execs the interpreter directly, needing no uv cache.
+"""
+
+import argparse
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
+from email.utils import parseaddr
+from pathlib import Path
+
+VENUE = "gmail"
+INPUT_KEY = "mailbox"  # the unit's one `watch.inputs` answer, under the ticket's `options`
+LOOKBACK_DAYS = 7
+CAP = 200
+
+ITEM_V = 1
+CAPTURE_V = 1
+CAPTURE_NAME = "capture.json"
+CURSOR_NAME = ".cursor.json"
+ITEMS_DIRNAME = "items"  # the host's own name for it: `pipeline/extract.py::ITEMS_DIRNAME`
+WHYS = ("denied", "timeout", "auth", "error")
+BODY_MAX = 50_000
+DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_UNSAFE = re.compile(r"[^A-Za-z0-9_-]+")
+# What `host_line` swaps: look-alikes for the characters the host's own folding leaves live.
+_SWAPS = str.maketrans({"<": "‹", ">": "›", "—": "-", "―": "-", "*": "∗", "|": "¦"})
+_WWW = re.compile(r"(?i)\bwww\.")
+# What a bullet swaps beyond those: the three `extract.py::_plain` turns, so one
+# line reads the same whoever wrote the page — this unit's process step, or the
+# plugin's extractor on a day it reaches first.
+_PLAIN = str.maketrans({"`": "'", "[": "(", "]": ")"})
+PULL_NAME = "pull.json"
+LINES_NAME = "lines.json"
+BULLET_MAX = 200  # `extract.py::_plain`'s cap, kept so a ledger reads the same from either writer
+# The ledger's order: what needs the operator first. An item with no category
+# (unjudged, or a word not in this list) sorts after all of them.
+CATEGORIES = ("needs-reply", "action", "waiting", "fyi")
+LEDGER_TYPE = "ledger"
+OPS = "llm-wiki-ops"
+
+
+def front_door() -> list:
+    """The front door, as an argv prefix.
+
+    A hosted run exports `LLM_WIKI_OPS`, naming the CLI it was itself reached
+    by — a command LINE, not a path — and that is the one spelling a jail is
+    sure to carry. Otherwise the bare name on PATH. Empty when there is
+    neither."""
+    named = os.environ.get("LLM_WIKI_OPS")
+    if named:
+        return shlex.split(named)
+    found = shutil.which(OPS)
+    return [found] if found else []
+
+
+def open_ticket(ticket: str, stage: str | None = None) -> dict:
+    """This worker's own ticket (A-1), through the front door. Exits naming
+    the refusal."""
+    me = Path(__file__).stem
+    door = front_door()
+    if not door:
+        sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
+    argv = [*door, "--json", "tickets", "open", ticket]
+    if stage:
+        argv.append(f"stage={stage}")
+    cp = subprocess.run(argv, capture_output=True, text=True)
+    if cp.returncode != 0:
+        sys.exit(f"{me}: `tickets open {ticket}` refused — {(cp.stdout + cp.stderr).strip()}")
+    try:
+        return json.loads(cp.stdout)["ticket"]
+    except (ValueError, KeyError) as exc:
+        sys.exit(f"{me}: `tickets open {ticket}` did not answer a ticket ({exc}) — {cp.stdout}")
+
+
+def post_update(
+    ticket: str,
+    stage: str,
+    status: str,
+    *,
+    reason: str | None = None,
+    captured=(),
+    missing=(),
+    written_from: str | None = None,
+    produced: int | None = None,
+    note: str | None = None,
+) -> int:
+    """This worker's progress (A-2), through the front door. `missing` is an
+    iterable of `(host, url, why)`; a `,` inside `url` is typed as `%2C`,
+    the side note every unit's `missing=` build follows the same way."""
+    me = Path(__file__).stem
+    door = front_door()
+    if not door:
+        sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    if reason:
+        argv.append(f"reason={reason}")
+    for directory in captured:
+        argv.append(f"captured={directory}")
+    for host, url, why in missing:
+        argv.append(f"missing={host},{url.replace(',', '%2C')},{why}")
+    if written_from:
+        argv.append(f"written_from={written_from}")
+    if produced is not None:
+        argv.append(f"produced={produced}")
+    if note:
+        argv.append(f"note={note}")
+    cp = subprocess.run(argv, capture_output=True, text=True)
+    if cp.returncode != 0:
+        print(f"{me}: `tickets update` refused — {(cp.stdout + cp.stderr).strip()}", file=sys.stderr)
+    return cp.returncode
+
+
+def report_name(ticket: str) -> str:
+    """`report.<id>.json` — the file `tickets update` leaves in the capture
+    directory (CLI spec § 5), the host's own name, not this unit's."""
+    return f"report.{ticket}.json"
+
+
+# What a nested front-door call must NOT inherit from the one that ran this
+# script. `CLAUDE_PROJECT_DIR` is the harness's project directory, never a wiki
+# root: the `cwd=<root>` this script was handed is what binds the nested call
+# to THIS wiki.
+NOT_INHERITED = ("CLAUDE_PROJECT_DIR",)
+AHEAD_MS = 86_400_000  # how far ahead of this machine's clock an item's own time is still believed: a day of skew
+
+
+# ------------------------------------------------------------------ the venue
+
+
+def when_of(item):
+    """A message's own clock — Gmail's `internalDate`, epoch milliseconds — or None."""
+    value = item.get("internal_date")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value)
+    return value if isinstance(value, int) and value >= 0 else None
+
+
+def stamp_of(when):
+    """The sortable head of an item's filename: 13 digits, so names sort by time."""
+    return f"{when:013d}"
+
+
+def day_of(when):
+    return datetime.fromtimestamp(when / 1000, timezone.utc).strftime("%Y-%m-%d")
+
+
+def from_day(day):
+    return int(datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def ago(now, days):
+    return int((now - timedelta(days=days)).timestamp() * 1000)
+
+
+def pointer_of(item, safe_id):
+    return f"{VENUE}:{safe_id}"
+
+
+def show(when):
+    """A time as this venue's connector is asked for it: epoch milliseconds."""
+    return when
+
+
+def cursor_when(cursor):
+    value = cursor.get("newest_internal_date")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def cursor_for(when, safe_id):
+    return {"newest_internal_date": when, "newest_id": safe_id}
+
+
+def behind_cursor(when, safe_id, cursor):
+    at = cursor_when(cursor)
+    if at is None:
+        return False
+    return when < at or (when == at and safe_id == cursor.get("newest_id"))
+
+
+def venue_args(parser):
+    parser.add_argument("--exclude-label", action="append", default=[], metavar="LABEL")
+    parser.add_argument(
+        "--exclude-sender", action="append", default=[], metavar="ADDR", help="an address, or `@domain` for a whole one"
+    )
+
+
+def filtered_by(item, args):
+    """The mechanical filter this message fails, by name, or None."""
+    labels = {label for label in item.get("labels") or [] if isinstance(label, str)}
+    if labels & set(args.exclude_label):
+        return "label"
+    sender = parseaddr(item.get("from") if isinstance(item.get("from"), str) else "")[1].lower()
+    for entry in args.exclude_sender:
+        entry = entry.lower()
+        if sender and (sender == entry or (entry.startswith("@") and sender.endswith(entry))):
+            return "sender"
+    return None
+
+
+def stored_of(item):
+    """What is kept of a message beside the sender's own line. Attachments are
+    names and MIME types, never bytes."""
+    kept = {key: _text(item.get(key)) for key in ("thread", "from", "to", "date")}
+    kept["labels"] = [label for label in item.get("labels") or [] if isinstance(label, str)]
+    kept["attachments"] = [
+        {"name": _text(one.get("name")), "mime": _text(one.get("mime"))}
+        for one in item.get("attachments") or []
+        if isinstance(one, dict)
+    ]
+    return kept
+
+
+RAW_LINE_KEY = "subject"  # the venue's own one-line name for an item, in the input
+HOST_LINE_KEY = "subject"  # where the neutralized copy lives: the bullet's line when the process step wrote none
+
+
+# ------------------------------------------------------------------ the shape
+
+
+def _text(value):
+    return value if isinstance(value, str) else None
+
+
+def _read_json(path):
+    try:
+        found = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def _write_json(path, doc):
+    """Whole or not at all: a reader never sees half a file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name.lstrip('.')}.tmp")  # dot-first: never a bullet if a crash leaves it
+    tmp.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _ms(moment):
+    return int(moment.timestamp() * 1000)
+
+
+def safe_id(value):
+    """An id as one filename-safe token, or None. The id is the venue's, and a
+    venue's bytes do not get to name a path."""
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
+    token = _UNSAFE.sub("_", str(value)).strip("_")[:120]
+    return token or None
+
+
+def host_line(value):
+    """A venue's own line with what a bullet's folding leaves open swapped
+    out. A folding pass turns a backtick and the two square brackets and caps
+    the line; it leaves raw HTML, the ` — ` a bullet puts before its pointer,
+    a bare url a renderer autolinks, `*` emphasis and a table's `|`.
+    Look-alikes, not deletions: the line still reads as what was written."""
+    return _WWW.sub("www․", value.translate(_SWAPS).replace("://", ":∕∕"))
+
+
+def item_doc(item, sid, *, trusted=True):
+    """One message as it arrived, written down. Harvest judges nothing: the
+    line the ledger carries is the process step's, off this file. The pointer
+    is built from the safe id alone, so it needs no neutralizing."""
+    doc = {"v": ITEM_V, "id": pointer_of(item, sid)}
+    raw = _text(item.get(RAW_LINE_KEY))
+    if raw and raw.strip():
+        doc[HOST_LINE_KEY] = host_line(raw)
+    doc[f"venue_{RAW_LINE_KEY}"] = raw
+    doc.update(stored_of(item))
+    if not trusted:
+        doc["time_untrusted"] = True  # filed under the PULL's clock; the venue's own value is in `stored_of`'s keys
+    body = _text(item.get("body")) or ""
+    doc["body"] = body[:BODY_MAX]
+    doc["body_truncated"] = len(body) > BODY_MAX
+    return doc
+
+
+def id_in(name):
+    """The id an item file is named for — EXACTLY: `<stamp>--<id>.json`, dot or
+    no dot. A stamp never carries `--`; an id may, so the split is the first."""
+    stem = name[1:] if name.startswith(".") else name
+    _stamp, sep, rest = stem.partition("--")
+    return rest[: -len(".json")] if sep and rest.endswith(".json") else None
+
+
+def holds_items(day_dir):
+    """Is there anything in this day for the extractor to make a ledger from —
+    a kept item, or a junked one its `discarded:` line counts?"""
+    items_dir = day_dir / ITEMS_DIRNAME
+    return items_dir.is_dir() and any(path.is_file() and id_in(path.name) for path in items_dir.iterdir())
+
+
+def held_elsewhere(slice_dir, day_dir, names):
+    """Is this item already in ANOTHER day's directory? A tie with the cursor
+    is pulled twice, and must not become a second day's bullet."""
+    for other in slice_dir.iterdir() if slice_dir.is_dir() else []:
+        if other == day_dir or not DAY_RE.fullmatch(other.name):
+            continue
+        if any((other / ITEMS_DIRNAME / name).is_file() for name in names):
+            return True
+    return False
+
+
+def read_cursor(slice_dir, now):
+    """`(cursor, problem)`. A cursor that cannot be trusted — unreadable, not
+    the shape this unit writes, or AHEAD of the clock — is no cursor: the pull
+    falls back to the lookback and says so, instead of raising on every later
+    `since` or calling every later item `already_pulled`. Items the wider pull
+    hands over again are dropped by `held_elsewhere`, and the next good write
+    replaces the file."""
+    path = slice_dir / CURSOR_NAME
+    if not path.exists():
+        return {}, None
+    doc = _read_json(path)
+    try:
+        at = cursor_when(doc)
+    except (TypeError, ValueError, OverflowError):
+        at = None
+    if at is None:
+        return {}, f"{CURSOR_NAME} is unreadable or not this unit's shape — ignored, the lookback stands in"
+    if at > now + AHEAD_MS:
+        return {}, f"{CURSOR_NAME} is ahead of the clock — ignored, the lookback stands in"
+    return doc, None
+
+
+def plan(items, args, *, cursor, min_date, slice_dir, day_dir, now):
+    """The pure half: which messages become which files, and the counts.
+
+    Returns `(files, newest, counts)` — `files` is `[(name, doc, safe_id)]`,
+    `newest` the `(when, safe_id)` the cursor moves to, or None.
+
+    An item with an id and NO trustworthy time — absent, unparseable, or more
+    than a day ahead of `now` (one seconds/ms/µs slip is 1 000× the clock) — is
+    KEPT, filed under the pull's own clock and marked `time_untrusted`: the
+    day directory is the PULL's day anyway, so all it loses is its place in the
+    day's order, where dropping it would lose the item for good once the
+    cursor passed its true time. It never moves the cursor, and it is counted
+    under `bad_time` so the report says it happened.
+    """
+    counts = {"fetched": len(items), "written": 0, "invalid": 0, "bad_time": 0, "held_back": 0}
+    skipped = {}
+    usable = []
+    for item in items:
+        sid = safe_id(item.get("id")) if isinstance(item, dict) else None
+        if sid is None:
+            counts["invalid"] += 1
+            continue
+        when = when_of(item)
+        trusted = when is not None and when <= now + AHEAD_MS
+        if not trusted:
+            counts["bad_time"] += 1
+        usable.append((when if trusted else now, sid, item, trusted))
+    usable.sort(key=lambda row: (row[0], row[1]))
+    if args.cap and len(usable) > args.cap:
+        counts["held_back"] = len(usable) - args.cap
+        usable = usable[: args.cap]
+    files, newest = [], None
+    floor = from_day(min_date) if min_date else None
+    for when, sid, item, trusted in usable:
+        if trusted:
+            newest = (when, sid)
+        names = (f"{stamp_of(when)}--{sid}.json", f".{stamp_of(when)}--{sid}.json")
+        why = None
+        if trusted and (behind_cursor(when, sid, cursor) or held_elsewhere(slice_dir, day_dir, names)):
+            why = "already_pulled"
+        elif trusted and floor is not None and when < floor:
+            why = "min_date"
+        else:
+            why = filtered_by(item, args)
+        if why:
+            skipped[why] = skipped.get(why, 0) + 1
+            continue
+        files.append((names[0], item_doc(item, sid, trusted=trusted), sid))
+        counts["written"] += 1
+    counts["filtered"] = skipped
+    return files, newest, counts
+
+
+def land(day_dir, files):
+    """Write the files, each replacing any earlier file for the same id in this
+    day — kept or junked — so one item is one bullet however often it is pulled."""
+    items_dir = day_dir / ITEMS_DIRNAME
+    items_dir.mkdir(parents=True, exist_ok=True)
+    for name, doc, sid in files:
+        for old in items_dir.iterdir():
+            if old.name != name and id_in(old.name) == sid:
+                old.unlink()
+        _write_json(items_dir / name, doc)
+
+
+def capture_doc(job, day, *, now):
+    """The flat `capture.json` every unit's harvest leaves. Nothing on the
+    ledger route reads it — the route is decided by the job's `dest` before
+    anything in the directory is opened — so it carries the day and its
+    payload and no key a host verb owns. `body` is the day's items DIRECTORY:
+    this route's payload is a message per file, accumulated across the day's
+    pulls, and there is no one file that is the pull."""
+    return {
+        "v": CAPTURE_V,
+        "slug": job.get("slug"),
+        "item": job.get("item") or job.get("target"),
+        "title": day,  # the day directory's own name, matched by DAY_RE: no venue text reaches a title here
+        "body": ITEMS_DIRNAME,
+        "content_type": "application/json",
+        "fetched_at": datetime.fromtimestamp(now / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+
+def carried(directory, ticket_id):
+    """This run's OWN last `update`: the host unlinks any
+    stale `report.<id>.json` at the START of a run (A-4), so a file found
+    here — read straight off disk, never through `tickets open` — answers for
+    THIS run alone. A second `write` in one run must not turn a landed
+    capture into `failed` or lose its `missing[]` while the items it named
+    sit on disk with no ledger."""
+    if not ticket_id:
+        return None
+    prior = _read_json(directory / report_name(ticket_id))
+    landed = prior.get("status") in ("ok", "partial") and isinstance(prior.get("captured"), list) and prior["captured"]
+    return prior if landed else None
+
+
+def job_from(ticket, args):
+    """This run's inputs: the ticket's own fields (`tickets open`, A-1),
+    and nothing else."""
+    options = ticket.get("options") if isinstance(ticket.get("options"), dict) else {}
+    answer = options.get(INPUT_KEY)
+    floor = ticket.get("min_date")
+    try:
+        min_date = floor if isinstance(floor, str) and DAY_RE.fullmatch(floor) and from_day(floor) >= 0 else None
+    except (ValueError, OverflowError):
+        min_date = None  # `2026-13-45` has the shape and is no day
+    return {
+        "ticket": args.ticket,
+        "slug": ticket.get("slug"),
+        "item": ticket.get("item") or ticket.get("target"),
+        INPUT_KEY: answer if isinstance(answer, str) and answer.strip() else None,
+        "min_date": min_date,
+        "dest": ticket.get("dest"),
+    }
+
+
+def source_of(directory, given, default=PULL_NAME):
+    """Where the pull is read from — a path, or None for stdin.
+
+    `llm-wiki-ops run` starts this script at the WIKI ROOT, not in the capture
+    directory the worker stands in. So a bare name (`pull.json`) is looked for
+    INSIDE the capture directory, which is where the worker wrote it; anything
+    with a directory in it is as given — wiki-relative, like `capture_dir`
+    itself. No `--from`: the step's own default name in the capture directory
+    when it is there, else stdin. `-` is stdin outright."""
+    if given == "-":
+        return None
+    if given is None:
+        fallback = directory / default
+        return fallback if fallback.is_file() or sys.stdin is None or sys.stdin.isatty() else None
+    path = Path(given)
+    return directory / path if not path.is_absolute() and len(path.parts) == 1 else path
+
+
+def misplaced(directory):
+    """A pull written as `<capture_dir>/pull.json` by a worker already standing
+    IN the capture directory lands nested — inside the grant, so nothing fails
+    until the pull is looked for. Name it rather than lose it."""
+    nested = directory / directory.as_posix() / PULL_NAME
+    return nested if nested != directory / PULL_NAME and nested.is_file() else None
+
+
+def _opened(directory, args, stage):
+    """`open_ticket`, then the directory to actually read and write —
+    the ticket's own `capture_dir`, outright, never the positional (Q3):
+    a wrong positional that still looked like a day directory used to be
+    refused, but the ticket's own answer is the one grant that matters, so
+    it is what every read and write below uses, as `section_plan.py`
+    already does."""
+    ticket = open_ticket(args.ticket, stage)
+    named = ticket.get("capture_dir")
+    if isinstance(named, str) and named:
+        directory = Path(named)
+    return ticket, directory
+
+
+def since_of(directory, job, lookback_days, *, now=None):
+    """Where this pull starts: the cursor, else now minus the lookback; never
+    before the ticket's `min_date`."""
+    now = now or datetime.now(timezone.utc)
+    cursor, problem = read_cursor(directory.parent, _ms(now))
+    at = cursor_when(cursor) if cursor else None
+    start = at if at is not None else ago(now, lookback_days)
+    if job["min_date"]:
+        start = max(start, from_day(job["min_date"]))
+    return {
+        INPUT_KEY: job[INPUT_KEY],
+        "first_pull": at is None,
+        "since": show(start),
+        "since_day": day_of(start),
+        "min_date": job["min_date"],
+        "cursor": cursor or None,
+        "cursor_ignored": problem,
+    }
+
+
+def since(directory, args, *, now=None):
+    ticket, directory = _opened(directory, args, "harvest")
+    job = job_from(ticket, args)
+    if job[INPUT_KEY] is None:
+        print(f"write_items: the job names no {INPUT_KEY} — `options.{INPUT_KEY}` is this unit's one input", file=sys.stderr)
+        return 1
+    answer = since_of(directory, job, args.lookback_days, now=now)
+    if answer["cursor_ignored"]:
+        print(f"write_items: {answer['cursor_ignored']}", file=sys.stderr)
+    print(json.dumps(answer, indent=2))
+    return 0
+
+
+def write(directory, args, *, now=None):
+    ticket, directory = _opened(directory, args, "harvest")
+    job = job_from(ticket, args)
+    now = _ms(now or datetime.now(timezone.utc))
+    missing = [{"host": host, "url": url, "why": why} for host, url, why in args.missing]
+    for entry in missing:
+        if entry["why"] not in WHYS:
+            print(f"write_items: --missing why must be one of {', '.join(WHYS)}", file=sys.stderr)
+            return 2
+
+    def finish(outcome, reason, counts=None):
+        """`tickets update`, LAST — `captured=` is never typed: the host
+        defaults it off `capture.json`'s presence in this directory (A-3), so
+        `capture.json` is (re)written whenever the day holds items — not only
+        when THIS invocation wrote one — and removed otherwise; and a report
+        this ticket's OWN earlier write left (`carried`) is never
+        downgraded."""
+        failed = outcome == "failed"
+        prior = carried(directory, args.ticket)
+        if prior is not None:
+            if failed:
+                reason = f"a later write on this ticket failed and the captures stand: {reason}"
+            if failed or prior["status"] == "partial":
+                outcome = "partial"
+            reason = "; ".join(one for one in (prior.get("reason"), reason) if one) or None
+            every = [*(prior.get("missing") if isinstance(prior.get("missing"), list) else []), *missing]
+            missing[:] = [
+                entry for index, entry in enumerate(every)
+                if isinstance(entry, dict) and {"host", "url", "why"} <= entry.keys() and entry not in every[:index]
+            ]
+        captured = outcome != "failed" and holds_items(directory)
+        if captured:
+            _write_json(directory / CAPTURE_NAME, capture_doc(job, directory.name, now=now))
+        else:
+            (directory / CAPTURE_NAME).unlink(missing_ok=True)
+        code = post_update(args.ticket, "harvest", outcome, reason=reason,
+                            missing=[(m["host"], m["url"], m["why"]) for m in missing])
+        if code:
+            print(f"write_items: `tickets update` refused — the report above did not land", file=sys.stderr)
+        print(json.dumps({"outcome": outcome, "reason": reason, "captured": int(captured), **(counts or {})}, indent=2))
+        return 1 if failed else 0
+
+    if args.failed:
+        return finish("failed", args.failed)
+    source = source_of(directory, args.source)
+    try:
+        raw = source.read_text(encoding="utf-8") if source is not None else sys.stdin.read()
+        items = json.loads(raw)
+    except (OSError, ValueError) as exc:
+        nested = misplaced(directory)
+        hint = f" — there is one at {nested.as_posix()}: it was written relative to the capture directory it was already in" if nested else ""
+        return finish("failed", f"the pull could not be read: {type(exc).__name__}: {exc}{hint}")
+    if not isinstance(items, list):
+        return finish("failed", "the pull is not a JSON list of items")
+
+    slice_dir = directory.parent
+    cursor, problem = read_cursor(slice_dir, now)
+    files, newest, counts = plan(items, args, cursor=cursor, min_date=job["min_date"], slice_dir=slice_dir, day_dir=directory, now=now)
+    if items and counts["invalid"] == len(items):
+        return finish("failed", f"{len(items)} item(s) and none carries a usable id", counts)
+    try:
+        land(directory, files)
+    except OSError as exc:
+        return finish("failed", f"{type(exc).__name__}: {exc}", counts)
+
+    reasons = [args.partial] if args.partial else []
+    if counts["held_back"]:
+        reasons.append(f"capped at {args.cap}: {counts['held_back']} newer item(s) left for the next pull")
+    if counts["bad_time"]:
+        reasons.append(f"{counts['bad_time']} item(s) carried no trustworthy time and were filed under the pull's own clock")
+    if problem:
+        reasons.append(problem)
+    if not files and not reasons:
+        reasons.append("nothing new since the cursor")
+    # The cursor moves only once the report is safely down: a crash between the
+    # two then costs a re-pull the filenames dedupe, never an item the cursor
+    # has passed and no report names. Never backwards, and never past the clock.
+    at = cursor_when(cursor) if cursor else None
+    moved = cursor_for(min(newest[0], now), newest[1]) if newest is not None and (at is None or min(newest[0], now) >= at) else None
+    if moved:
+        counts["cursor"] = moved
+    partial = bool(args.partial or counts["held_back"])
+    code = finish("partial" if partial else "ok", "; ".join(reasons) or None, counts)
+    try:
+        if moved:
+            _write_json(slice_dir / CURSOR_NAME, moved)
+        if source is not None and source.resolve().is_relative_to(directory.resolve()):
+            source.unlink(missing_ok=True)  # consumed: the items are the record
+    except OSError as exc:
+        print(f"write_items: the report is written; the cursor did not move — {type(exc).__name__}: {exc}", file=sys.stderr)
+    return code
+
+
+# ----------------------------------------------------------------- the ledger
+
+
+def bullet_line(value):
+    """One item's text as one bullet's worth: folded to a single line, the
+    look-alikes `host_line` swaps, the three characters `extract.py::_plain`
+    turns, and capped. Whoever writes the day's page — this step, or the
+    plugin's extractor over the same items — a bullet reads the same and
+    forges nothing."""
+    folded = host_line(" ".join(str(value).split()).translate(_PLAIN))
+    return folded[: BULLET_MAX - 1] + "…" if len(folded) > BULLET_MAX else folded
+
+
+def read_items(day_dir):
+    """The day's item files, oldest first — the filename is the time. A
+    dot-file is a discard an older copy of this unit filed: counted, never
+    rendered, exactly as the extractor counts it."""
+    items_dir = day_dir / ITEMS_DIRNAME
+    paths = sorted(path for path in items_dir.iterdir() if path.is_file() and id_in(path.name)) if items_dir.is_dir() else []
+    return [(path.name, _read_json(path)) for path in paths]
+
+
+def verdicts_in(rows):
+    """The process step's judgment, by the pointer the item file carries:
+    `{"<pointer>": {"category": …, "line": …, "due": …, "junk": …}}`. Anything
+    else in the list is dropped — a verdict with no id names no item."""
+    found = {}
+    for row in rows if isinstance(rows, list) else []:
+        pointer = _text(row.get("id")) if isinstance(row, dict) else None
+        if pointer:
+            found[pointer] = row
+    return found
+
+
+def due_of(value):
+    """A verdict's `due`, when it is a real day; anything else is no date."""
+    if not isinstance(value, str) or not DAY_RE.fullmatch(value):
+        return None
+    try:
+        from_day(value)
+    except (ValueError, OverflowError):
+        return None
+    return value
+
+
+def ledger_body(items, verdicts):
+    """The day's page body, regenerated WHOLE: one bullet per kept item —
+    `[<category>] <line> (due <day>) — <pointer>` — ordered by `CATEGORIES`,
+    then by the filenames' time; then the tally of what the junk rules dropped.
+
+    An item the process step wrote no line for keeps its bullet, untagged and
+    after every category, with the sender's own subject standing in — a
+    missing line loses a wording, never the item. Returns the body and the
+    counts, `by_category` among them."""
+    rows, discarded, unjudged = [], 0, 0
+    by_category = {one: 0 for one in CATEGORIES}
+    for index, (name, doc) in enumerate(items):
+        pointer = _text(doc.get("id")) or name
+        verdict = verdicts.get(pointer) or {}
+        if name.startswith(".") or (_text(verdict.get("junk")) or "").strip():
+            discarded += 1
+            continue
+        line = _text(verdict.get("line")) or ""
+        category = _text(verdict.get("category"))
+        if not line.strip():
+            unjudged += 1
+            category = None
+            line = _text(doc.get(HOST_LINE_KEY)) or _text(doc.get(f"venue_{RAW_LINE_KEY}")) or ""
+        if category not in CATEGORIES:
+            category = None
+        else:
+            by_category[category] += 1
+        due = due_of(verdict.get("due")) if category else None
+        text = bullet_line(line) if line.strip() else ""
+        if text and due:
+            text = f"{text} (due {due})"
+        tag = f"[{category}] " if category else ""
+        head = f"{tag}{text} — " if text else tag
+        rank = CATEGORIES.index(category) if category else len(CATEGORIES)
+        rows.append((rank, index, f"- {head}{bullet_line(pointer)}"))
+    bullets = [row[2] for row in sorted(rows)]
+    body = "\n".join(bullets) + f"\n\ndiscarded: {discarded} (junk rules)\n"
+    return body, len(bullets), discarded, unjudged, by_category
+
+
+def _ops(argv, body):
+    """The front door, as an ARGUMENT LIST and never a shell line: every value
+    here is venue text one step removed, and `;$(…)` in a subject is a command
+    on a shell line. The project binding of the call that ran THIS script is
+    not this call's."""
+    env = {key: value for key, value in os.environ.items() if key not in NOT_INHERITED}
+    try:
+        return subprocess.run([*(front_door() or [OPS]), *argv], input=body, capture_output=True, text=True, env=env, check=False)
+    except OSError as exc:
+        return subprocess.CompletedProcess(argv, 127, "", f"could not start {OPS}: {type(exc).__name__}: {exc}")
+
+
+def _said(done):
+    return " ".join((done.stderr or done.stdout or "").split())[:300]
+
+
+def write_page(dest, day, keys, body):
+    """`(<wiki-relative path>, None)`, or `(None, <why>)`.
+
+    `page create` refuses a title that is already a page with exit 2 — the
+    filename IS the title — and the day's ledger is regenerated whole on every
+    pull of that day, so the refusal is the ordinary second run: edit the
+    standing page rather than mint a second one for the same day.
+
+    `status=` clears the `draft` create would otherwise set. A ledger is
+    outside the corpus and the lifecycle by location, and a draft here would
+    put every day of every channel into curate's list. An edit may not carry
+    it — `status=` is `page curate`'s, `revise`'s and `retire`'s — and does
+    not need to: the page it edits was created without one."""
+    rel = f"{dest.rstrip('/')}/{day}.md"
+    made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, "status=", "--stdin"], body)
+    if made.returncode == 0:
+        return rel, None
+    edited = _ops(["page", "edit", rel, *keys, "--stdin"], body)
+    if edited.returncode == 0:
+        return rel, None
+    return None, f"`page create` said {_said(made)!r}; `page edit` said {_said(edited)!r}"
+
+
+def ledger(directory, args, *, now=None):
+    ticket, directory = _opened(directory, args, "process")
+    job = job_from(ticket, args)
+    day = directory.name
+    dest = str(job.get("dest") or "").strip().rstrip("/")
+
+    def finish(outcome, reason, *, written=(), counts=None):
+        """`tickets update`, LAST, and a PROCESS report: `written_from=`
+        names the page this step wrote; `captured` is left to the host's
+        default (A-3), which the process route never reads (A-10)."""
+        written = list(written)
+        written_from = None
+        if written:
+            written_from = "written.json"
+            _write_json(directory / written_from, written)
+        code = post_update(args.ticket, "process", outcome, reason=reason, written_from=written_from)
+        if code:
+            print(f"write_items: `tickets update` refused — the report above did not land", file=sys.stderr)
+        print(json.dumps({"outcome": outcome, "reason": reason, "written": written, **(counts or {})}, indent=2))
+        return 1 if outcome == "failed" else 0
+
+    if not dest:
+        print(
+            "write_items: the ticket names no `dest` — a process ticket carries the job's ledger route, "
+            "`research/channels/<slug>`, wiki-relative",
+            file=sys.stderr,
+        )
+        return 2
+    items = read_items(directory)
+    if not items:
+        return finish("ok", f"{day} holds no {ITEMS_DIRNAME}/ item to write a ledger from")
+    source = source_of(directory, args.source, default=LINES_NAME)
+    try:
+        raw = source.read_text(encoding="utf-8") if source is not None else ("" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read())
+        rows = json.loads(raw) if raw.strip() else []
+    except (OSError, ValueError) as exc:
+        return finish("failed", f"the lines could not be read: {type(exc).__name__}: {exc}")
+    body, kept, discarded, unjudged, by_category = ledger_body(items, verdicts_in(rows))
+    counts = {"items": len(items), "kept": kept, "discarded": discarded, "unjudged": unjudged, "by_category": by_category}
+    # The two attention counts ride the frontmatter so a report reads them
+    # without parsing bullets.
+    keys = [f"type={LEDGER_TYPE}", f"channel={job.get('slug') or day}", f"date={day}", f"items={kept}",
+            f"needs_reply={by_category['needs-reply']}", f"actions={by_category['action']}", "extracted=true"]
+    rel, why = write_page(dest, day, keys, body)
+    if rel is None:
+        return finish("failed", f"the ledger was not written: {why}", counts=counts)
+    reasons = [args.partial] if args.partial else []
+    if unjudged:
+        reasons.append(f"{unjudged} item(s) carried no line from this step: the sender's own subject stands in")
+    return finish("partial" if args.partial else "ok", "; ".join(reasons) or None, written=[rel], counts=counts)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    subs = parser.add_subparsers(dest="verb", required=True)
+    for verb in ("since", "write", "ledger"):
+        sub = subs.add_parser(verb)
+        sub.add_argument("capture_dir", help="the ticket's own `capture_dir`, WIKI-RELATIVE as the ticket spells it: the job's day directory")
+        sub.add_argument("--ticket", required=True, help="the ticket id, read through `tickets open` for every other input")
+        if verb == "since":
+            sub.add_argument("--lookback-days", type=int, default=LOOKBACK_DAYS, help="the FIRST pull's window")
+            continue
+        if verb == "ledger":
+            sub.add_argument("--from", dest="source", help=f"this step's lines as a JSON file: a bare name is looked for IN the capture directory, `-` is stdin; absent, `{LINES_NAME}` there")
+            sub.add_argument("--partial", metavar="REASON", help="only some of the day was judged, and why")
+            continue
+        sub.add_argument("--from", dest="source", help=f"the pull as a JSON file: a bare name is looked for IN the capture directory, a path is wiki-relative, `-` is stdin; absent, `{PULL_NAME}` in the capture directory, else stdin")
+        sub.add_argument("--cap", type=int, default=CAP, help="items per run, oldest first; at least 1" + ("" if CAP else " (absent: no cap)"))
+        sub.add_argument("--partial", metavar="REASON", help="the pull stopped early, and why")
+        sub.add_argument("--failed", metavar="REASON", help="nothing was pulled, and why; writes the report alone")
+        sub.add_argument("--missing", nargs=3, action="append", default=[], metavar=("HOST", "URL", "WHY"))
+        venue_args(sub)
+    args = parser.parse_args(argv)
+    directory = Path(args.capture_dir)
+    if not DAY_RE.fullmatch(directory.name):
+        print(
+            f"write_items: {args.capture_dir!r} is not a day directory — give the ticket's own `capture_dir` "
+            f"(`_raw/<slug>/<YYYY-MM-DD>`), wiki-relative: this script runs at the wiki root, not where you stand",
+            file=sys.stderr,
+        )
+        return 2
+    if args.verb == "write" and args.cap is not None and args.cap < 1:
+        print("write_items: --cap is at least 1 — a cap below that would drop the newest item(s) in silence", file=sys.stderr)
+        return 2
+    if args.verb == "since":
+        return since(directory, args)
+    return ledger(directory, args) if args.verb == "ledger" else write(directory, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

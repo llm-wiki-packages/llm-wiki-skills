@@ -171,6 +171,8 @@ BUDGET = {
     "channel-circle": 312,
     "channel-frameio": 345,
     "channel-gmail": 183,
+    # Authored after the port, at 211 lines with the attended modes: no pre-port length to scale.
+    "channel-gmail-gws": 220,
     "channel-hubspot-video": 204,
     "channel-notion-tasks": 139,
     "channel-spotify": 246,

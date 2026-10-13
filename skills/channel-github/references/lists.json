@@ -1,0 +1,65 @@
+{
+  "repos": "sources/github",
+  "also": [
+    "sources/clips"
+  ],
+  "weights": {
+    "stars": 1.0,
+    "starred": 2.0,
+    "clipped": 1.5,
+    "watched": 0.5,
+    "recent": 0.5,
+    "recent_days": 180,
+    "archived": -2.0,
+    "jump": 1.0
+  },
+  "lists": [
+    {
+      "name": "Stars",
+      "title": "GitHub list — Stars",
+      "intro": "Every repo the operator starred on GitHub, newest star first.",
+      "filter": {
+        "starred": true
+      },
+      "sort": "starred",
+      "format": "compact"
+    },
+    {
+      "name": "Clipped",
+      "title": "GitHub list — Clipped",
+      "intro": "Repos the operator clipped from the browser, newest first.",
+      "filter": {
+        "tags_all": [
+          "gh-clipped"
+        ]
+      },
+      "sort": "first_seen",
+      "format": "compact"
+    },
+    {
+      "name": "Top",
+      "title": "GitHub list — Top 50",
+      "intro": "The 50 highest-scoring repos in the wiki: stars, starred, clipped, recent activity.",
+      "filter": {},
+      "sort": "score",
+      "limit": 50,
+      "format": "table"
+    },
+    {
+      "name": "What's new",
+      "kind": "whats-new",
+      "title": "GitHub list — What's new",
+      "window_days": 30,
+      "min_jump": 1,
+      "limit": 50,
+      "format": "table"
+    }
+  ],
+  "by_category": {
+    "enabled": true,
+    "min": 3,
+    "sort": "score",
+    "format": "compact",
+    "title": "GitHub list — {category}"
+  }
+}
