@@ -10,7 +10,7 @@
   ],
   "name": "channel-hubspot-video",
   "requires": {
-    "ops": ">=0.1.0"
+    "ops": ">=0.7.0"
   },
   "stages": {
     "harvest": {
