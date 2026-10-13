@@ -1,0 +1,78 @@
+{
+  "keywords": [
+    "mail",
+    "email",
+    "mailbox",
+    "inbox",
+    "google",
+    "gws",
+    "triage",
+    "reply",
+    "drafts",
+    "followup",
+    "actionable",
+    "host:gmail.googleapis.com"
+  ],
+  "name": "channel-gmail-gws",
+  "requires": {
+    "bins": [
+      {
+        "bin": "gws",
+        "min": "0.22.0",
+        "source": "https://github.com/googleworkspace/cli",
+        "installers": {
+          "brew": "gws"
+        },
+        "test": [
+          "gws",
+          "--version"
+        ]
+      }
+    ],
+    "dir": "required",
+    "ops": ">=0.7.0"
+  },
+  "stages": {
+    "harvest": {
+      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws/gmail-gws.harvest",
+      "script": "scripts/harvest.py"
+    },
+    "process": {}
+  },
+  "usage": "/channel-gmail-gws ticket=<id>",
+  "v": 1,
+  "venue": "gmail-gws",
+  "version": "0.1.0",
+  "watch": {
+    "defaults": {
+      "every": "1d"
+    },
+    "dest": "research/channels/{slug}",
+    "inputs": {
+      "mailbox": {
+        "prompt": "Which mailbox does this watch pull? (the address its gws login is signed into)",
+        "required": true
+      },
+      "lookback_days": {
+        "prompt": "How many days back does the FIRST pull reach?",
+        "required": false,
+        "default": "7"
+      },
+      "cap": {
+        "prompt": "Most messages one pull reads (the rest wait for the next pull)",
+        "required": false,
+        "default": "200"
+      },
+      "exclude_labels": {
+        "prompt": "Gmail label ids never pulled, comma-separated",
+        "required": false,
+        "default": "CATEGORY_PROMOTIONS,CATEGORY_SOCIAL,SPAM,TRASH"
+      },
+      "exclude_senders": {
+        "prompt": "Senders never pulled, comma-separated addresses or @domains (blank for none)",
+        "required": false
+      }
+    },
+    "note": "One watch per mailbox: the mailbox is the identity, and the watch's slug ties its gws login, its `_raw` slice and its ledgers together. The harvest is a script reading the mailbox through gws with a READ-ONLY login directory this machine adopts and binds to the job (`credentials bind job <slug> dir=<name>`, references/enable.md); until it has one, this machine skips the job's harvest. The process step writes the day's ledger with every kept message tagged needs-reply, action, waiting or fyi."
+  }
+}

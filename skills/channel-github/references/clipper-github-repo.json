@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "0.1.0",
+  "name": "GitHub repo",
+  "behavior": "create",
+  "noteContentFormat": "> [!summary]\n> {{meta:property:og:description}}\n\n- How it got here: clipped {{date|date:\"YYYY-MM-DD\"}}\n\n## Notes\n\n{{highlights}}\n\n## README\n\n{{content}}",
+  "properties": [
+    {
+      "name": "type",
+      "value": "repo",
+      "type": "text"
+    },
+    {
+      "name": "title",
+      "value": "{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:3,4|join}}--{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:4,5|join}}",
+      "type": "text"
+    },
+    {
+      "name": "resource",
+      "value": "https://github.com/{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:3,5|join:\"/\"}}",
+      "type": "text"
+    },
+    {
+      "name": "description",
+      "value": "{{meta:property:og:description}}",
+      "type": "text"
+    },
+    {
+      "name": "author",
+      "value": "{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:3,4|join}}",
+      "type": "text"
+    },
+    {
+      "name": "source_host",
+      "value": "github.com",
+      "type": "text"
+    },
+    {
+      "name": "status",
+      "value": "draft",
+      "type": "text"
+    },
+    {
+      "name": "tags",
+      "value": "github, gh-clipped",
+      "type": "multitext"
+    },
+    {
+      "name": "gh_stars",
+      "value": "{{selector:#repo-stars-counter-star?title}}",
+      "type": "text"
+    },
+    {
+      "name": "gh_topics",
+      "value": "{{selector:a.topic-tag|join:\", \"}}",
+      "type": "text"
+    },
+    {
+      "name": "gh_seen",
+      "value": "{{date|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    },
+    {
+      "name": "gh_first_seen",
+      "value": "{{date|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    }
+  ],
+  "triggers": [
+    "/^https:\\/\\/github\\.com\\/(?!(?:orgs|settings|marketplace|topics|collections|sponsors|features|enterprise|login|signup|search|notifications|explore|trending|pulls|issues|apps|users|codespaces|organizations|about|pricing|security|customer-stories|readme|team|new)\\/)[A-Za-z0-9-]+\\/[A-Za-z0-9._-]+\\/?(?:[?#].*)?$/"
+  ],
+  "noteNameFormat": "{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:3,4|join}}--{{url|split:\"?\"|first|split:\"#\"|first|split:\"/\"|slice:4,5|join}}",
+  "path": "sources/github"
+}

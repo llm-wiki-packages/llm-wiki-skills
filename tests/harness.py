@@ -88,6 +88,7 @@ FAKE_AGENT = Path(__file__).with_name("fake_agent.sh")
 # First on the harness's PATH as `bin/yt-dlp` and `bin/ntn`: see each file.
 FAKE_YT_DLP = Path(__file__).with_name("fake_yt_dlp.sh")
 FAKE_NTN = Path(__file__).with_name("fake_ntn.sh")
+FAKE_GWS = Path(__file__).with_name("fake_gws.sh")
 YT_FIXTURES = AGENT_DIR / "yt"
 
 
@@ -119,7 +120,7 @@ def rooted(env: dict, wiki: Path) -> dict:
 def machine_harness(home: Path) -> Path:
     """The machine's default harness profile, pointing at the fake agent: a
     session stage's jail starts it where a real box starts `claude`, with no
-    agent binary on PATH and no login route. Beside it, the `yt-dlp` and `ntn`
+    agent binary on PATH and no login route. Beside it, the `yt-dlp`, `ntn` and `gws`
     stand-ins the harness's PATH leads with, a git identity, uv set offline, and
     `bins.jsonc` naming `uv`, which `run` needs for a script with PEP 723
     dependencies and a jail's PATH does not carry."""
@@ -133,6 +134,8 @@ def machine_harness(home: Path) -> Path:
     (AGENT_DIR / "bin" / "yt-dlp").chmod(0o755)
     shutil.copy2(FAKE_NTN, AGENT_DIR / "bin" / "ntn")
     (AGENT_DIR / "bin" / "ntn").chmod(0o755)
+    shutil.copy2(FAKE_GWS, AGENT_DIR / "bin" / "gws")
+    (AGENT_DIR / "bin" / "gws").chmod(0o755)
     profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
     profile.parent.mkdir(parents=True, exist_ok=True)
     profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
