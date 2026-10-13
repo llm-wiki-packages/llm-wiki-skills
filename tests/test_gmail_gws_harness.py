@@ -8,17 +8,15 @@ constants are the unit's own tests' (`skills/channel-gmail-gws/tests/test_gmail_
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 import pytest
 
-from harness import AGENT_DIR, SCRATCH, claimed, declared_job, pending, rooted, run, staged, unit_tests
+from harness import SCRATCH, claimed, declared_job, pending, rooted, run, staged, unit_tests
 
 globals().update(unit_tests("channel-gmail-gws", "test_gmail_gws"))
 
 WRITE = "ops/skills/channel-gmail-gws/scripts/write_items.py"
-FAKE = Path(__file__).with_name("fake_gws.sh")
 
 
 def _bullets(text: str) -> list:
@@ -42,10 +40,6 @@ def login(request) -> Path:
 
 @pytest.fixture
 def job(ops, env, wiki, login, request):
-    # On the harness PATH before `skills enable` resolves the unit's bin.
-    (AGENT_DIR / "bin").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(FAKE, AGENT_DIR / "bin" / "gws")
-    (AGENT_DIR / "bin" / "gws").chmod(0o755)
     own = request.node.name.replace("_", "-").lower()
     slug = f"harness-gws-{own}"[:60]
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], f"options.mailbox={MAILBOX}", "options.lookback_days=36500",
