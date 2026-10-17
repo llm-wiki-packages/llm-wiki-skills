@@ -92,7 +92,7 @@ def job(ops, env, wiki, request):
     own = request.node.name.replace("_", "-").lower()
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.workspace=harness",
                      slug=f"harness-notion-{own}"[:60])
-    # `requires.credentials.notion` is "required": `jobs claim` refuses a
+    # `requires.credentials.routes.notion` is "required": `jobs claim` refuses a
     # harvest this machine does not map the route for. The mapping, the token
     # and the vault are this case's alone, gone when it ends.
     with local_vault(ops, env):
@@ -104,7 +104,7 @@ def job(ops, env, wiki, request):
 
 
 def test_a_harvest_is_refused_until_the_route_is_mapped(ops, env, wiki, job):
-    """`requires.credentials.notion` is "required", on a sandbox that carries
+    """`requires.credentials.routes.notion` is "required", on a sandbox that carries
     the route: with nothing mapped, `jobs claim` refuses and mints no ticket;
     mapped (enable.md step 3), the same claim mints the harvest."""
     unmapped_route(ops, env, wiki, UNIT, "notion")

@@ -10,7 +10,9 @@
   ],
   "name": "channel-substack",
   "requires": {
-    "file": "optional",
+    "credentials": {
+      "file": "optional"
+    },
     "ops": ">=0.7.0"
   },
   "stages": {

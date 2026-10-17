@@ -21,6 +21,6 @@ Each runs as `llm-wiki-ops run ops/skills/channel-youtube/scripts/<script> …`.
   `refresh`, `credential_dir` and `browser_python` off the ticket.
 - `process.exclude_rules`, `options` and `min_date` are applied first at
   process; `process.embeds` (default on) controls the embed in the page body.
-- `requires.dir` is `optional`: a `login: browser` credential adds a cookie jar
+- `requires.credentials.dir` is `optional`: a `login: browser` credential adds a cookie jar
   for private, age-restricted and members-only videos (SKILL.md "Auth").
   `yt-dlp` must be on PATH.

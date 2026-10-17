@@ -76,7 +76,7 @@ def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name, st
 
 
 # What a unit spends: a binding name of a route, a payload file, a granted directory.
-CREDENTIAL_KEYS = ("credentials", "file", "dir")
+CREDENTIAL_KEYS = ("credentials",)
 
 
 @pytest.mark.parametrize("name", [n for n in SKILLS if any(unit_manifest(n)["requires"].get(k) for k in CREDENTIAL_KEYS)])

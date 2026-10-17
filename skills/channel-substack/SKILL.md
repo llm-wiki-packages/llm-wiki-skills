@@ -270,7 +270,7 @@ Say the post, the page it landed as, and stop.
 - Custom-domain newsletters may not share `substack.com` session cookies —
   save storage state per domain.
 - **A licensed capture needs its job bound to the stored session.** The
-  manifest declares `requires.file: "optional"`, so a free job needs no
+  manifest declares `requires.credentials.file: "optional"`, so a free job needs no
   binding and runs with `credential_mode` `none`. The operator's path, per
   licensed job: `llm-wiki-ops credentials set <name>` (the storage state on
   stdin), `llm-wiki-ops credentials bind job <slug> file=<name>`,

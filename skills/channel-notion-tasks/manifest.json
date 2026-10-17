@@ -19,7 +19,9 @@
       }
     ],
     "credentials": {
-      "notion": "required"
+      "routes": {
+        "notion": "required"
+      }
     },
     "ops": ">=0.7.0"
   },

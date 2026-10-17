@@ -22,7 +22,9 @@
         }
       }
     ],
-    "dir": "optional",
+    "credentials": {
+      "dir": "optional"
+    },
     "ops": ">=0.7.0"
   },
   "stages": {

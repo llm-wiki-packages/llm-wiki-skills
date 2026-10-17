@@ -27,5 +27,5 @@ or `--failed`, never both. `-h` after an arm lists the rest.
 - The mechanical filters are the flags on `write` and `since`; this wiki's
   values are SKILL.md "Mechanical filters".
 - `process.exclude_rules` feeds the junk rules (SKILL.md, process).
-- `requires.file` is `required`: a per-mailbox credential binding the unit
+- `requires.credentials.file` is `required`: a per-mailbox credential binding the unit
   never reads (SKILL.md "The binding").

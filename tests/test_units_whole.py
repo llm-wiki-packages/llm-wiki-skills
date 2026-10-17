@@ -311,7 +311,7 @@ def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     known = {"v", "name", "version", "venue", "stages", "keywords", "usage", "requires", "watch"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
-    assert set(manifest.get("requires", {})) <= {"credentials", "file", "dir", "ops", "bins"}, manifest["requires"]
+    assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]
 
 
 @pytest.mark.parametrize("name", SKILLS)

@@ -160,7 +160,7 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
 
 ## Auth (one-time, per domain)
 
-- **The secret is a directory** — `requires.dir: "required"`. What
+- **The secret is a directory** — `requires.credentials.dir: "required"`. What
   authenticates a capture is the persistent Chrome PROFILE the login helper
   minted for the domain, granted to the slice read-write as the ticket's
   `credential_dir` (`credential_mode` `dir`); `capture_lesson.py` and

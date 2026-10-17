@@ -72,7 +72,7 @@ def job(ops, env, wiki, request):
     # staged default `declared_job` gives every other unit.
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.mailbox=a@example.invalid",
                       f"dest=research/channels/{slug}", slug=slug)
-    # The manifest's `requires.file: "required"` is the claim gate: `jobs claim`
+    # The manifest's `requires.credentials.file: "required"` is the claim gate: `jobs claim`
     # refuses a job this machine has not bound — bind this machine's session to it.
     bound_credential(ops, env, wiki, j.slug)
     return j

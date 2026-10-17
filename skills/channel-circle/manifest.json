@@ -11,7 +11,9 @@
   ],
   "name": "channel-circle",
   "requires": {
-    "dir": "required",
+    "credentials": {
+      "dir": "required"
+    },
     "ops": ">=0.7.0"
   },
   "stages": {

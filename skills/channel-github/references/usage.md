@@ -42,7 +42,7 @@ Safe unattended.
 - `options.max_captures`, `jump_abs`, `jump_pct`, `refresh_days`,
   `include_forks`, `include_archived`, `search_limit`: the harvest's
   re-capture rules (SKILL.md, harvest).
-- `requires.credentials.github` is `optional`: the `github` route raises
+- `requires.credentials.routes.github` is `optional`: the `github` route raises
   the rate limit; unmapped, harvest runs keyless.
 - The `channel-github` overlay: categories, README mode, junk rules.
 - `references/lists.json`: the lists, the weights, where repo pages are read.

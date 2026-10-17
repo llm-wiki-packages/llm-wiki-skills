@@ -19,7 +19,9 @@
   "name": "channel-github",
   "requires": {
     "credentials": {
-      "github": "optional"
+      "routes": {
+        "github": "optional"
+      }
     },
     "ops": ">=0.7.0"
   },

@@ -32,5 +32,5 @@ SKILL.md, harvest.
   `min_date` and `known[]` are read, never re-asked. `min_date` is not applied
   (SKILL.md "Dates").
 - `process.exclude_rules` and `options` are applied first at process.
-- `requires.dir` is `required`: the Chrome profile for the domain (SKILL.md
+- `requires.credentials.dir` is `required`: the Chrome profile for the domain (SKILL.md
   "Auth").

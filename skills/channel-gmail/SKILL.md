@@ -176,7 +176,7 @@ Where the runtime named the host a call was refused on, put that host in
 
 ## The binding
 
-The manifest declares `requires.file: "required"` and **the value is never
+The manifest declares `requires.credentials.file: "required"` and **the value is never
 read** — not by this unit, not by its script. `credentials bind job <slug>
 file=<name>` is the operator's per-machine consent: "this machine's session
 is signed into THIS mailbox", and a machine without one skips this job's

@@ -30,7 +30,7 @@
    `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-gmail
    dest=research/channels/<slug>`.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
-   not a secret. The skill declares `requires.file: "required"` and never
+   not a secret. The skill declares `requires.credentials.file: "required"` and never
    reads the value: connector auth is the session's. What the binding does is
    the claim gate (`pipeline/claims.py`): a machine that fills no file slot
    for THIS job is incapable of its harvest and skips it — a `bindings`

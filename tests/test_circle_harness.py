@@ -68,7 +68,7 @@ step report "$OPS" run {SCRIPT}/section_plan.py report "$CAP" --ticket "$TICKET"
 
 def mapped_profile(ops, env, wiki, job, request) -> str:
     """A `dir` credential of the job's own, mapped to it with `credentials bind
-    job` (enable.md step 3): `requires.dir` is "required", so `jobs claim`
+    job` (enable.md step 3): `requires.credentials.dir` is "required", so `jobs claim`
     refuses the harvest of a job this machine maps no profile to. Dropped and
     removed when the case ends. Returns the directory."""
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}

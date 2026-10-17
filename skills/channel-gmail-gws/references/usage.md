@@ -34,6 +34,6 @@ Each runs as `llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/<script> …
   (none) — the harvest's mechanical filters, per job.
 - The ticket's `min_date` clamps where a pull starts.
 - `process.exclude_rules` adds junk rules to the profile's.
-- `requires.dir` is `required`: the job's read-only gws login directory,
+- `requires.credentials.dir` is `required`: the job's read-only gws login directory,
   bound per machine (`references/enable.md`).
 - The profile and any wiki playbook: this unit's policy overlay.
