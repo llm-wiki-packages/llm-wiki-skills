@@ -26,5 +26,5 @@ alone calls `ntn`, read-only. `-h` after a path lists the rest.
 - The ticket's `min_date` clamps `since`: the pull never starts earlier.
 - The databases are passed as `--database` on `pull.py` (SKILL.md, harvest).
 - `process.exclude_rules` feeds the junk rules (SKILL.md, process).
-- `requires.credentials.notion` is `required`: the vault entry the `notion`
+- `requires.credentials.routes.notion` is `required`: the vault entry the `notion`
   route spends. `ntn` must be on PATH.

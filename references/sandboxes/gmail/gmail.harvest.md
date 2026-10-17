@@ -17,7 +17,7 @@ harness`.
 
 ## Credential
 
-`requires.file: "required"`: the slot's value is granted per spawn as the
+`requires.credentials.file: "required"`: the slot's value is granted per spawn as the
 slice's own copy of a payload file, and it may be spent only at
 `gmailmcp.googleapis.com`, the exact `host:` keyword the manifest claims. A
 slot and not a route: the value is never read, and a route would put it on

@@ -25,7 +25,7 @@ scripts launch.
 
 ## Credential
 
-`requires.dir` is `"required"`. A members-only community replays the
+`requires.credentials.dir` is `"required"`. A members-only community replays the
 per-domain login profile `llm-wiki-ops credentials login <domain>` minted:
 mapped to the job (`credentials bind job <slug> dir=<domain>`), it is
 granted to this slice read-write and the ticket hands it over as

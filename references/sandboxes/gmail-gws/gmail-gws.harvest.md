@@ -25,7 +25,7 @@ harness and gets none.
 
 ## Credential
 
-`requires.dir` is `"required"`: the job's gws login directory, a
+`requires.credentials.dir` is `"required"`: the job's gws login directory, a
 `GOOGLE_WORKSPACE_CLI_CONFIG_DIR` holding a READ-ONLY Gmail login, adopted
 as a `dir` credential and bound to the job (`credentials bind job <slug>
 dir=<name>`). The slice is granted that directory alone, read-write — gws

@@ -21,7 +21,7 @@ harness`.
 
 ## Credential
 
-`requires.dir` is `"optional"`: unbound, the stage runs keyless and reaches
+`requires.credentials.dir` is `"optional"`: unbound, the stage runs keyless and reaches
 public videos only. Bound, the slot holds a `dir` credential with `login:
 browser` — a Chromium profile a person signed in to YouTube on through
 `credentials login`, which the ticket hands over as `credential_dir`

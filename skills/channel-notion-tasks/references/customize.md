@@ -31,7 +31,7 @@ llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/no
 `channel-notion-tasks-harvest` from the snippet.** The `notion` route is the
 reference's `## Machine` block, which install puts in that sandbox's
 `machine.allow` and a sandbox written from `## Profile` alone lacks, and
-the manifest declares `requires.credentials.notion` `"required"`: `skills
+the manifest declares `requires.credentials.routes.notion` `"required"`: `skills
 enable` refuses a stage bound to a sandbox that carries no `notion` route.
 Its probe, `ntn whoami`, runs at `sandboxes enable notion-harvest` and
 spends the wiki's vault entry `notion`, so on each machine name the vault

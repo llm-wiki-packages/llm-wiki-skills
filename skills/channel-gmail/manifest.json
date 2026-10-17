@@ -10,7 +10,9 @@
   ],
   "name": "channel-gmail",
   "requires": {
-    "file": "required",
+    "credentials": {
+      "file": "required"
+    },
     "ops": ">=0.7.0"
   },
   "stages": {

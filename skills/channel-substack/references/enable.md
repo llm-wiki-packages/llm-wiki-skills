@@ -1,7 +1,7 @@
 # channel-substack — after enabling
 
 1. **Licensed newsletters need the job bound to a stored session.** The
-   manifest declares `requires.file: "optional"`: a free job needs no
+   manifest declares `requires.credentials.file: "optional"`: a free job needs no
    binding, and a slice is granted the value only for a job bound to it.
    SKILL.md's "Auth" lists the steps — `llm-wiki-ops credentials set
    <name>`, then `llm-wiki-ops credentials bind job <slug> file=<name>` once

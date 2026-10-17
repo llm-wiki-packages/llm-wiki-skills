@@ -29,5 +29,5 @@ The process report is `llm-wiki-ops --json tickets update <id> stage=process sta
   the ticket; no flag stands in for them. `harvest.assets` is `reference` by
   default (SKILL.md "Media").
 - `process.exclude_rules` and `options` are applied first at process.
-- `requires.file` is `optional`: a `licensed` job binds a credential file
+- `requires.credentials.file` is `optional`: a `licensed` job binds a credential file
   (SKILL.md "Auth").
