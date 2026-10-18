@@ -177,8 +177,8 @@ BUDGET = {
     "channel-gmail-gws": 220,
     "channel-hubspot-video": 204,
     "channel-notion-tasks": 139,
-    # Authored after the port, at 151 lines: no pre-port length to scale.
-    "channel-parentsquare": 160,
+    # Authored after the port, at 167 lines with the full read-tool list: no pre-port length to scale.
+    "channel-parentsquare": 170,
     "channel-spotify": 246,
     "channel-substack": 288,
     "channel-youtube": 198,

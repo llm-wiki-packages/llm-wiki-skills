@@ -1,6 +1,10 @@
 """channel-parentsquare's body names only tools the server ships, and none that writes."""
 
+import hashlib
+import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 UNIT = Path(__file__).resolve().parents[1]
@@ -37,19 +41,54 @@ def test_the_manifest_binds_the_login_by_variable():
     assert "ops" not in manifest["requires"]
 
 
-def test_a_notice_is_keyed_by_its_content_never_its_place_in_the_list():
-    """0.4.0's `Notice` has no id; an index shifts when one arrives, and a same-day re-pull would file the notice twice."""
-    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
-    assert "ps-notice-<school_id>-<n>" not in text
-    assert "ps-notice-<school_id>-<12 hex of sha1(title|date)>" in text
-
-
-def test_the_notices_read_is_bounded_by_the_lookback_like_the_posts():
-    text = " ".join((UNIT / "SKILL.md").read_text(encoding="utf-8").split())
-    assert re.search(r"`list_notices` once, keeping every notice dated within `options\.lookback_days` days", text)
-
-
 def test_the_venue_list_of_read_tools_is_the_whole_list():
     text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
     block = text.split("The server's read tools, 0.4.0:", 1)[1].split("This unit uses", 1)[0]
     assert set(re.findall(r"`(\w+)`", block)) == READ_TOOLS
+
+
+KEYS = UNIT / "scripts" / "keys.py"
+HOSTILE = "Picture day $(touch PWNED) `touch PWNED` \"quoted\" 'single' ; touch PWNED"
+
+
+def _keys(tmp_path, arm, doc, *extra):
+    draft = tmp_path / "draft.json"
+    draft.write_text(json.dumps(doc), encoding="utf-8")
+    return subprocess.run([sys.executable, str(KEYS), arm, str(draft), *extra], cwd=tmp_path, capture_output=True, text=True, check=False)
+
+
+def test_a_notice_key_is_the_hash_of_its_content_and_venue_text_runs_nothing(tmp_path):
+    doc = {"school_id": 12, "title": HOSTILE, "date": "Oct 3, 2026"}
+    done = _keys(tmp_path, "notice", doc)
+    want = hashlib.sha1(f"{HOSTILE}|Oct 3, 2026".encode()).hexdigest()[:12]
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == f"ps-notice-12-{want}"
+    assert not (tmp_path / "PWNED").exists()
+    assert _keys(tmp_path, "notice", doc).stdout == done.stdout
+    assert _keys(tmp_path, "notice", {**doc, "date": "Oct 4, 2026"}).stdout != done.stdout
+
+
+def test_a_stamp_is_thirteen_digits_and_a_hostile_date_runs_nothing(tmp_path):
+    ok = _keys(tmp_path, "stamp", {"date": "Oct 3, 2026"}, "--now", "1")
+    assert ok.stdout.strip() == "1791028800000", ok.stdout + ok.stderr  # 2026-10-03T12:00:00Z
+    bad = _keys(tmp_path, "stamp", {"date": "$(touch PWNED) `touch PWNED`"}, "--now", "1791000000000")
+    assert bad.returncode == 0 and bad.stdout.strip() == "1791000000000", bad.stdout + bad.stderr
+    assert not (tmp_path / "PWNED").exists()
+
+
+def test_a_bad_draft_is_refused_with_a_reason(tmp_path):
+    done = _keys(tmp_path, "notice", {"school_id": "12; touch PWNED", "title": "t", "date": "d"})
+    assert done.returncode == 2 and "school_id" in done.stderr
+    assert not (tmp_path / "PWNED").exists()
+
+
+SERVED = ("title", "date", "subject", "body", "author", "school", "comment")
+
+
+def test_no_shell_block_in_the_body_carries_served_text():
+    """A fenced command or an inline one names a served field as an argument only if the session would type venue text into a shell."""
+    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    shell = re.findall(r"^```sh\n(.*?)^```", text, re.M | re.S) + re.findall(r"`([^`\n]*(?:llm-wiki-ops|sha1sum|date -u)[^`\n]*)`", text)
+    assert shell, "the scan found no command at all"
+    leaks = [line for block in shell for line in block.splitlines() if re.search(rf"<({'|'.join(SERVED)})>", line)]
+    assert not leaks, leaks

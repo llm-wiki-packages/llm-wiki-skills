@@ -4,10 +4,16 @@ Invoked `/channel-parentsquare ticket=<id>`; the runner adds `stage=<harvest|pro
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One invocation serves one account and one day directory.
 
-## Scripts
+## Script
 
-None. The harvest reads through the `parentsquare` MCP server the sandbox declares, and both
-steps write with the front door's verbs.
+`scripts/keys.py`, run as `llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py <arm> <capture_dir>/draft.json`.
+The draft is a JSON file the session wrote with its file-writing tool: served text never rides a command line.
+The harvest reads through the `parentsquare` MCP server the sandbox declares, and both steps write with the front door's verbs.
+
+| arm | step | further argv |
+| :--- | :--- | :--- |
+| `notice` | harvest | `<draft.json>` holding `school_id`, `title`, `date`; prints `ps-notice-<school_id>-<12 hex of sha1(title\|date)>` |
+| `stamp` | harvest | `<draft.json>` holding `date`; `[--now MS]`; prints 13-digit epoch milliseconds, the pull's clock when the date does not parse |
 
 ## Knobs
 
