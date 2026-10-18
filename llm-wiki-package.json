@@ -56,6 +56,11 @@
     },
     {
       "type": "skill",
+      "name": "channel-parentsquare",
+      "path": "skills/channel-parentsquare"
+    },
+    {
+      "type": "skill",
       "name": "channel-spotify",
       "path": "skills/channel-spotify"
     },

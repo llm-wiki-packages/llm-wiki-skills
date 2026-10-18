@@ -1,0 +1,57 @@
+{
+  "keywords": [
+    "parentsquare",
+    "school",
+    "schools",
+    "parent",
+    "classroom",
+    "teacher",
+    "district",
+    "host:www.parentsquare.com"
+  ],
+  "name": "channel-parentsquare",
+  "requires": {
+    "bins": [
+      {
+        "bin": "parentsquare-mcp",
+        "source": "https://pypi.org/project/parentsquare-mcp/",
+        "installers": {
+          "uv": "parentsquare-mcp"
+        }
+      }
+    ],
+    "credentials": {
+      "env": {
+        "PS_PASSWORD": "required",
+        "PS_USERNAME": "required"
+      }
+    }
+  },
+  "stages": {
+    "harvest": {
+      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare/parentsquare.harvest"
+    },
+    "process": {}
+  },
+  "usage": "/channel-parentsquare ticket=<id>",
+  "v": 1,
+  "venue": "parentsquare",
+  "version": "0.1.0",
+  "watch": {
+    "defaults": {
+      "every": "1d"
+    },
+    "dest": "research/channels/{slug}",
+    "inputs": {
+      "schools": {
+        "prompt": "Which ParentSquare school ids does this watch pull? Comma-separated; blank pulls every school the account lists",
+        "required": false
+      },
+      "lookback_days": {
+        "default": "3",
+        "prompt": "Days of feed history each pull reads"
+      }
+    },
+    "note": "One watch per account: the account is the one the machine binds to PS_USERNAME and PS_PASSWORD (`credentials bind skill channel-parentsquare`), and the harvest reads whatever that account sees. The server and its two variables are installed and bound per machine (references/enable.md)."
+  }
+}

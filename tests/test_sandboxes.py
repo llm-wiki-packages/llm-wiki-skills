@@ -118,9 +118,12 @@ def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name, stage):
         return
     bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
     # A probe runs one of the unit's bins: a machine block comes with one
-    # exactly where the unit declares a bin to run it with.
+    # exactly where the unit declares a bin to run it with. A bin the stage's
+    # `## MCP` names is a server the harness starts, which no probe can run
+    # without starting it: `sandboxes compose --exec` is its operator's try.
+    served = {server["command"] for server in _section_json(text, "MCP") or []}
     assert machine is not None, f"{name}: a probe with no machine block probes nothing"
-    assert (probe is not None) == bool(bins), f"{name}: a machine block and its probe come together where the unit has bins"
+    assert (probe is not None) == bool(bins - served), f"{name}: a machine block and its probe come together where the unit has bins a probe can run"
     for value in [*_strings(machine), *(probe or [])]:
         assert not value.startswith(("/", "~")), f"{name}: {value!r} is a machine path"
         for placeholder in re.findall(r"\{bin:([^}]*)\}", value):
@@ -128,6 +131,23 @@ def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name, stage):
     if probe is not None:
         assert isinstance(probe, list) and probe and all(isinstance(a, str) for a in probe), probe
         assert probe[0].startswith("{bin:"), probe
+
+
+@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
+def test_every_mcp_server_is_a_bin_the_unit_declares(name, stage):
+    """Install's unit rule, held here so a reference edit fails before a wiki sees it."""
+    rel, _ = _reference(name, stage)
+    servers = _section_json((REFERENCES / f"{rel}.md").read_text(encoding="utf-8"), "MCP") or []
+    bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
+    for server in servers:
+        assert server["command"] in bins, f"{name}: ## MCP names {server['command']!r}, which requires.bins does not declare"
+        assert "script" not in unit_manifest(name)["stages"][stage], f"{name}: a script stage runs no harness, so its reference carries no ## MCP"
+
+
+def test_the_mcp_reader_finds_the_one_unit_that_declares_a_server():
+    """An arm that parametrizes over nothing passes quietly: the reference this one exists for is the known member."""
+    declaring = [n for n, stage in SANDBOXED if _section_json((REFERENCES / f"{_reference(n, stage)[0]}.md").read_text(encoding="utf-8"), "MCP")]
+    assert declaring == ["channel-parentsquare"], declaring
 
 
 def test_every_reference_is_one_a_unit_names():
