@@ -78,10 +78,9 @@ unattended, and the session reports `auth`.
 The server's own file, as a nono fragment `skills install` writes to the
 template's `machine.allow`. `{bin:parentsquare-mcp}` resolves on the
 enabling machine to the console script `uv tool install` left; nothing here
-names a machine path. It reads the script only: the tool's virtual
-environment and the uv-managed Python it runs under are not a path a
-catalog can spell, so a machine whose jail cannot read them adds those
-reads to its own allow file.
+names a machine path. The slice floor grants the bin's toolchain reads (its
+virtual environment and the Python it runs under), so no machine edit is
+needed.
 
 ```json
 {

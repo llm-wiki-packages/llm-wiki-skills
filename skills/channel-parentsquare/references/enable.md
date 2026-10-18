@@ -26,9 +26,8 @@ Once per machine that pulls, in this order:
 A machine that binds nothing claims no harvest: `jobs claim` refuses, naming
 what the stage requires and this machine fills none of.
 
-The server's tool directory and the Python it runs under are not granted by
-the catalog (the sandbox reference's `## Machine` says why). Run the server in
-the composed jail before the first pull, and end it with ctrl-D:
+The slice floor grants the server's toolchain reads (its virtual environment and
+the Python it runs under); no machine edit is needed. Run the server in the
+composed jail before the first pull, and end it with ctrl-D:
 `llm-wiki-ops sandboxes compose skill=channel-parentsquare stage=harvest --exec -- parentsquare-mcp`.
-A permission or import error means a read is missing: widen that machine's
-allow file with reads of both directories.
+A permission or import error is a defect to report.
