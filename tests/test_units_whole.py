@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, UNFLOORED, unit_manifest
 
 # The capture units whose body a session follows: each serves `harvest` or
 # `process`, no `routine`, and either some stage with no `script` or a
@@ -156,7 +156,9 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     stages = skill.split("\n## Stages", 1)[1].split("\n### harvest", 1)[0]
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
     version = lambda text: tuple(int(b) for b in text.removeprefix(">=").split("."))  # noqa: E731
-    floor = unit_manifest(name)["requires"]["ops"]
+    floor = unit_manifest(name)["requires"].get("ops")
+    if name in UNFLOORED:
+        return
     assert version(floor) >= version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"
 
 
@@ -175,6 +177,8 @@ BUDGET = {
     "channel-gmail-gws": 220,
     "channel-hubspot-video": 204,
     "channel-notion-tasks": 139,
+    # Authored after the port, at 167 lines with the full read-tool list: no pre-port length to scale.
+    "channel-parentsquare": 170,
     "channel-spotify": 246,
     "channel-substack": 288,
     "channel-youtube": 198,

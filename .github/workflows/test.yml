@@ -96,11 +96,14 @@ jobs:
       # declare. `uv tool` puts the binary where setup-uv already put PATH;
       # brew is on the runner but not on PATH, so only `ntn`'s own directory
       # joins it. No test runs `ntn`: `skills enable` resolves it and reads
-      # its version. `nono` is the sandbox runtime the runner composes a
-      # stage's jail with: without it every staged harness case skips, saying so.
+      # its version. `parentsquare-mcp` is installed for the same reason, and
+      # the harness's stand-in leads PATH, so no case starts the real server.
+      # `nono` is the sandbox runtime the runner composes a stage's jail with:
+      # without it every staged harness case skips, saying so.
       - name: Install the binaries the manifests declare
         run: |
           uv tool install yt-dlp
+          uv tool install parentsquare-mcp==0.4.0
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install notion-cli nono
           dirname "$(readlink -f "$(brew --prefix)/bin/ntn")" >> "$GITHUB_PATH"

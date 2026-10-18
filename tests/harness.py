@@ -39,6 +39,10 @@ MANIFEST = json.loads((ROOT / "llm-wiki-package.json").read_text(encoding="utf-8
 SOURCE = MANIFEST["repository"]
 SKILLS = [a["name"] for a in MANIFEST["artifacts"] if a["type"] == "skill"]
 
+# Units that declare no `requires.ops`: they ride the package's `min_ops_version`, because a floor
+# for the stdio MCP server feature waits on an ops version bump (llm-wiki-plugins#3139).
+UNFLOORED = {"channel-parentsquare"}
+
 
 def unit_manifest(name: str) -> dict:
     art = next(a for a in MANIFEST["artifacts"] if a["type"] == "skill" and a["name"] == name)
@@ -85,10 +89,11 @@ atexit.register(shutil.rmtree, SCRATCH, ignore_errors=True)
 # session cannot rewrite what it was told to do.
 AGENT_DIR = SCRATCH / "harness-bin"
 FAKE_AGENT = Path(__file__).with_name("fake_agent.sh")
-# First on the harness's PATH as `bin/yt-dlp` and `bin/ntn`: see each file.
+# First on the harness's PATH as `bin/yt-dlp`, `bin/ntn`, `bin/gws` and `bin/parentsquare-mcp`: see each file.
 FAKE_YT_DLP = Path(__file__).with_name("fake_yt_dlp.sh")
 FAKE_NTN = Path(__file__).with_name("fake_ntn.sh")
 FAKE_GWS = Path(__file__).with_name("fake_gws.sh")
+FAKE_PARENTSQUARE_MCP = Path(__file__).with_name("fake_parentsquare_mcp.sh")
 YT_FIXTURES = AGENT_DIR / "yt"
 
 
@@ -136,6 +141,8 @@ def machine_harness(home: Path) -> Path:
     (AGENT_DIR / "bin" / "ntn").chmod(0o755)
     shutil.copy2(FAKE_GWS, AGENT_DIR / "bin" / "gws")
     (AGENT_DIR / "bin" / "gws").chmod(0o755)
+    shutil.copy2(FAKE_PARENTSQUARE_MCP, AGENT_DIR / "bin" / "parentsquare-mcp")
+    (AGENT_DIR / "bin" / "parentsquare-mcp").chmod(0o755)
     profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
     profile.parent.mkdir(parents=True, exist_ok=True)
     profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
