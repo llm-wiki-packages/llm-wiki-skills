@@ -65,14 +65,17 @@ stop, since nobody reads that mail here.
 it is blank. For each school: `get_feeds` page by page, newest first, until
 a post is older than `options.lookback_days` days or the page is empty;
 `get_post` for each post's full body and attachment names; `list_notices`
-once. Read text only: attachment bytes are out of reach in this jail, and
+once, keeping every notice dated within `options.lookback_days` days (one
+whose date does not parse is kept). Read text only: attachment bytes are out of reach in this jail, and
 a post whose attachment failed keeps its text.
 
 **3. Write it down, last.** One file per post or notice,
 `./items/<stamp>--<id>.json`: `stamp` is the post's date as 13-digit epoch
 milliseconds (`date -u -d <date> +%s000`; the pull's own clock, `date -u
 +%s000`, when the date does not parse), `id` is `ps-post-<feed_id>` or
-`ps-notice-<school_id>-<n>`. A second pull of the same day rewrites the
+`ps-notice-<school_id>-<12 hex of sha1(title|date)>` (`printf '%s|%s'
+"<title>" "<date>" | sha1sum | cut -c1-12`): a notice has no id of its own
+and its place in the list shifts. A second pull of the same day rewrites the
 file of the same `id`, never adds a second. The file carries exactly:
 
 - `v` — `1`
@@ -141,8 +144,12 @@ with a `reason=` when you judged only part of the day.
 - The server's read tools, 0.4.0: `list_schools`, `list_school_features`,
   `get_feeds`, `get_post`, `list_conversations`, `get_conversation`,
   `get_calendar_events`, `list_photos`, `list_files`, `download_file`,
-  `get_directory`, `list_groups`, `list_notices`, `list_polls`,
-  `list_signups`, `list_forms`. This unit uses four.
+  `get_directory`, `get_staff_member`, `list_groups`, `get_group_feed`,
+  `get_student_dashboard`, `list_signups`, `list_notices`, `list_polls`,
+  `list_links`, `list_payments`, `list_volunteer_hours`, `list_forms`,
+  `list_students`, `list_parents`, `list_grades`, `get_student`,
+  `list_classes`, `get_class`, `list_staff`, `list_class_students`.
+  This unit uses four.
 - Its write tools refuse until `PS_ENABLE_WRITES` is set, which the sandbox
   never does.
 

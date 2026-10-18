@@ -10,6 +10,9 @@ harness starts inside the jail. Read tools only.
   `requires.bins`; enabling the skill resolves it on the machine. Install it
   once with `uv tool install parentsquare-mcp==0.4.0`, never `uvx`: `uvx`
   needs a writable uv cache and tool directory, which a slice does not have.
+  The slice floor grants the bin's toolchain reads (console script, virtual
+  environment and the Python it runs under), so this reference asks for
+  no machine grant.
 
 ## Hosts
 
@@ -69,23 +72,6 @@ unattended, and the session reports `auth`.
         "www.parentsquare.com"
       ]
     }
-  }
-}
-```
-
-## Machine
-
-The server's own file, as a nono fragment `skills install` writes to the
-template's `machine.allow`. `{bin:parentsquare-mcp}` resolves on the
-enabling machine to the console script `uv tool install` left; nothing here
-names a machine path. The slice floor grants the bin's toolchain reads (its
-virtual environment and the Python it runs under), so no machine edit is
-needed.
-
-```json
-{
-  "filesystem": {
-    "read": ["{bin:parentsquare-mcp}"]
   }
 }
 ```

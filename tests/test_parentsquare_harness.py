@@ -76,3 +76,10 @@ def test_skills_enable_answers_with_the_stages_mcp_row(ops, env, wiki):
     ], stages[0]["reach"]
     assert "cookies.json" not in json.dumps(stages[0]["reach"]["mcp"])
     assert any(w.startswith("env: PS_PASSWORD, PS_USERNAME") for w in answer["warnings"]), answer["warnings"]
+
+
+def test_the_reference_asks_for_no_machine_grant():
+    """The slice floor grants a declared bin's toolchain reads, console script included; a server bin needs no `## Machine`."""
+    assert "## Machine" not in REFERENCE.read_text(encoding="utf-8")
+    enable = (ROOT / "skills" / UNIT / "references" / "enable.md").read_text(encoding="utf-8")
+    assert "console script" not in enable and "ctrl-D" not in enable

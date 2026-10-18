@@ -16,8 +16,7 @@ Once per machine that pulls, in this order:
    print them. Use a login you are content for the model to hold.
 4. Enable the stage's sandbox, bind the stage and enable the skill
    (`/llm-wiki:enable channel-parentsquare`). The review lists the server
-   `parentsquare`, its command and the names of its `env`, and the machine
-   read of the server's console script.
+   `parentsquare`, its command and the names of its `env`.
 5. One watch per account:
    `llm-wiki-ops jobs add parentsquare slug=<slug> description="<whose account>" skill=channel-parentsquare [options.schools=<ids>] [every=1d]`
    — the target is the bare name `parentsquare`, and the manifest's
@@ -28,6 +27,7 @@ what the stage requires and this machine fills none of.
 
 The slice floor grants the server's toolchain reads (its virtual environment and
 the Python it runs under); no machine edit is needed. Run the server in the
-composed jail before the first pull, and end it with ctrl-D:
+composed jail before the first pull; it reads EOF on stdin and exits by itself,
+which proves it starts and imports:
 `llm-wiki-ops sandboxes compose skill=channel-parentsquare stage=harvest --exec -- parentsquare-mcp`.
 A permission or import error is a defect to report.

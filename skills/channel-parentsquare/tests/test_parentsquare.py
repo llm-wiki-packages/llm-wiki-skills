@@ -35,3 +35,21 @@ def test_the_manifest_binds_the_login_by_variable():
     assert manifest["requires"]["credentials"] == {"env": {"PS_PASSWORD": "required", "PS_USERNAME": "required"}}
     assert [b["bin"] for b in manifest["requires"]["bins"]] == ["parentsquare-mcp"]
     assert "ops" not in manifest["requires"]
+
+
+def test_a_notice_is_keyed_by_its_content_never_its_place_in_the_list():
+    """0.4.0's `Notice` has no id; an index shifts when one arrives, and a same-day re-pull would file the notice twice."""
+    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    assert "ps-notice-<school_id>-<n>" not in text
+    assert "ps-notice-<school_id>-<12 hex of sha1(title|date)>" in text
+
+
+def test_the_notices_read_is_bounded_by_the_lookback_like_the_posts():
+    text = " ".join((UNIT / "SKILL.md").read_text(encoding="utf-8").split())
+    assert re.search(r"`list_notices` once, keeping every notice dated within `options\.lookback_days` days", text)
+
+
+def test_the_venue_list_of_read_tools_is_the_whole_list():
+    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    block = text.split("The server's read tools, 0.4.0:", 1)[1].split("This unit uses", 1)[0]
+    assert set(re.findall(r"`(\w+)`", block)) == READ_TOOLS
