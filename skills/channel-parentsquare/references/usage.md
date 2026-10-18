@@ -13,7 +13,7 @@ The harvest reads through the `parentsquare` MCP server the sandbox declares, an
 | arm | step | further argv |
 | :--- | :--- | :--- |
 | `notice` | harvest | `<draft.json>` holding `school_id`, `title`, `date`; prints `ps-notice-<school_id>-<12 hex of sha1(title\|date)>` |
-| `stamp` | harvest | `<draft.json>` holding `date`; `[--now MS]`; prints 13-digit epoch milliseconds, the pull's clock when the date does not parse |
+| `stamp` | harvest | `<draft.json>` holding `date` and `id`; `[--now MS] [--day-dir DIR]`; prints 13-digit epoch milliseconds from an ISO-8601, epoch or month-name date, else the stamp of the `id`'s file in `DIR/items/`, else the pull's clock |
 
 ## Knobs
 

@@ -73,20 +73,23 @@ a post whose attachment failed keeps its text.
 **3. Write it down, last.** Served text — titles, dates, bodies, names — never
 goes on a shell line: write every file with your file-writing tool, and hand a
 script a file, never an argument. One file per post or notice,
-`./items/<stamp>--<id>.json`. For each, write the served `date` (and, for a
-notice, `school_id` and `title`) to `<capture_dir>/draft.json`, then:
+`./items/<stamp>--<id>.json`. For each, write the served `date` and its `id`
+(and, for a notice, `school_id` and `title`) to `<capture_dir>/draft.json`,
+then:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py stamp <capture_dir>/draft.json
 llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py notice <capture_dir>/draft.json
+llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py stamp <capture_dir>/draft.json --day-dir <capture_dir>
 ```
 
-`stamp` prints the 13-digit epoch milliseconds of the post's date (the pull's
-own clock when the date does not parse), and `notice` the notice's `id`,
-`ps-notice-<school_id>-<12 hex of sha1(title|date)>`: a notice has no id of
-its own in the server and its place in the list shifts. A post's `id` is
-`ps-post-<feed_id>`. A second pull of the same day rewrites the
-file of the same `id`, never adds a second. The file carries exactly:
+For a notice, run `notice` first and add what it prints to the draft as `id`. `stamp` prints
+the 13-digit epoch milliseconds of the item's date, ISO-8601, epoch or a month
+name, exactly as served. A date it cannot read reuses the stamp of the same
+`id`'s file already in the day, else the pull's own clock, so a re-pull
+rewrites the file. The notice `id` is
+`ps-notice-<school_id>-<12 hex of sha1(title|date)>` (the server gives a
+notice no id), a post's `ps-post-<feed_id>`. A second pull of the same day
+rewrites the file of the same `id`, never adds a second. The file carries exactly:
 
 - `v` — `1`
 - `id` — the pointer, `parentsquare:<id>`

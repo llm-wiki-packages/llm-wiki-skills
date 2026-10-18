@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 UNIT = Path(__file__).resolve().parents[1]
 
 # parentsquare-mcp 0.4.0's registered tools that read; every other registered tool adds, edits, invites, links or removes.
@@ -74,6 +76,54 @@ def test_a_stamp_is_thirteen_digits_and_a_hostile_date_runs_nothing(tmp_path):
     bad = _keys(tmp_path, "stamp", {"date": "$(touch PWNED) `touch PWNED`"}, "--now", "1791000000000")
     assert bad.returncode == 0 and bad.stdout.strip() == "1791000000000", bad.stdout + bad.stderr
     assert not (tmp_path / "PWNED").exists()
+
+
+NOW = "1791028800000"  # 2026-10-03T12:00:00Z, the pull's clock in these cases
+
+# Every shape a served `date` takes: `data-timestamp` verbatim (ISO-8601 or epoch), else the element's own text.
+SHAPES = [
+    ("iso with an offset", "2026-02-11T14:20:45-08:00", "1770848445000"),
+    ("iso with Z", "2026-02-11T22:20:45Z", "1770848445000"),
+    ("iso with fractional seconds", "2026-02-11T22:20:45.250Z", "1770848445250"),
+    ("iso with no zone, read as UTC", "2026-02-11T22:20:45", "1770848445000"),
+    ("epoch seconds", "1770848445", "1770848445000"),
+    ("epoch milliseconds", "1770848445492", "1770848445492"),
+    ("a date only, noon UTC", "2026-02-11", "1770811200000"),
+    ("a month name with a year", "Feb 11, 2026", "1770811200000"),
+    ("a month name with no year, the latest one not after the pull", "Feb 11", "1770811200000"),
+]
+
+
+@pytest.mark.parametrize(("shape", "served", "want"), SHAPES, ids=[s[0] for s in SHAPES])
+def test_every_served_date_shape_stamps_from_the_post_not_the_clock(tmp_path, shape, served, want):
+    done = _keys(tmp_path, "stamp", {"date": served}, "--now", NOW)
+    assert done.returncode == 0 and done.stdout.strip() == want, done.stdout + done.stderr
+
+
+def test_a_repull_of_the_same_post_stamps_the_same(tmp_path):
+    doc = {"date": "2026-02-11T14:20:45-08:00"}
+    first = _keys(tmp_path, "stamp", doc, "--now", NOW).stdout
+    again = _keys(tmp_path, "stamp", doc, "--now", "1791100000000").stdout
+    assert first == again
+
+
+def test_a_date_no_shape_matches_reuses_the_stamp_of_the_posts_own_file(tmp_path):
+    items = tmp_path / "day" / "items"
+    items.mkdir(parents=True)
+    (items / "1791000000000--ps-post-77.json").write_text("{}", encoding="utf-8")
+    draft = {"date": "2 hours ago", "id": "ps-post-77"}
+    again = _keys(tmp_path, "stamp", draft, "--now", NOW, "--day-dir", str(tmp_path / "day"))
+    assert again.stdout.strip() == "1791000000000", again.stdout + again.stderr
+    other = _keys(tmp_path, "stamp", {**draft, "id": "ps-post-78"}, "--now", NOW, "--day-dir", str(tmp_path / "day"))
+    assert other.stdout.strip() == NOW
+
+
+def test_a_stamped_file_is_not_the_one_a_parseable_date_reuses(tmp_path):
+    items = tmp_path / "day" / "items"
+    items.mkdir(parents=True)
+    (items / "1791000000000--ps-post-77.json").write_text("{}", encoding="utf-8")
+    done = _keys(tmp_path, "stamp", {"date": "2026-02-11T22:20:45Z", "id": "ps-post-77"}, "--now", NOW, "--day-dir", str(tmp_path / "day"))
+    assert done.stdout.strip() == "1770848445000"
 
 
 def test_a_bad_draft_is_refused_with_a_reason(tmp_path):
