@@ -27,8 +27,8 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   and the run reports on stock alone.
 - Read `research/`: the channel ledgers under `research/channels/` and the
   ops digest under `research/reports/`.
-- Read `sources/`: `page lint` sweeps it beside `wiki/`, and skips a tree it
-  cannot read without saying so, so the report's `lint:` would undercount.
+- Read `sources/`: the report lints `wiki` and `sources` by name, so the
+  jail must reach both for the report's `lint:` to count them.
 - Write `wiki/`: the report's markdown and HTML under `wiki/reports/`, the
   promotions on existing `wiki/` pages and the entity stubs, and the
   `wiki/log.md` and `wiki/index.md` entries. The profile, the previous
@@ -74,7 +74,7 @@ None.
     "filesystem": {
       // Each tree by name: a slice drops a bare `$WORKDIR`. `.git` fixes the
       // window, `.llm-wiki/policy` is the overlay, `research/` the ledgers
-      // and the digest, `sources/` what `page lint` sweeps beside `wiki/`.
+      // and the digest, `sources/` what the report lints beside `wiki/`.
       "read": [
         "$WORKDIR/.git",
         "$WORKDIR/.llm-wiki/policy",
