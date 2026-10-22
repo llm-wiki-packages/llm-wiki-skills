@@ -105,8 +105,9 @@ llm-wiki-ops page ls filter=under:research/channels
   continue. Take it as given, never re-derive it.
 - **What the wiki did** — `op since` is the runs, `git changed` the files.
 - **Lint delta** — `page lint wiki sources` against the previous report's
-  `lint:` frontmatter. The delta jumps once when STALE and PAST_SHELF_LIFE
-  leave lint; say so rather than reading it as a regression.
+  `lint:` frontmatter. The delta jumps once when lint's rules change —
+  STALE and PAST_SHELF_LIFE leave, the guard's description, `job` and
+  `generated` checks join; say so rather than reading it as a trend.
 - **Operator profile** — `wiki/profile/`, the lens for everything else.
   Absent: proceed impersonally and note that `/llm-wiki:grill` would
   personalize the wiki.
