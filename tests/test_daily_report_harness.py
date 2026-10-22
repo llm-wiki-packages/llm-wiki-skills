@@ -23,8 +23,8 @@ LOG = "wiki/log.md"
 # and one channel's ledger page.
 DIGEST = f"research/reports/{TODAY}.md"
 LEDGER = f"research/channels/harness-daily-report/{TODAY}.md"
-# A `sources/` page `page lint` flags: the sweep skips a tree it cannot read
-# without a word, so only a finding there shows the jail reaches it.
+# A `sources/` page `page lint` flags when given `sources`: a finding there
+# shows the jail reaches the tree.
 UNDATED = "sources/harness-daily-report/undated.md"
 # An existing wiki page §5 promotes onto, committed with no `job`: a routine
 # landing stamps only the pages the run created, so this one keeps none.
@@ -55,7 +55,7 @@ step latest "$OPS" --json op latest daily-report
 step changed "$OPS" --json git changed research sources filter=since:3d
 step ledgers "$OPS" --json page ls filter=under:research/channels
 step digest "$OPS" --json page read {DIGEST}
-step lint "$OPS" --json page lint
+step lint "$OPS" --json page lint wiki sources
 step promote sh -c 'printf "An actor.\\n\\n- {TODAY}: in the report.\\n" | "$OPS" --json page edit {PROMOTED} --stdin'
 step report sh -c 'printf "The lead.\\n" | "$OPS" --json page create title={TODAY} dest=wiki/reports type=report --stdin'
 {_hooked("brief", "Write", BRIEF, f"printf '<html></html>\\n' > {BRIEF}")}\

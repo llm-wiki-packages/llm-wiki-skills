@@ -85,7 +85,7 @@ A failed input is a one-line note in the report, never an abort.
 ```sh
 llm-wiki-ops git changed research sources filter=since:<the marker>
 llm-wiki-ops op since filter=since:<the marker>
-llm-wiki-ops page lint
+llm-wiki-ops page lint wiki sources
 llm-wiki-ops page ls filter=under:wiki/profile
 llm-wiki-ops page ls filter=under:research/reports
 llm-wiki-ops page ls filter=under:research/channels
@@ -104,8 +104,9 @@ llm-wiki-ops page ls filter=under:research/channels
   is always one to read; a by-hand run may find none — note the gap and
   continue. Take it as given, never re-derive it.
 - **What the wiki did** — `op since` is the runs, `git changed` the files.
-- **Lint delta** — `page lint` against the previous report's `lint:`
-  frontmatter.
+- **Lint delta** — `page lint wiki sources` against the previous report's
+  `lint:` frontmatter. The delta jumps once when STALE and PAST_SHELF_LIFE
+  leave lint; say so rather than reading it as a regression.
 - **Operator profile** — `wiki/profile/`, the lens for everything else.
   Absent: proceed impersonally and note that `/llm-wiki:grill` would
   personalize the wiki.
