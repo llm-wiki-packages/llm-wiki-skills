@@ -9,6 +9,7 @@
   "requires": {
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:web-page",
   "stages": {
     "harvest": {
       "script": "scripts/fetch.py"
@@ -16,6 +17,5 @@
   },
   "usage": "llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>",
   "v": 1,
-  "venue": "web",
   "version": "0.1.0"
 }

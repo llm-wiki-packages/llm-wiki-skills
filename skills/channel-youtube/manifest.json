@@ -27,16 +27,15 @@
     },
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube",
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube/youtube.harvest",
       "script": "scripts/capture_video.py"
     },
     "process": {}
   },
   "usage": "/channel-youtube ticket=<id>",
   "v": 1,
-  "venue": "youtube",
   "version": "0.1.0",
   "watch": {
     "defaults": {

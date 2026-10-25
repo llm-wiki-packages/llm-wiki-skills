@@ -21,8 +21,8 @@
    only host to add: the platform's own — `play.hubspotvideo.com`,
    `image.mux.com`, `stream.mux.com` and `*.mux.com` (the rendition hosts
    behind the master playlist; the exact set is unverified) — ship in the
-   harvest stage's sandbox reference, because they are the same for every
-   HubSpot customer. A slice reaches the job's target host plus its bound
+   harvest stage of the unit's sandbox, because they are the same for every
+   HubSpot customer. A slice reaches the job's target host plus its stage's
    sandbox and nothing else; a host still missing comes back in the report's `missing[]`
    as `denied`. Add no other key: `skills doctor` fails a manifest carrying
    one the contract does not name.

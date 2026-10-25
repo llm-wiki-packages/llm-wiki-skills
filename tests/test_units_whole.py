@@ -72,8 +72,8 @@ RETIRED_VERBS = (
     r"""["']schedule["']\s*,\s*["']tick["']""",
 )
 # Every file an agent or operator reads: the units, the repo's README and its
-# root `references/` tree.
-READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "references").rglob("*") if p.is_file())})
+# root `sandboxes/` tree.
+READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "sandboxes").rglob("*") if p.is_file())})
 
 
 def _retired_spellings(text: str) -> list:
@@ -312,7 +312,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "venue", "stages", "keywords", "usage", "requires", "watch"}
+    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]

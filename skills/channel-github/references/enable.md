@@ -6,8 +6,8 @@
    topics, and the `retag` mode fixes them later.
 
 2. **The token (recommended).** Keyless harvest runs at 60 API calls an
-   hour, enough for a few dozen READMEs a run. The `github` route of the
-   `github-harvest` sandbox raises that to 5000 (the sandbox reference's
+   hour, enough for a few dozen READMEs a run. The `github` route on the
+   harvest stage of the unit's sandbox raises that to 5000 (the sandbox's
    `## Credential` section spells it out). Mint a fine-grained personal
    access token with **no permissions at all** — public repository read is
    implicit. On each machine that harvests, name the wiki's vault, `<key>`
@@ -24,7 +24,7 @@
    llm-wiki-ops credentials set github
    ```
 
-   Then, once the harvest stage is bound to `github-harvest`, map the route:
+   Then, once the skill is enabled, map the route:
 
    ```sh
    llm-wiki-ops credentials bind skill channel-github github=github
@@ -35,7 +35,7 @@
    `"optional"`, so an unmapped machine still harvests, keyless.
 
    ```sh
-   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/github/github.harvest.md
+   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/github.md
    ```
 
 3. **The harvest jobs.** The target is a bare channel name, and `dest`

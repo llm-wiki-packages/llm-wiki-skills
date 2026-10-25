@@ -1,6 +1,6 @@
-"""daily-report, the harness tier: the unit installed, bound and enabled
+"""daily-report, the harness tier: the unit installed and enabled
 through the REAL CLI, the seeded morning job's routine ticket started by the
-runner in the jail its `daily-report.routine` sandbox composes, with the
+runner in the jail its `sandbox.jsonc` routine stage composes, with the
 harness profile's fake agent typing what the unit's SKILL.md says.
 """
 

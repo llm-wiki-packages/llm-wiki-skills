@@ -161,8 +161,8 @@ true of the SITE go in `references/sites.json`.
 5. **Drop `verifi.podscribe.com/tag`** from the asset manifest: an analytics
    beacon the generic detector types as an image.
 6. **The slice's egress has to cover the media hosts.** It reaches the job's
-   target host plus the sandbox its harvest stage is bound to, whose
-   reference ships `play.hubspotvideo.com`, `image.mux.com`, `stream.mux.com` and `*.mux.com`.
+   target host plus the sandbox of its harvest stage, which
+   ships `play.hubspotvideo.com`, `image.mux.com`, `stream.mux.com` and `*.mux.com`.
    A host still refused is `missing[]` as `denied`; widening is the foreman's.
 
 A page with **no player at all** is a real shape, not a failure: a pointer

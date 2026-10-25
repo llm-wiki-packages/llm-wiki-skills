@@ -1,0 +1,27 @@
+// youtube: the catalog template for the channel-youtube unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/youtube.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      // yt-dlp's cache directory.
+      "machine_reads": ["yt-dlp-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue.
+          "youtube.com",
+          "*.youtube.com",
+          "youtu.be",
+          "*.googlevideo.com",
+          "*.ytimg.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

@@ -23,15 +23,13 @@
     ],
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio/frameio.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-frameio ticket=<id>",
   "v": 1,
-  "venue": "frameio",
   "version": "0.1.0",
   "watch": {
     "defaults": {

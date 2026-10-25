@@ -1,0 +1,27 @@
+// hubspot-cms: the catalog template for the channel-hubspot-video unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/hubspot-cms.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      // Playwright's browser build, which the capture scripts launch.
+      "machine_reads": ["playwright-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: the platform's fixed hosts. The site's own host is the
+          // ticket's and joins at dispatch.
+          "play.hubspotvideo.com",
+          "image.mux.com",
+          "stream.mux.com",
+          "*.mux.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

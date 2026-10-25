@@ -16,15 +16,13 @@
     },
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:circle",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:circle/circle.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-circle ticket=<id>",
   "v": 1,
-  "venue": "circle",
   "version": "0.1.0",
   "watch": {
     "defaults": {

@@ -15,15 +15,13 @@
     },
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail/gmail.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-gmail ticket=<id>",
   "v": 1,
-  "venue": "gmail",
   "version": "0.1.0",
   "watch": {
     "defaults": {

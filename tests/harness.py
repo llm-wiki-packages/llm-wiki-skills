@@ -21,7 +21,6 @@ import contextlib
 import importlib.util
 import json
 import os
-import re
 import shlex
 import shutil
 import socket
@@ -38,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / "llm-wiki-package.json").read_text(encoding="utf-8"))
 SOURCE = MANIFEST["repository"]
 SKILLS = [a["name"] for a in MANIFEST["artifacts"] if a["type"] == "skill"]
+TEMPLATES = ROOT / "sandboxes"
 
 # Units that declare no `requires.ops`: they ride the package's `min_ops_version`, because a floor
 # for the stdio MCP server feature waits on an ops version bump (llm-wiki-plugins#3139).
@@ -248,7 +248,7 @@ RESOLVABLE_TEST_HOST = "example.com"
 
 
 def jsonc(text: str) -> object:
-    """JSON with `//` line comments, which the sandbox snippets carry. A `//`
+    """JSON with `//` line comments, which the catalog's sandbox templates carry. A `//`
     inside a string (a url in a description) is not a comment."""
     out, in_string, i = [], False, 0
     while i < len(text):
@@ -274,77 +274,51 @@ def jsonc(text: str) -> object:
     return json.loads("".join(out))
 
 
-def snippet(reference: str) -> str:
-    """The one fenced `jsonc` block of a sandbox reference: the profile a wiki
-    sandbox is written from."""
-    fences = re.findall(r"^```jsonc\n(.*?)^```$", reference, re.M | re.S)
-    assert len(fences) == 1, f"a sandbox reference carries {len(fences)} jsonc blocks, not one"
-    return fences[0]
+def template(name: str) -> dict:
+    """The catalog's sandbox template `sandboxes/<name>.jsonc`, parsed."""
+    return jsonc((TEMPLATES / f"{name}.jsonc").read_text(encoding="utf-8"))
 
 
-def machine_fragment(reference: str) -> dict | None:
-    """The one fenced `json` block under a reference's `## Machine`: the nono
-    fragment carrying its venue route, which `skills install` writes to the
-    venue template's `machine.allow`. None where the reference has no such
-    section."""
-    match = re.search(r"^## Machine\n(.*?)(?=^## |\Z)", reference, re.M | re.S)
-    if not match:
-        return None
-    (fence,) = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
-    return json.loads(fence)
+def template_name(unit: str) -> str:
+    """The template a unit's unit-level `sandbox_ref` names: `<package>:<name>`."""
+    package, name = unit_manifest(unit)["sandbox_ref"].rsplit(":", 1)
+    assert package == SOURCE, f"{unit}: sandbox_ref {package!r} names a package other than this one"
+    return name
 
 
-def bound(ops: list, env: dict, wiki: Path, name: str) -> None:
-    """Every stage of the installed unit that names a `sandbox_ref`, bound the
-    way `/llm-wiki:sandbox` and `/llm-wiki:enable` do it: the reference read
-    through the CLI, its snippet written and committed as a wiki sandbox, that
-    sandbox enabled, the stage bound. A snippet key the policy reader does not
-    admit fails here, at `sandboxes enable`.
-
-    A reference carrying a venue route gets it too, as the sandbox's
-    `machine.allow`, so a unit declaring that binding name enables. The venue
-    template carries the same route, behind any probe its reference names,
-    and a probe spends the route's vault entry (notion's `ntn whoami`): this
-    sandbox stands in for the template so a case that is not about the route
-    needs no vault and no stored token. Each unit's documented-path case
-    walks the template the docs name."""
+def installed_sandbox(ops: list, env: dict, wiki: Path, unit: str) -> dict:
+    """The `sandbox.jsonc` `skills install` wrote into the unit's tree in `wiki`, parsed."""
     ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
-    for stage, spec in unit_manifest(name).get("stages", {}).items():
-        ref = spec.get("sandbox_ref")
-        if not ref:
-            continue
-        package, rel = ref.rsplit(":", 1)
-        r = run(ops, rooted(env, wiki), "--json", "reference", f"{package}:references/sandboxes/{rel}.md")
-        assert r.returncode == 0, r.stdout + r.stderr
-        sandbox = f"{name}-{stage}"
-        template = wiki / ops_dir / "sandboxes" / f"{sandbox}.jsonc"
-        template.parent.mkdir(parents=True, exist_ok=True)
-        route = machine_fragment(r.data["text"])
-        if route is None:
-            template.write_text(snippet(r.data["text"]), encoding="utf-8")
-        else:
-            template.write_text(json.dumps({**jsonc(snippet(r.data["text"])), "machine": {"allow": [route]}}), encoding="utf-8")
-        for verb in (
-            ["git", "commit", str(template.relative_to(wiki)), f"message=sandboxes: {sandbox} from {ref}"],
-            ["sandboxes", "enable", sandbox, "--confirm"],
-            ["skills", "bind", name, f"stage={stage}", f"sandbox={sandbox}", "--confirm"],
-        ):
-            # A machine widening — the route — is enabled only on an attended yes.
-            attended = {"LLM_WIKI_SESSION_ATTENDED": "1"} if route is not None and verb[0] == "sandboxes" else {}
-            r = run(ops, {**rooted(env, wiki), **attended}, "--json", *verb)
-            assert r.returncode == 0, r.stdout + r.stderr
+    return jsonc((wiki / ops_dir / "skills" / unit / "sandbox.jsonc").read_text(encoding="utf-8"))
+
+
+# What `skills enable` asks beyond the ordinary yes, per unit: the dangerous
+# tokens the unit's sandbox names, which `accept=` answers in an attended session.
+ACCEPT = {"daily-report": ".git"}
+
+# A unit whose sandbox probe spends a stored credential at enable: the route's
+# name and the one host its value may be spent at.
+PROBE_SPENDS = {"channel-notion-tasks": ("notion", "api.notion.com")}
 
 
 def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
-    """The unit, installed, bound and enabled in the session wiki — by
-    whichever case gets there first. Each verb is a no-op over an identical
-    copy, so a case that needs the unit asks for it rather than leaning on
-    another having run (`-k`, `--lf`, a shuffled or split run)."""
+    """The unit, installed and enabled in the session wiki — by whichever case
+    gets there first. Install writes the unit's `sandbox.jsonc` and validates
+    it; enable is the gate. Each verb is a no-op over an identical copy, so a
+    case that needs the unit asks for it rather than leaning on another
+    having run (`-k`, `--lf`, a shuffled or split run)."""
     r = run(ops, rooted(env, wiki), "--json", "skills", "install", name)
     assert r.returncode == 0, r.stdout + r.stderr
-    bound(ops, env, wiki, name)
-    r = run(ops, rooted(env, wiki), "--json", "skills", "enable", name, "--confirm")
-    assert r.returncode == 0, r.stdout + r.stderr
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    argv = ["--json", "skills", "enable", name, "--confirm", *([f"accept={ACCEPT[name]}"] if name in ACCEPT else [])]
+    with contextlib.ExitStack() as stack:
+        if name in PROBE_SPENDS:
+            route, host = PROBE_SPENDS[name]
+            stack.enter_context(local_vault(ops, env))
+            stored = run(ops, attended, "--json", "credentials", "set", route, input=json.dumps({"value": "harness-probe", "host": host}))
+            assert stored.returncode == 0, stored.stdout + stored.stderr
+        r = run(ops, attended, *argv)
+        assert r.returncode == 0, r.stdout + r.stderr
 
 
 @dataclass

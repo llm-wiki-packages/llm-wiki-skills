@@ -17,14 +17,15 @@ it with `skills install --force`.
 
 ## Sandbox
 
-`stages.harvest.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:gmail/gmail.harvest`. What the stage reaches, and
-why:
+The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:gmail`.
+`skills install` validates that template and writes it as the unit's
+`sandbox.jsonc`; `skills enable` shows what each stage adds to its stock
+base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/gmail/gmail.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/gmail.md
 ```
 
-`/llm-wiki:sandbox channel-gmail` reviews it into a wiki sandbox, and
-`/llm-wiki:enable channel-gmail` binds the stage. `process` names no sandbox
-and runs with no network.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`. `process` extends the stock `process` base, which opens no
+host.

@@ -1,0 +1,14 @@
+// web-page: the catalog template for the web-page unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/web-page.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // `scripts/fetch.py` is the harvest stage, a script with no model session.
+    // The page's own host is the ticket's and joins at dispatch, so the stage
+    // adds nothing to its base.
+    "harvest": {"extends": "harvest"},
+    "routine": {"extends": "routine"}
+  }
+}

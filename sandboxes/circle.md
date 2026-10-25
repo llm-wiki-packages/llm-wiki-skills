@@ -1,27 +1,25 @@
-# circle.harvest
+# circle
 
 The sandbox for the Circle venue's `harvest` stage. A Circle.so community's
 harvest: the SPA's pages, its signed HLS media and its asset CDN, rendered
 in a persistent-profile Chrome.
 
-## Bins
-
-None declared. The capture drives Chrome, which the harvesting machine
-supplies.
+`process` and `routine` add nothing to their stock bases.
 
 ## Hosts
 
-- `api.anthropic.com`, `api.openai.com`, `chatgpt.com`: the model endpoints.
-  A slice needs one to run at all.
 - `circle.so`: the platform apex.
 - `*.circle.so`: every community subdomain, and the media and asset hosts
   under it (`cdn-media.circle.so`, `assets-v2.circle.so`).
 
+The model endpoints are the harness profile's; see `llm-wiki-ops reference
+harness`.
+
 ## Filesystem
 
-Read on Playwright's browser build (`$HOME/.cache/ms-playwright` on Linux,
-`$HOME/Library/Caches/ms-playwright` on macOS), which the capture
-scripts launch.
+`machine_reads: playwright-cache`: read on Playwright's browser build
+(`$HOME/.cache/ms-playwright` on Linux, `$HOME/Library/Caches/ms-playwright`
+on macOS), which the capture scripts launch.
 
 ## Credential
 
@@ -46,38 +44,3 @@ inject a browser session.
 
 Do not widen `*.circle.so` to `*`, and add no host a lesson did not name in
 a report's `missing[]`.
-
-## Profile
-
-```jsonc
-// circle.harvest: the jail of a Circle harvest stage.
-{
-  "v": 1,
-  "profile": {
-    "meta": {
-      "name": "circle-harvest",
-      "description": "the Circle harvest slice: the model endpoints and this venue's hosts."
-    },
-    "filesystem": {
-      // Playwright's browser build: Linux, then macOS. A path absent on
-      // this machine grants nothing.
-      "read": [
-        "$HOME/.cache/ms-playwright",
-        "$HOME/Library/Caches/ms-playwright"
-      ]
-    },
-    "network": {
-      // Allow-list mode: naming any host denies every other.
-      "allow_domain": [
-        // The model endpoints: a slice needs one to run at all.
-        "api.anthropic.com",
-        "api.openai.com",
-        "chatgpt.com",
-        // The venue.
-        "circle.so",
-        "*.circle.so"
-      ]
-    }
-  }
-}
-```

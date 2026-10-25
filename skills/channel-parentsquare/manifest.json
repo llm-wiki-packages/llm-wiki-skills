@@ -27,15 +27,13 @@
       }
     }
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare/parentsquare.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-parentsquare ticket=<id>",
   "v": 1,
-  "venue": "parentsquare",
   "version": "0.1.0",
   "watch": {
     "defaults": {

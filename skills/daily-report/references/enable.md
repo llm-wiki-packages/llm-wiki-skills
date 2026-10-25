@@ -1,5 +1,14 @@
 # daily-report — after enabling
 
+Enabling the unit asks for `accept=.git`: the routine reads the wiki's git
+history (`op latest`, `op since`, `git changed`), and `skills enable` names
+that read as a dangerous line. Run the dry run, read it to the operator, and
+enable with the token they type:
+
+```sh
+llm-wiki-ops skills enable daily-report accept=.git
+```
+
 1. Run the interview once, with a person answering, so the brief is this
    wiki's own:
 

@@ -1,0 +1,37 @@
+// spotify: the catalog template for the channel-spotify unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/spotify.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue.
+          "spotify.com",
+          "*.spotify.com",
+          "*.scdn.co",
+          "*.spotifycdn.com",
+          // The keyless feed lookup.
+          "itunes.apple.com"
+        ],
+        // The venue route: the client-credentials grant, spent on the one
+        // token request to accounts.spotify.com.
+        "credentials": ["spotify"],
+        "custom_credentials": {
+          "spotify": {
+            "upstream": "https://accounts.spotify.com",
+            "env_var": "SPOTIFY_TOKEN_AUTH",
+            "credential_format": "Basic {}",
+            "endpoint_rules": [{"method": "POST", "path": "/api/token"}]
+          }
+        }
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

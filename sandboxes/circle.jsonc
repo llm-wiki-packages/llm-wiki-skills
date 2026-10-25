@@ -1,0 +1,24 @@
+// circle: the catalog template for the channel-circle unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/circle.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      // Playwright's browser build, which the capture scripts launch.
+      "machine_reads": ["playwright-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: the platform apex and every community subdomain.
+          "circle.so",
+          "*.circle.so"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

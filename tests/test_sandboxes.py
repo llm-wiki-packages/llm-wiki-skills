@@ -1,78 +1,72 @@
-"""The stage sandboxes the package ships: each harvest or routine stage's
-`sandbox_ref` resolves to one reference here, the reference's snippet names
-a model host only for a parked venue, and a credentialed unit can spend its
-credential somewhere. That the snippet's keys are admitted is `sandboxes
-enable`'s to say, in test_install.py."""
+"""The sandboxes the package ships: each unit's unit-level `sandbox_ref` resolves
+to one template here, the template names no model host, its stages are the
+manifest's dispatched stages plus `routine`, and a credentialed unit can spend
+its credential somewhere. That the ops package's v2 reader accepts every
+template is read through the installed package, and that install writes and
+validates it is `skills install`'s to say."""
 
 from __future__ import annotations
 
 import json
 import re
+import subprocess
 
 import pytest
 
-from harness import ROOT, SKILLS, SOURCE, jsonc, snippet, unit_manifest
+from harness import ROOT, SKILLS, SOURCE, TEMPLATES, _cli_python, installed_sandbox, jsonc, rooted, run, template, template_name, unit_manifest
 
 MODEL = {"api.anthropic.com", "api.openai.com", "chatgpt.com"}
-REFERENCES = ROOT / "references" / "sandboxes"
 
-# Cookie venues, parked pending the cookie-venue measurement
-# (llm-wiki-plugins#2636) and not yet moved off model hosts in their own
-# snippet.
-PARKED = {"circle", "substack", "teachable"}
-
-# The stages a unit here names a sandbox on. Harvest reaches the venue; a
-# routine writes the wiki on a clock, which the seeded `slice` it runs without
-# one does not grant. Process runs what `slice` allows.
-SANDBOX_STAGES = ("harvest", "routine")
-
-# A unit's harvest stage MAY carry no `sandbox_ref` at all — the ninth unit's
-# `script` stage runs the seeded `harvest` sandbox instead (A-5) — so only a
-# stage that DOES name one has a reference to check here.
-SANDBOXED = [
-    (n, stage)
-    for n in SKILLS
-    for stage in SANDBOX_STAGES
-    if "sandbox_ref" in unit_manifest(n).get("stages", {}).get(stage, {})
-]
+# The stage a unit's sandbox always carries beside the manifest's own: the
+# jail of `llm-wiki-ops run <unit> scripts/x.py`.
+ALWAYS = "routine"
 
 
-def _reference(name: str, stage: str = "harvest") -> tuple[str, dict]:
-    ref = unit_manifest(name)["stages"][stage]["sandbox_ref"]
-    package, rel = ref.rsplit(":", 1)
-    assert package == SOURCE, f"{name}: {ref} names a package other than this one"
-    path = REFERENCES / f"{rel}.md"
-    assert path.is_file(), f"{name}: {ref} resolves to {path.relative_to(ROOT)}, which does not exist"
-    return rel, jsonc(snippet(path.read_text(encoding="utf-8")))
+def _dispatched(name: str) -> set:
+    return {*unit_manifest(name).get("stages", {}), ALWAYS}
 
 
 def _hosts(name: str) -> list[str]:
     return [k.removeprefix("host:") for k in unit_manifest(name)["keywords"] if k.startswith("host:")]
 
 
+def _network(name: str) -> dict:
+    return template(template_name(name))["stages"].get("harvest", {}).get("network", {})
+
+
 @pytest.mark.parametrize("name", SKILLS)
-def test_only_harvest_or_routine_names_a_sandbox_and_requires_names_no_network(name):
+def test_a_unit_names_one_template_at_the_unit_level_and_no_stage_or_venue_does(name):
     manifest = unit_manifest(name)
     assert "network" not in manifest["requires"], name
+    assert "venue" not in manifest, f"{name}: `venue` is gone; the template name is the unit's sandbox_ref"
     for stage, spec in manifest.get("stages", {}).items():
-        assert stage in SANDBOX_STAGES or "sandbox_ref" not in spec, (name, stage, spec)
-        assert not {"sandbox", "reviewed"} & set(spec), f"{name}: a package manifest carries no binding"
+        assert not {"sandbox", "reviewed", "sandbox_ref"} & set(spec), f"{name}.{stage}: a package manifest carries no binding, and sandbox_ref is unit-level"
+    assert (TEMPLATES / f"{template_name(name)}.jsonc").is_file(), f"{name}: sandbox_ref resolves to no template"
+    assert (TEMPLATES / f"{template_name(name)}.md").is_file(), f"{name}: sandbox_ref resolves to no help prose"
 
 
-@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
-def test_the_reference_is_the_units_venue_and_its_snippet_is_one_policy(name, stage):
-    rel, doc = _reference(name, stage)
-    venue = unit_manifest(name)["venue"]
-    assert rel == f"{venue}/{venue}.{stage}", rel
-    assert set(doc) == {"v", "profile"} and doc["v"] == 1, doc
-    # A harvest reaches its venue, so it names hosts; a routine may name none
-    # and run on the harness profile's model hosts alone.
-    network = doc["profile"]["network"] if stage == "harvest" else doc["profile"].get("network", {})
-    allow = network.get("allow_domain", [])
-    if venue in PARKED:
-        assert MODEL <= set(allow), f"{name}: the snippet lacks a model endpoint"
-    else:
-        assert not MODEL & set(allow), f"{name}: the snippet still names a model endpoint; the harness profile supplies it"
+def test_every_template_is_one_a_unit_names():
+    named = {template_name(n) for n in SKILLS}
+    shipped = {p.stem for p in TEMPLATES.iterdir()}
+    assert shipped == named, shipped ^ named
+    assert {p.suffix for p in TEMPLATES.iterdir()} == {".jsonc", ".md"}
+    assert len(named) == len(SKILLS) == 13, (len(named), len(SKILLS))
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_the_template_is_a_skill_sandbox_whose_stages_are_the_manifests_plus_routine(name):
+    doc = template(template_name(name))
+    assert set(doc) == {"v", "kind", "stages"} and doc["v"] == 2 and doc["kind"] == "skill", sorted(doc)
+    assert set(doc["stages"]) == _dispatched(name), (set(doc["stages"]), _dispatched(name))
+    for stage, body in doc["stages"].items():
+        assert body["extends"] == stage, (name, stage)
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_no_template_names_a_model_endpoint(name):
+    for stage, body in template(template_name(name))["stages"].items():
+        allow = set(body.get("network", {}).get("allow_domain", []))
+        assert not MODEL & allow, f"{name}.{stage}: names a model endpoint; the harness profile supplies it"
 
 
 # What a unit spends: a binding name of a route, a payload file, a granted directory.
@@ -80,82 +74,108 @@ CREDENTIAL_KEYS = ("credentials",)
 
 
 @pytest.mark.parametrize("name", [n for n in SKILLS if any(unit_manifest(n)["requires"].get(k) for k in CREDENTIAL_KEYS)])
-def test_a_credentialed_unit_claims_an_exact_host_its_snippet_reaches(name):
-    _, doc = _reference(name)
+def test_a_credentialed_unit_claims_an_exact_host_its_harvest_stage_reaches(name):
     claims = [h for h in _hosts(name) if not h.startswith("*")]
-    assert set(claims) & set(doc["profile"]["network"]["allow_domain"]), f"{name}: no exact host: claim is reached, so dispatch refuses a job with no host"
+    assert set(claims) & set(_network(name).get("allow_domain", [])), f"{name}: no exact host: claim is reached, so dispatch refuses a job with no host"
 
 
-def _section_json(text: str, heading: str):
-    """The one fenced `json` block under `## <heading>`, parsed, or None when there is no such section."""
-    match = re.search(rf"^## {heading}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    if not match:
-        return None
-    fences = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
-    assert len(fences) == 1, f"## {heading} carries {len(fences)} json blocks, not one"
-    return json.loads(fences[0])
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_route_is_named_by_the_stage_and_the_manifest_declares_its_binding(name):
+    network = _network(name)
+    routes = network.get("credentials", [])
+    assert sorted(routes) == sorted(network.get("custom_credentials", {})), f"{name}: a route name pairs with its custom_credentials body"
+    declared = unit_manifest(name)["requires"].get("credentials", {}).get("routes", {})
+    if name == "channel-spotify":  # the binding is undeclared, which reads "optional"
+        assert not declared and routes == ["spotify"], (declared, routes)
+    else:
+        assert sorted(declared) == sorted(routes), f"{name}: requires.credentials.routes {sorted(declared)} vs the template's {sorted(routes)}"
+    for route, body in network.get("custom_credentials", {}).items():
+        assert set(body) <= {"upstream", "env_var", "credential_format", "endpoint_rules"}, (name, route, sorted(body))
+        assert body["upstream"].startswith("https://") and body["credential_format"].count("{}") == 1, (name, route, body)
 
 
-def _strings(value):
-    """Every string leaf, but a route's `endpoint_rules`: URL paths, not machine paths."""
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for key, one in value.items():
-            if key != "endpoint_rules":
-                yield from _strings(one)
-    elif isinstance(value, list):
-        for one in value:
-            yield from _strings(one)
-
-
-@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
-def test_machine_and_probe_name_bins_by_placeholder_never_by_path(name, stage):
-    rel, _ = _reference(name, stage)
-    text = (REFERENCES / f"{rel}.md").read_text(encoding="utf-8")
-    machine, probe = _section_json(text, "Machine"), _section_json(text, "Probe")
-    if machine is None and probe is None:
-        return
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_probe_names_bins_by_placeholder_never_by_path(name):
     bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
-    # A probe runs one of the unit's bins: a machine block comes with one
-    # exactly where the unit declares a bin to run it with. A bin the stage's
-    # `## MCP` names is a server the harness starts, which no probe can run
-    # without starting it: `sandboxes compose --exec` is its operator's try.
-    served = {server["command"] for server in _section_json(text, "MCP") or []}
-    assert machine is not None, f"{name}: a probe with no machine block probes nothing"
-    assert (probe is not None) == bool(bins - served), f"{name}: a machine block and its probe come together where the unit has bins a probe can run"
-    for value in [*_strings(machine), *(probe or [])]:
-        assert not value.startswith(("/", "~")), f"{name}: {value!r} is a machine path"
-        for placeholder in re.findall(r"\{bin:([^}]*)\}", value):
-            assert placeholder in bins, f"{name}: {{bin:{placeholder}}} is not in requires.bins"
-    if probe is not None:
-        assert isinstance(probe, list) and probe and all(isinstance(a, str) for a in probe), probe
-        assert probe[0].startswith("{bin:"), probe
+    for stage, body in template(template_name(name))["stages"].items():
+        for argv in body.get("probe", []):
+            assert isinstance(argv, list) and argv and all(isinstance(a, str) for a in argv), (name, stage, argv)
+            assert argv[0].startswith("{bin:"), f"{name}.{stage}: a probe runs one of the unit's bins by placeholder: {argv}"
+            for value in argv:
+                assert not value.startswith(("/", "~")), f"{name}: {value!r} is a machine path"
+                for placeholder in re.findall(r"\{bin:([^}]*)\}", value):
+                    assert placeholder in bins, f"{name}: {{bin:{placeholder}}} is not in requires.bins"
 
 
-@pytest.mark.parametrize(("name", "stage"), SANDBOXED)
-def test_every_mcp_server_is_a_bin_the_unit_declares(name, stage):
-    """Install's unit rule, held here so a reference edit fails before a wiki sees it."""
-    rel, _ = _reference(name, stage)
-    servers = _section_json((REFERENCES / f"{rel}.md").read_text(encoding="utf-8"), "MCP") or []
+@pytest.mark.parametrize("name", SKILLS)
+def test_every_mcp_server_is_a_bin_the_unit_declares(name):
+    """Install's unit rule, held here so a template edit fails before a wiki sees it."""
     bins = {b["bin"] for b in unit_manifest(name)["requires"].get("bins", [])}
-    for server in servers:
-        assert server["command"] in bins, f"{name}: ## MCP names {server['command']!r}, which requires.bins does not declare"
-        assert "script" not in unit_manifest(name)["stages"][stage], f"{name}: a script stage runs no harness, so its reference carries no ## MCP"
+    for stage, body in template(template_name(name))["stages"].items():
+        for server in body.get("mcp", []):
+            assert server["command"] in bins, f"{name}.{stage}: mcp names {server['command']!r}, which requires.bins does not declare"
+            assert "script" not in unit_manifest(name)["stages"][stage], f"{name}: a script stage runs no harness, so its template carries no mcp"
 
 
 def test_the_mcp_reader_finds_the_one_unit_that_declares_a_server():
-    """An arm that parametrizes over nothing passes quietly: the reference this one exists for is the known member."""
-    declaring = [n for n, stage in SANDBOXED if _section_json((REFERENCES / f"{_reference(n, stage)[0]}.md").read_text(encoding="utf-8"), "MCP")]
+    """An arm that parametrizes over nothing passes quietly: the template this one exists for is the known member."""
+    declaring = [n for n in SKILLS if any(body.get("mcp") for body in template(template_name(n))["stages"].values())]
     assert declaring == ["channel-parentsquare"], declaring
 
 
-def test_every_reference_is_one_a_unit_names():
-    named = {_reference(n, stage)[0] for n, stage in SANDBOXED}
-    shipped = {str(p.relative_to(REFERENCES).with_suffix("")) for p in REFERENCES.rglob("*.md")}
-    assert shipped == named, shipped ^ named
+def test_no_template_names_a_machine_path():
+    """A machine path reaches a stage only by a `machine_reads` token, never as an entry."""
+    for name in SKILLS:
+        for stage, body in template(template_name(name))["stages"].items():
+            for axis, entries in (body.get("filesystem") or {}).items():
+                for entry in entries:
+                    assert entry.startswith("$WORKDIR/"), f"{name}.{stage}.filesystem.{axis}: {entry!r}"
 
 
-def test_the_snippet_reader_skips_comments_and_keeps_urls():
+def test_the_template_reader_skips_comments_and_keeps_urls():
     assert jsonc('{"a": "https://x.example/y", // gone\n "b": 1}') == {"a": "https://x.example/y", "b": 1}
-    assert re.fullmatch(r"\{\n\}\n", snippet("x\n```jsonc\n{\n}\n```\n"))
+
+
+_READ = """
+import json, sys
+from pathlib import Path
+from llm_wiki_ops.lib.errors import Refused
+from llm_wiki_ops.lib.sandboxes import v2
+
+found = {}
+for path in sorted(Path(sys.argv[1]).glob("*.jsonc")):
+    try:
+        read = v2.read(path)
+        found[path.stem] = {"kind": read.document["kind"], "stages": sorted(read.stages), "refused": None}
+    except Refused as exc:
+        found[path.stem] = {"kind": None, "stages": [], "refused": str(exc)}
+print(json.dumps(found))
+"""
+
+
+def test_the_ops_package_reads_every_template_with_the_v2_reader(ops):
+    """`v2.read` through the interpreter the installed ops package runs under: a refusal here is a template that `skills install` would refuse."""
+    done = subprocess.run([*_cli_python(ops), "-c", _READ, str(TEMPLATES)], capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    found = json.loads(done.stdout.strip().splitlines()[-1])
+    assert len(found) == len(SKILLS), sorted(found)
+    assert {n: one["refused"] for n, one in found.items() if one["refused"]} == {}
+    assert {one["kind"] for one in found.values()} == {"skill"}
+    for name in SKILLS:
+        assert found[template_name(name)]["stages"] == sorted(_dispatched(name)), name
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_install_writes_the_units_sandbox_and_validates_it(ops, env, wiki, name):
+    """Install's validation is the check: the template's stages equal the manifest's plus `routine`, and the written file records where it came from."""
+    r = run(ops, rooted(env, wiki), "--json", "skills", "install", name)
+    assert r.returncode == 0, r.stdout + r.stderr
+    written = installed_sandbox(ops, env, wiki, name)
+    assert written["kind"] == "skill" and set(written["stages"]) == _dispatched(name), written
+    assert written["source"]["ref"] == f"{SOURCE}:{template_name(name)}", written["source"]
+    assert {"template", "written"} <= set(written["source"]), written["source"]
+    assert all(body["extends"] == stage for stage, body in written["stages"].items()), written["stages"]
+
+
+def test_the_references_tree_the_templates_replaced_is_gone():
+    assert TEMPLATES.is_dir() and not (ROOT / "references").exists()

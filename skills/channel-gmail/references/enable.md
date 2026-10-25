@@ -53,8 +53,8 @@
    job, look at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.
 3. Enable the skill on every OTHER machine that pulls
-   (`/llm-wiki:enable channel-gmail`, which enables the bound harvest
-   sandbox there too) — installed is not loaded, and enablement never
+   (`/llm-wiki:enable channel-gmail`, which reviews the unit's sandbox
+   there too) — installed is not loaded, and enablement never
    travels with a `git pull`.
 4. **Where this skill's HARVEST is expected to work: only where the
    stage's own jail loads the connector** — a stage's session always runs in
@@ -63,8 +63,8 @@
    for this wiki and drives its ticket with `tickets run <id> spawn=self`. Read off the plugin's source, unconfirmed by a
    run: a spawned slice is deny-read on `~/.claude.json` and its two other
    homes (the MCP server configuration) and on `~/.claude/.credentials.json`
-   (`schedule/runner/floor.py`). Its egress is the sandbox its harvest stage
-   is bound to, which reaches the connector's endpoint,
+   (`schedule/runner/floor.py`). Its egress is the harvest stage of the unit's
+   `sandbox.jsonc`, which reaches the connector's endpoint,
    `gmailmcp.googleapis.com`; whether a jailed session loads the account's
    connectors at all is unmeasured (llm-wiki-plugins#2282).
    Under a spawning runner the worker reports `failed`, "no gmail connector

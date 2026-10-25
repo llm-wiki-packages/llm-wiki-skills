@@ -27,15 +27,14 @@
    with the same target and slug moves it and keeps every other key:
    `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-notion-tasks
    dest=research/channels/<slug>`.
-2. **The vault and the token, before the sandbox.** Harvest reaches Notion
-   through the `notion` route of the `notion-harvest` sandbox (the sandbox
-   reference's `## Credential` section spells it out), and the route's
+2. **The vault and the token, before the enable.** Harvest reaches Notion
+   through the `notion` route on the harvest stage of the unit's sandbox
+   (the sandbox's `## Credential` section spells it out), and the route's
    token is the wiki's own. The sandbox's probe, `ntn whoami`, runs at
-   `sandboxes enable notion-harvest` and spends that token, so do these
-   first. That enable must pass the probe: nothing is enabled until it
-   exits 0, and a refusal names `machine.probe`, its exit code and its
-   stderr — fix what the stderr names, then run `/llm-wiki:enable
-   channel-notion-tasks` again. On each machine that pulls, first name the
+   `skills enable` and spends that token, so do these first. That enable
+   must pass the probe: nothing is enabled until it exits 0, and a refusal
+   names the probe's argv, its exit code and its stderr — fix what the
+   stderr names, then run `/llm-wiki:enable channel-notion-tasks` again. On each machine that pulls, first name the
    wiki's vault, `<key>` being this wiki's key in `llm-wiki-cli machine
    wikis ls` (the `credentials` row of `llm-wiki-ops doctor` names the same
    line):
@@ -56,10 +55,10 @@
    phantom and the proxy supplies the token to `api.notion.com` alone.
 
    ```sh
-   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
+   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/notion.md
    ```
-3. **Map the route, once the stage is bound to `notion-harvest`.**
-   `skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing:
+3. **Map the route, once the skill is enabled.**
+   `skills enable`, which `/llm-wiki:enable` runs, maps nothing:
    it lists `notion` as unmapped, with the line to run. On each machine that
    pulls:
 

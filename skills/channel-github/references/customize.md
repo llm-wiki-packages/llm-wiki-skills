@@ -27,7 +27,7 @@ each the wiki's:
 3. **`references/lists.json`** — this unit's file, edited in place:
    - `repos` (`sources/github`) and `also` (`["sources/clips"]`) — where
      the catalog reads repo pages. A tree outside `sources/` needs its read
-     in the `github-routine` sandbox too.
+     on the `routine` stage of the unit's `sandbox.jsonc` too.
    - `weights` — the rank score: `stars` (× log10 of the count), `starred`,
      `clipped`, `watched`, `recent` (pushed within `recent_days`),
      `archived` (a penalty), `jump` (× log10 of the gain).
@@ -55,13 +55,16 @@ repair — say so in your report so nobody "fixes" it with `skills install
 
 ## Sandbox
 
-Two stages bind a sandbox:
+The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:github`,
+one template for the unit's stages. `skills install` validates it and writes
+it as the unit's `sandbox.jsonc`; `skills enable` shows what each stage adds
+to its stock base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/github/github.harvest.md
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/github/github.routine.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/github.md
 ```
 
-`/llm-wiki:sandbox channel-github` reviews them into wiki sandboxes, and
-`/llm-wiki:enable channel-github` binds the stages. `process` names no
-sandbox and runs with no network.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`. `harvest` adds the API host and the `github` route;
+`routine` adds a read of `sources/` and no host; `process` extends the stock
+`process` base, which opens no host.

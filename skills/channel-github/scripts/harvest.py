@@ -377,7 +377,7 @@ def get_token(ticket: dict) -> str | None:
         return None
     phantom = os.environ.get(ROUTE_ENV)
     if not phantom:
-        raise ApiError(API, "auth", f"credential_mode is route but the jail holds no {ROUTE_ENV}: the stage is bound to a sandbox without the `github` route")
+        raise ApiError(API, "auth", f"credential_mode is route but the jail holds no {ROUTE_ENV}: the unit's sandbox.jsonc lacks the `github` route on its harvest stage")
     return phantom
 
 
