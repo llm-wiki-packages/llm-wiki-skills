@@ -25,7 +25,8 @@
   "version": "0.1.0",
   "watch": {
     "defaults": {
-      "every": "1d"
+      "every": "1d",
+      "transcribe": null
     },
     "dest": "research/channels/{slug}",
     "inputs": {

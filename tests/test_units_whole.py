@@ -427,3 +427,25 @@ def test_the_shared_title_rule_holds_what_the_host_refuses():
     assert safe("index") != "index" and safe("Index").casefold() != "index"
     assert safe("") == "Untitled" and safe("   ", fallback="x") == "x" and safe(None) == "Untitled"
 
+
+
+def _writes_a_directory_body(name: str) -> bool:
+    """Whether the unit's `capture.json` names the `items` directory as its body, in a script or its SKILL.md."""
+    unit = ROOT / "skills" / name
+    texts = [p.read_text(encoding="utf-8") for p in [*unit.glob("scripts/*.py"), unit / "SKILL.md"]]
+    return any(re.search(r'"body":\s*(?:ITEMS_DIRNAME|"items")', text) for text in texts)
+
+
+DIRECTORY_BODY = [n for n in SKILLS if _writes_a_directory_body(n)]
+
+
+def test_the_directory_body_scan_finds_the_units_it_was_written_for():
+    """A scan that matches nothing parametrizes nothing and reports green."""
+    assert DIRECTORY_BODY == ["channel-gmail", "channel-gmail-gws", "channel-notion-tasks", "channel-parentsquare"], DIRECTORY_BODY
+
+
+@pytest.mark.parametrize("name", DIRECTORY_BODY)
+def test_a_unit_with_a_directory_body_ships_transcribe_off(name):
+    """The host's transcribe stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
+    defaults = unit_manifest(name)["watch"]["defaults"]
+    assert "transcribe" in defaults and defaults["transcribe"] is None, defaults
