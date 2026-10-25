@@ -114,10 +114,10 @@ def test_a_harvest_is_refused_until_the_route_is_mapped(ops, env, wiki, job):
 
 
 def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, env, wiki, job):
-    """The customize and enable notes, walked through the real CLI: the vault
-    named and the token stored, the unit's sandbox enabled behind its probe, a
-    claim refused until the route is mapped, then the route's variable in the
-    harvest's jail holding a phantom, never the token."""
+    """The enable notes, walked through the real CLI in their order: the vault
+    named, the token stored, the route mapped, then the enable behind its
+    probe, and the route's variable in the harvest's jail holding a phantom,
+    never the token. An unmapped route fails the probe, so nothing enables."""
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     token = "harness-notion-secret"
     unmapped_route(ops, env, wiki, UNIT, "notion")  # the job fixture's mapping: this case makes its own
@@ -125,12 +125,11 @@ def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, e
         done = run(ops, attended, "--json", "credentials", "set", "notion",
                    input=json.dumps({"value": token, "host": "api.notion.com"}))
         assert done.returncode == 0, done.stdout + done.stderr
-        done = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
-        assert done.returncode == 0, done.stdout + done.stderr
-        refused = run(ops, rooted(env, wiki), "--json", "jobs", "claim", job.slug)
-        said = refused.stdout + refused.stderr
-        assert refused.returncode == 2 and "harvest requires notion and this machine fills none of it" in said, said
+        refused = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
+        assert refused.returncode == 2 and "its harvest probe" in refused.stdout, refused.stdout + refused.stderr
         done = run(ops, attended, "--json", "credentials", "bind", "skill", UNIT, "notion=notion")
+        assert done.returncode == 0, done.stdout + done.stderr
+        done = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
         assert done.returncode == 0, done.stdout + done.stderr
         ticket_id, _cap = claimed(ops, env, wiki, job)
         session = staged(ops, env, wiki, ticket_id, "step route printenv NOTION_API_TOKEN\n")

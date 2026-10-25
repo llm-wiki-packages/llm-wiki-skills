@@ -170,10 +170,10 @@ _TOOLCHAIN = """
 import json, os, sys, llm_wiki_ops
 roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
 roots += [p for p in sys.path if p and os.path.isdir(p)]
-try:  # the plugin's own scripts, which a process slice runs: `extract.py`
-    from llm_wiki_ops.commands.common.plugin_root import plugin_root
+from llm_wiki_ops.lib.plugin_root import plugin_root  # the plugin's own scripts, which a slice runs; an ImportError is loud
+try:
     roots.append(str(plugin_root()))
-except Exception:
+except Exception:  # a wheel with no plugin tree beside it
     pass
 print(json.dumps(sorted({r for root in roots for r in (root, os.path.realpath(root))})))
 """
@@ -296,8 +296,9 @@ def installed_sandbox(ops: list, env: dict, wiki: Path, unit: str) -> dict:
 # tokens the unit's sandbox names, which `accept=` answers in an attended session.
 ACCEPT = {"daily-report": ".git"}
 
-# A unit whose sandbox probe spends a stored credential at enable: the route's
-# name and the one host its value may be spent at.
+# A unit whose sandbox probe spends a mapped route at enable: the route's name
+# and the one host its value may be spent at. The probe runs in the composed
+# jail, where the route's variable holds the phantom only once it is mapped.
 PROBE_SPENDS = {"channel-notion-tasks": ("notion", "api.notion.com")}
 
 
@@ -315,8 +316,8 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
         if name in PROBE_SPENDS:
             route, host = PROBE_SPENDS[name]
             stack.enter_context(local_vault(ops, env))
-            stored = run(ops, attended, "--json", "credentials", "set", route, input=json.dumps({"value": "harness-probe", "host": host}))
-            assert stored.returncode == 0, stored.stdout + stored.stderr
+            stack.callback(unmapped_route, ops, env, wiki, name, route)
+            mapped_route(ops, env, wiki, name, route, host, value="harness-probe")
         r = run(ops, attended, *argv)
         assert r.returncode == 0, r.stdout + r.stderr
 

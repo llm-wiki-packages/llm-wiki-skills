@@ -38,10 +38,11 @@ order: name the vault, `llm-wiki-cli machine wikis vault <key> local`
 (`<key>` is this wiki's key in `llm-wiki-cli machine wikis ls`; the doctor's
 `credentials` row names the same line); store the Notion bot token with the
 host it may be spent at, `llm-wiki-ops credentials set notion` with
-`{"value": "<token>", "host": "api.notion.com"}` at its prompt; enable the
-skill, whose probe spends that entry; then map the route, `llm-wiki-ops
-credentials bind skill channel-notion-tasks notion=notion`. `skills enable`
-maps nothing: it lists `notion` as unmapped, with that line. `sandboxes
+`{"value": "<token>", "host": "api.notion.com"}` at its prompt; map the
+route, `llm-wiki-ops credentials bind skill channel-notion-tasks
+notion=notion`; then enable the skill, whose probe spends that entry inside
+the jail and fails on an unmapped route. `skills enable` maps nothing: it
+lists `notion` as unmapped, with that line. `sandboxes
 compose` adds the `credential_key` and the capture that read the mapped
 name, so the template carries neither. The manifest declares the binding
 `"required"`, and no `file` or `dir`, so no payload file is granted.
