@@ -1,0 +1,36 @@
+// github: the catalog template for the channel-github unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/github.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: GitHub's REST API, listings and READMEs alike.
+          "api.github.com"
+        ],
+        // The venue route: the jail holds a phantom in GITHUB_TOKEN and the
+        // proxy spends the real token on requests to api.github.com alone.
+        "credentials": ["github"],
+        "custom_credentials": {
+          "github": {
+            "upstream": "https://api.github.com",
+            "env_var": "GITHUB_TOKEN",
+            "credential_format": "Bearer {}"
+          }
+        }
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {
+      "extends": "routine",
+      // The repo pages and any GitHub clip still under sources/clips/, by
+      // name: a bare $WORKDIR grants nothing.
+      "filesystem": {"read": ["$WORKDIR/sources"]}
+    }
+  }
+}

@@ -34,16 +34,15 @@
     },
     "ops": ">=0.7.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws",
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws/gmail-gws.harvest",
       "script": "scripts/harvest.py"
     },
     "process": {}
   },
   "usage": "/channel-gmail-gws ticket=<id>",
   "v": 1,
-  "venue": "gmail-gws",
   "version": "0.1.0",
   "watch": {
     "defaults": {
