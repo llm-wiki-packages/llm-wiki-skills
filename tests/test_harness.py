@@ -72,3 +72,18 @@ def test_the_harness_runs_nothing_from_the_checkout():
     neutral directory needs is that no wiki owns it."""
     assert NEUTRAL_CWD.is_dir() and not NEUTRAL_CWD.is_relative_to(ROOT) and not ROOT.is_relative_to(NEUTRAL_CWD)
     assert not any((p / ".llm-wiki.toml").exists() for p in (NEUTRAL_CWD, *NEUTRAL_CWD.parents))
+
+
+def test_the_toolchain_probe_fails_loudly_on_a_misconfigured_plugin_root(ops, tmp_path):
+    """A bad `LLM_WIKI_PLUGIN_ROOT` is a refusal the probe must not swallow: a swallowed one is a jail with no plugin tree and a silent EACCES."""
+    import os
+    import subprocess
+
+    from harness import _TOOLCHAIN, _cli_python
+
+    bad = tmp_path / "not-a-plugin"
+    bad.mkdir()
+    for var in ("LLM_WIKI_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+        env = {k: v for k, v in os.environ.items() if k not in ("LLM_WIKI_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")} | {var: str(bad)}
+        done = subprocess.run([*_cli_python(ops), "-c", _TOOLCHAIN], cwd=NEUTRAL_CWD, env=env, capture_output=True, text=True, check=False)
+        assert done.returncode != 0 and "is not an ops plugin directory" in done.stderr, (var, done.stdout, done.stderr)

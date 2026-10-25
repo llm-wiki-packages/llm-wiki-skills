@@ -170,11 +170,15 @@ _TOOLCHAIN = """
 import json, os, sys, llm_wiki_ops
 roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
 roots += [p for p in sys.path if p and os.path.isdir(p)]
+from llm_wiki_ops.lib.errors import Refused
 from llm_wiki_ops.lib.plugin_root import plugin_root  # the plugin's own scripts, which a slice runs; an ImportError is loud
 try:
     roots.append(str(plugin_root()))
-except Exception:  # a wheel with no plugin tree beside it
-    pass
+except Refused:
+    # Only a wheel with no plugin tree beside it and no variable naming one is
+    # tolerated; a variable that names a bad directory is a refusal to surface.
+    if os.environ.get("LLM_WIKI_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT"):
+        raise
 print(json.dumps(sorted({r for root in roots for r in (root, os.path.realpath(root))})))
 """
 
@@ -403,12 +407,14 @@ def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extr
     if not any(e.startswith("every=") for e in extra):
         extra = (*extra, "every=once")
     # `transcribe` is a host ENGINE section every job carries by default
-    # (`job_schema` — the unit never declares it), so `close` on a harvest
+    # (`job_schema`; a unit reaches it only through `watch.defaults`), so `close` on a harvest
     # `ok` routes through a transcribe ticket first, media or not, and only
     # the transcribe DRAIN (this box's own, not a case here) lands it on to
-    # `process`. None of this suite's units declare `transcribe`, so every
-    # harness job nulls the section at declare time — one real hop, harvest
-    # to process, the shape `advanced()` assumes.
+    # `process`. Most units declare no `transcribe` (hubspot and spotify tune
+    # it, four directory-body units ship it null), so every harness job nulls
+    # the section at declare time — one real hop, harvest to process, the
+    # shape `advanced()` assumes. A catalog default is read by a case that
+    # calls `jobs add` itself, without this stdin.
     r = run(ops, rooted(env, wiki), "--json", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"transcribe": null}')
     assert r.returncode == 0, r.stdout + r.stderr
     record = run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"]

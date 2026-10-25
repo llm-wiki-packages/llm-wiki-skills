@@ -69,6 +69,68 @@ def test_no_template_names_a_model_endpoint(name):
         assert not MODEL & allow, f"{name}.{stage}: names a model endpoint; the harness profile supplies it"
 
 
+# What each template's stages reach beyond the stock bases, explicitly: a grant
+# dropped or added shows here. Hosts are the harvest stage's `allow_domain`;
+# no other stage names a host.
+HOSTS = {
+    "circle": ["circle.so", "*.circle.so"],
+    "daily-report": [],
+    "frameio": ["frame.io", "*.frame.io"],
+    "github": ["api.github.com"],
+    "gmail": ["gmailmcp.googleapis.com"],
+    "gmail-gws": ["gmail.googleapis.com", "oauth2.googleapis.com", "www.googleapis.com"],
+    "hubspot-cms": ["play.hubspotvideo.com", "image.mux.com", "stream.mux.com", "*.mux.com"],
+    "notion": ["api.notion.com"],
+    "parentsquare": ["www.parentsquare.com"],
+    "spotify": ["spotify.com", "*.spotify.com", "*.scdn.co", "*.spotifycdn.com", "itunes.apple.com"],
+    "substack": ["substack.com", "*.substack.com", "substackcdn.com"],
+    "web-page": [],
+    "youtube": ["youtube.com", "*.youtube.com", "youtu.be", "*.googlevideo.com", "*.ytimg.com"],
+}
+
+# `(template, stage) -> machine_reads tokens`; absent means none.
+MACHINE_READS = {
+    ("circle", "harvest"): ["playwright-cache"],
+    ("frameio", "harvest"): ["playwright-cache"],
+    ("hubspot-cms", "harvest"): ["playwright-cache"],
+    ("substack", "harvest"): ["playwright-cache"],
+    ("youtube", "harvest"): ["yt-dlp-cache"],
+}
+
+# `(template, stage) -> filesystem`; absent means none.
+FILESYSTEM = {
+    ("daily-report", "routine"): {
+        "read": ["$WORKDIR/.git", "$WORKDIR/research", "$WORKDIR/sources"],
+        "allow": ["$WORKDIR/wiki"],
+    },
+    ("github", "routine"): {"read": ["$WORKDIR/sources"]},
+}
+
+
+def test_the_expected_tables_name_exactly_the_shipped_templates():
+    assert set(HOSTS) == {template_name(n) for n in SKILLS}
+    stages = {(template_name(n), s) for n in SKILLS for s in template(template_name(n))["stages"]}
+    assert set(MACHINE_READS) <= stages and set(FILESYSTEM) <= stages
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_template_reaches_exactly_the_hosts_it_is_expected_to(name):
+    tname = template_name(name)
+    for stage, body in template(tname)["stages"].items():
+        hosts = body.get("network", {}).get("allow_domain", [])
+        assert hosts == (HOSTS[tname] if stage == "harvest" else []), f"{tname}.{stage}: hosts {hosts}"
+    if HOSTS[tname]:
+        assert HOSTS[tname] == _network(name)["allow_domain"], f"{tname}: harvest lost its network block"
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_template_grants_exactly_the_machine_reads_and_filesystem_it_is_expected_to(name):
+    tname = template_name(name)
+    for stage, body in template(tname)["stages"].items():
+        assert body.get("machine_reads", []) == MACHINE_READS.get((tname, stage), []), f"{tname}.{stage}: machine_reads"
+        assert body.get("filesystem", {}) == FILESYSTEM.get((tname, stage), {}), f"{tname}.{stage}: filesystem"
+
+
 # What a unit spends: a binding name of a route, a payload file, a granted directory.
 CREDENTIAL_KEYS = ("credentials",)
 
