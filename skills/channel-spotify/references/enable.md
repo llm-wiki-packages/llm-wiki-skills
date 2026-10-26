@@ -2,10 +2,10 @@
 
 1. **API access** — needed for guaranteed-complete item lists (public
    catalog only; no user login exists in this skill). It is the harvest
-   sandbox's `spotify` route (`sandboxes enable` asks before it writes the
-   route to this machine's allow file), and its value is the wiki's own, in
-   its credential vault, mapped to the route on this machine. The stage is
-   bound to the `spotify-harvest` sandbox (`references/customize.md`). Once
+   sandbox's `spotify` route (`skills enable` lists it among the stage's hosts and
+   routes before the yes), and its value is the wiki's own, in
+   its credential vault, mapped to the route on this machine. The route is on the
+   harvest stage of the unit's sandbox (`references/customize.md`). Once
    per machine that harvests, name the wiki's vault with `llm-wiki-cli
    machine wikis vault <key> local`, `<key>` being this wiki's key in
    `llm-wiki-cli machine wikis ls`; the `credentials` row of `llm-wiki-ops
@@ -62,7 +62,7 @@
 
 ## Known limitation — media egress under a confined harvest
 
-The harvest stage's sandbox reference covers the Spotify endpoints, Spotify's
+The harvest stage's sandbox covers the Spotify endpoints, Spotify's
 cover-art CDNs (`*.scdn.co`, `*.spotifycdn.com` — the cover is an asset of
 every capture) and the keyless iTunes feed lookup, and deliberately nothing
 more: the open-audio

@@ -14,8 +14,7 @@ Once per machine that pulls, in this order:
    The bind asks how wide an `env` pair is before the yes: both values are set
    in the environment of every process in the harvest jail, and the model can
    print them. Use a login you are content for the model to hold.
-4. Enable the stage's sandbox, bind the stage and enable the skill
-   (`/llm-wiki:enable channel-parentsquare`). The review lists the server
+4. Enable the skill (`/llm-wiki:enable channel-parentsquare`). The review lists the server
    `parentsquare`, its command and the names of its `env`.
 5. One watch per account:
    `llm-wiki-ops jobs add parentsquare slug=<slug> description="<whose account>" skill=channel-parentsquare [options.schools=<ids>] [every=1d]`

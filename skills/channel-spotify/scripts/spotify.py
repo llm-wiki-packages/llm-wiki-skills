@@ -43,8 +43,8 @@ in is the SUBCOMMAND its prompt runs (`capture` or `process`), never
 anything on the ticket: a single-item job's two tickets share one capture
 directory and one file name.
 
-Auth: the harvest sandbox's `spotify` route (references/sandboxes/spotify/
-      spotify.harvest.md). In the stage's jail `SPOTIFY_TOKEN_AUTH` holds a
+Auth: the harvest sandbox's `spotify` route (sandboxes/spotify.jsonc and
+      sandboxes/spotify.md). In the stage's jail `SPOTIFY_TOKEN_AUTH` holds a
       phantom; this script sends it as the token request's Basic
       `Authorization`, and the proxy puts the wiki's own value there, on
       requests to accounts.spotify.com alone. The script calls no

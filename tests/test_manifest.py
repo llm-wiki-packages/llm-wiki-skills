@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, UNFLOORED, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
 _FLOOR = re.compile(r"^>=\d+\.\d+(\.\d+)?$")
 
@@ -32,9 +32,6 @@ def test_the_session_unit_selection_is_not_empty():
 @pytest.mark.parametrize("name", SESSION_UNITS)
 def test_every_session_unit_declares_its_ops_floor(name):
     floor = (unit_manifest(name).get("requires") or {}).get("ops")
-    if name in UNFLOORED:
-        assert floor is None, f"{name}: declares requires.ops {floor!r}, so it is no longer unfloored"
-        return
     assert isinstance(floor, str) and _FLOOR.match(floor), f"{name}: requires.ops is {floor!r}"
 
 
@@ -54,6 +51,5 @@ def test_every_units_floor_is_at_or_above_the_packages(name):
     else checks its floor. A unit spelling a lower `requires.ops` would claim
     to run on an ops CLI that `check-manifest.py` never rejects it for."""
     floor = unit_manifest(name)["requires"].get("ops")
-    if name in UNFLOORED:
-        return
+    assert floor, f"{name}: declares no requires.ops"
     assert _version(floor) >= _version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"

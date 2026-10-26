@@ -1,11 +1,9 @@
-# gmail.harvest
+# gmail
 
 The sandbox for the Gmail venue's `harvest` stage. One mailbox's pull
 through the account's Gmail connector. The slice fetches nothing else.
 
-## Bins
-
-None.
+`process` and `routine` add nothing to their stock bases.
 
 ## Hosts
 
@@ -34,25 +32,3 @@ this machine's operator lists the unit in `[unsandboxed]` for this wiki.
 
 Add no Google host besides the connector's: `mail.google.com` is fetched by
 no step.
-
-## Profile
-
-```jsonc
-// gmail.harvest: the jail of a Gmail harvest stage.
-{
-  "v": 1,
-  "profile": {
-    "meta": {
-      "name": "gmail-harvest",
-      "description": "the Gmail harvest slice: this venue's hosts."
-    },
-    "network": {
-      // Allow-list mode: naming any host denies every other.
-      "allow_domain": [
-        // The venue.
-        "gmailmcp.googleapis.com"
-      ]
-    }
-  }
-}
-```

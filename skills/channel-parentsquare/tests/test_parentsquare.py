@@ -40,7 +40,7 @@ def test_the_manifest_binds_the_login_by_variable():
     manifest = json.loads((UNIT / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["requires"]["credentials"] == {"env": {"PS_PASSWORD": "required", "PS_USERNAME": "required"}}
     assert [b["bin"] for b in manifest["requires"]["bins"]] == ["parentsquare-mcp"]
-    assert "ops" not in manifest["requires"]
+    assert re.fullmatch(r">=\d+\.\d+\.\d+", manifest["requires"]["ops"]), manifest["requires"].get("ops")  # the unit's own ops floor
 
 
 def test_the_venue_list_of_read_tools_is_the_whole_list():

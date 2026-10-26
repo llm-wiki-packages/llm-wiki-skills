@@ -56,10 +56,10 @@ def test_the_setup_marker_is_retired_only_when_it_was_found():
 MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
 
 
-def test_the_manifest_serves_the_routine_stage_in_its_own_sandbox():
+def test_the_manifest_serves_the_routine_stage_and_names_its_sandbox_at_the_unit_level():
     assert "routine" in MANIFEST.get("stages", {}), "a unit without stages.routine is one no job can run"
-    routine = MANIFEST["stages"]["routine"]
-    assert routine["sandbox_ref"].endswith(":daily-report/daily-report.routine"), routine
+    assert MANIFEST["sandbox_ref"].endswith(":daily-report"), MANIFEST.get("sandbox_ref")
+    assert "sandbox_ref" not in MANIFEST["stages"]["routine"]
 
 
 def test_the_scope_names_the_scheduled_entry():

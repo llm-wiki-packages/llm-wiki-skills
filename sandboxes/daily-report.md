@@ -1,12 +1,8 @@
-# daily-report.routine
+# daily-report
 
 The sandbox for the daily report's `routine` stage: the scheduled morning
 run, with nobody at the keyboard. It reads what the report is made from and
 writes the day's report and its promotions under `wiki/`.
-
-## Bins
-
-None.
 
 ## Hosts
 
@@ -22,9 +18,11 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   window and say what the wiki did. It also exposes every committed file's
   content and `.git/config`'s remote urls, so this list is not a read
   boundary; the grant stays because those three need it.
-- Read `.llm-wiki/policy`: the `daily-report` overlay and the
-  `daily-report-setup` marker. Unreadable, `policy get` answers no overlay
-  and the run reports on stock alone.
+  `skills enable` names it a dangerous line and takes it only as
+  `accept=.git`.
+- The `daily-report` overlay and the `daily-report-setup` marker sit under
+  the ops dir's `policy`, which the stock `_base` already reads: the template
+  names no entry for them.
 - Read `research/`: the channel ledgers under `research/channels/` and the
   ops digest under `research/reports/`.
 - Read `sources/`: the report lints `wiki` and `sources` by name, so the
@@ -57,36 +55,3 @@ None.
 - No machine registry: every writer of it runs on the host.
 - No write under `sources/` or `research/`: the run promotes into `wiki/`
   and nowhere else.
-
-## Profile
-
-```jsonc
-// daily-report.routine: the jail of the scheduled daily report.
-{
-  "v": 1,
-  "profile": {
-    "meta": {
-      "name": "daily-report-routine",
-      "description": "the scheduled daily report: reads its inputs, writes `wiki/`."
-    },
-    // No `network`: the harness profile supplies the model hosts, and the
-    // run reaches no other.
-    "filesystem": {
-      // Each tree by name: a slice drops a bare `$WORKDIR`. `.git` fixes the
-      // window, `.llm-wiki/policy` is the overlay, `research/` the ledgers
-      // and the digest, `sources/` what the report lints beside `wiki/`.
-      "read": [
-        "$WORKDIR/.git",
-        "$WORKDIR/.llm-wiki/policy",
-        "$WORKDIR/research",
-        "$WORKDIR/sources"
-      ],
-      // `wiki/` alone: the report, its promotions, and the log and index
-      // entries. An overlay is the operator's to write.
-      "allow": [
-        "$WORKDIR/wiki"
-      ]
-    }
-  }
-}
-```

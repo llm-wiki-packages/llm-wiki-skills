@@ -23,22 +23,20 @@
         "github": "optional"
       }
     },
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github",
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github/github.harvest",
       "script": "scripts/harvest.py"
     },
     "process": {},
     "routine": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github/github.routine",
       "script": "scripts/lists.py"
     }
   },
   "usage": "/channel-github <setup|rank|pending|retag> [words]; a job's stages run by ticket",
   "v": 1,
-  "venue": "github",
   "version": "0.1.0",
   "watch": {
     "defaults": {

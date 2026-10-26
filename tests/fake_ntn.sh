@@ -1,6 +1,6 @@
 #!/bin/sh
 # `ntn` as the harness's PATH has it, so `skills enable` records this file as
-# the unit's bin and the venue template's `machine.probe` runs it: `whoami`
+# the unit's bin and the sandbox's `probe` runs it: `whoami`
 # answers offline, and only where the route reached the jail — its variable
 # holds the proxy's phantom. `--version` is the real ntn's, which `skills
 # enable` reads. Any other call is refused: nothing in this suite reaches

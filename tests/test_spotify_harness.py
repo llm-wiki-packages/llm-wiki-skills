@@ -5,7 +5,7 @@ helpers and constants are the unit's own tests' —
 `skills/channel-spotify/tests/test_spotify.py`, which ships with the unit — so
 a case here reads exactly as it did beside them.
 
-Every capture here is keyless: the harvest's sandbox carries the `spotify`
+Every capture here is keyless: the harvest stage's sandbox carries the `spotify`
 route, and a route nothing maps is omitted from the jail. The one case that
 maps it drops the mapping and the stored grant again before it ends. The
 venue answers from the unit tests' own `requests` stand-in (`REQUESTS_STUB`),
@@ -18,8 +18,8 @@ from __future__ import annotations
 import json
 import re
 
-from harness import (ROOT, claimed, declared_job, enabled, jsonc, local_vault, mapped_route, pending, rooted, run,
-                     snippet, staged, unit_tests, unmapped_route)
+from harness import (ROOT, claimed, declared_job, enabled, installed_sandbox, local_vault, mapped_route, pending,
+                     staged, template, unit_tests, unmapped_route)
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-spotify", "test_spotify"))
@@ -136,8 +136,7 @@ def test_every_host_a_default_capture_fetches_is_in_the_harvest_sandbox(spotify)
     """Cover art is an asset of EVERY capture: unreached, each confined run ends
     `partial` with a `denied` entry. The per-show feed and enclosure hosts are the
     deliberate gap (the unit's references/enable.md) and stay out."""
-    reference = ROOT / "references" / "sandboxes" / "spotify" / "spotify.harvest.md"
-    network = jsonc(snippet(reference.read_text(encoding="utf-8")))["profile"]["network"]["allow_domain"]
+    network = template("spotify")["stages"]["harvest"]["network"]["allow_domain"]
     fetched = [spotify.API, spotify.TOKEN_URL, spotify.ITUNES_SEARCH, "https://open.spotify.com/embed/x/y"]
     fetched += entity("playlist")["images"] + entity("episode")["images"]
     fetched += ["https://mosaic.scdn.co/640/x", "https://image-cdn-ak.spotifycdn.com/image/x", "https://image-cdn-fa.spotifycdn.com/image/x"]
@@ -146,57 +145,36 @@ def test_every_host_a_default_capture_fetches_is_in_the_harvest_sandbox(spotify)
     assert not allowed("feed.example", network) and not allowed("lexfridman.com", network)
 
 
-def test_the_route_installs_as_the_venue_templates_machine_widening(ops, env, wiki):
-    """The reference's `## Machine` route, admitted by the real `skills install`
-    into the venue template's `machine.allow`: the token endpoint alone, Basic,
-    under the route's own name — and no probe, since the unit has no bin."""
+def test_the_route_installs_on_the_harvest_stage_of_the_units_sandbox(ops, env, wiki):
+    """The template's route, admitted by the real `skills install` into the
+    unit's `sandbox.jsonc`: the token endpoint alone, Basic, under the route's
+    own name — and no probe, since the unit has no bin."""
     enabled(ops, env, wiki, "channel-spotify")
-    ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
-    template = jsonc((wiki / ops_dir / "sandboxes" / "spotify-harvest.jsonc").read_text(encoding="utf-8"))
-    assert template["machine"] == {"allow": [{"network": {
-        "credentials": ["spotify"],
-        "custom_credentials": {"spotify": {
-            "upstream": "https://accounts.spotify.com", "env_var": "SPOTIFY_TOKEN_AUTH", "credential_format": "Basic {}",
-            "endpoint_rules": [{"method": "POST", "path": "/api/token"}],
-        }},
-    }}]}, template.get("machine")
+    harvest = installed_sandbox(ops, env, wiki, "channel-spotify")["stages"]["harvest"]
+    assert harvest["network"]["credentials"] == ["spotify"] and harvest["network"]["custom_credentials"] == {"spotify": {
+        "upstream": "https://accounts.spotify.com", "env_var": "SPOTIFY_TOKEN_AUTH", "credential_format": "Basic {}",
+        "endpoint_rules": [{"method": "POST", "path": "/api/token"}],
+    }}, harvest["network"]
+    assert "probe" not in harvest
     script = (ROOT / "skills" / "channel-spotify" / "scripts" / "spotify.py").read_text(encoding="utf-8")
     assert re.search(r'^ROUTE_ENV = "SPOTIFY_TOKEN_AUTH"$', script, re.M), "the script reads another variable than the route names"
 
 
 def test_the_route_reaches_the_harvest_slice_as_a_phantom(ops, env, wiki):
-    """The customize and enable notes, walked through the real CLI: the
-    `spotify-harvest` template `skills install` wrote enabled, the stage bound
-    to it, then the vault named, the grant stored and the route mapped. The
-    stage's jail carries the route's variable — holding a phantom, never the
-    stored grant."""
+    """The customize and enable notes, walked through the real CLI: the unit's
+    sandbox enabled, then the vault named, the grant stored and the route
+    mapped. The stage's jail carries the route's variable — holding a
+    phantom, never the stored grant."""
     job = declared_job(ops, env, wiki, "channel-spotify", "https://open.spotify.com/show/sh00000000000000000007",
                        slug="harness-spotify-route")
-    ops_dir = run(ops, rooted(env, wiki), "--json", "whereami").data["wiki"]["ops_dir"]
-    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
-
-    def bind(sandbox):
-        for verb in (["skills", "bind", "channel-spotify", "stage=harvest", f"sandbox={sandbox}", "--confirm"],
-                     ["git", "commit", f"{ops_dir}/skills/channel-spotify/manifest.json", f"message=harness: harvest on {sandbox}"],
-                     ["skills", "enable", "channel-spotify", "--confirm"]):
-            done = run(ops, attended, "--json", *verb)
-            assert done.returncode == 0, (verb, done.stdout + done.stderr)
-
-    moved = False
     with local_vault(ops, env):
         try:
-            done = run(ops, attended, "--json", "sandboxes", "enable", "spotify-harvest", "--confirm")
-            assert done.returncode == 0, done.stdout + done.stderr
-            moved = True
-            bind("spotify-harvest")
             grant = mapped_route(ops, env, wiki, "channel-spotify", "spotify", "accounts.spotify.com",
                                  value="aGFybmVzcy1pZDpoYXJuZXNzLXNlY3JldA==")
             ticket_id, _cap = claimed(ops, env, wiki, job)
             session = staged(ops, env, wiki, ticket_id, "step route printenv SPOTIFY_TOKEN_AUTH\n")
         finally:
             unmapped_route(ops, env, wiki, "channel-spotify", "spotify")
-            if moved:
-                bind("channel-spotify-harvest")  # every other case here runs on the harness's own sandbox
     phantom = session.step("route")
     assert phantom.returncode == 0 and phantom.stdout.strip(), phantom
     assert grant not in session.log and "harness-secret" not in session.log

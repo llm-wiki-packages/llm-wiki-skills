@@ -21,7 +21,7 @@
         "min": "0.22.0",
         "source": "https://github.com/googleworkspace/cli",
         "installers": {
-          "brew": "gws"
+          "brew": "googleworkspace-cli"
         },
         "test": [
           "gws",
@@ -32,22 +32,22 @@
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws",
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws/gmail-gws.harvest",
       "script": "scripts/harvest.py"
     },
     "process": {}
   },
   "usage": "/channel-gmail-gws ticket=<id>",
   "v": 1,
-  "venue": "gmail-gws",
   "version": "0.1.0",
   "watch": {
     "defaults": {
-      "every": "1d"
+      "every": "1d",
+      "transcribe": null
     },
     "dest": "research/channels/{slug}",
     "inputs": {

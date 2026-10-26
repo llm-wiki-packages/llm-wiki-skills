@@ -10,17 +10,15 @@
   ],
   "name": "channel-hubspot-video",
   "requires": {
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:hubspot-cms",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:hubspot-cms/hubspot-cms.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-hubspot-video ticket=<id>",
   "v": 1,
-  "venue": "hubspot-cms",
   "version": "0.1.0",
   "watch": {
     "defaults": {

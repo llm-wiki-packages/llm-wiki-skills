@@ -124,7 +124,7 @@ def test_an_item_that_is_no_url_is_failed_and_never_run(tmp_path):
 def test_the_manifest_declares_the_script_beside_the_sandbox():
     manifest = json.loads((UNIT_DIR / "manifest.json").read_text())
     assert manifest["stages"]["harvest"]["script"] == "scripts/capture_video.py"
-    assert (UNIT_DIR / "scripts" / "capture_video.py").is_file() and "sandbox_ref" in manifest["stages"]["harvest"]
+    assert (UNIT_DIR / "scripts" / "capture_video.py").is_file() and "sandbox_ref" in manifest and "sandbox_ref" not in manifest["stages"]["harvest"]
     assert "# /// script" not in SCRIPT.read_text()  # a block in a script stage is refused at install
 
 

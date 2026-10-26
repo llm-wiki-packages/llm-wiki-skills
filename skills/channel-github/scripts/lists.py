@@ -2,7 +2,7 @@
 """channel-github's routine — regenerate the list pages from the repo pages.
 
 A script stage, with no model session: a routines job naming this unit runs
-it in the `github.routine` jail as
+it in the routine stage's jail as
 
     llm-wiki-ops run ops/skills/channel-github/scripts/lists.py [--only <words>] ticket=<id>
 

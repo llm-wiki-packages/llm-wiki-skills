@@ -2,19 +2,19 @@
 
 ## Sandbox
 
-`stages.harvest.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:spotify/spotify.harvest`. What the stage reaches,
-and why:
+The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:spotify`.
+`skills install` validates that template and writes it as the unit's
+`sandbox.jsonc`; `skills enable` shows what each stage adds to its stock
+base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/spotify/spotify.harvest.md
+llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/spotify.md
 ```
 
-`/llm-wiki:sandbox channel-spotify` reviews it, and `/llm-wiki:enable
-channel-spotify` binds the stage. **Reuse the `spotify-harvest` sandbox
-`skills install` wrote; never write a `channel-spotify-harvest` from the
-snippet.** The `spotify` route is the reference's `## Machine` block, which
-install puts in that sandbox's `machine.allow` and a sandbox written from
-`## Profile` alone lacks: bound to one of those, the stage still enables,
-but nothing can map the route and every capture is keyless. `process` names
-no sandbox and runs with no network.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`. `process` extends the stock `process` base, which opens no
+host.
+
+The `spotify` route is on the template's harvest stage; nothing maps it
+until the operator does (`llm-wiki-ops reference channel-spotify/enable`),
+and unmapped, every capture is keyless.

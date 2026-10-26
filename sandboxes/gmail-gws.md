@@ -1,13 +1,9 @@
-# gmail-gws.harvest
+# gmail-gws
 
 The sandbox for the gmail-gws venue's `harvest` stage. One mailbox's pull
 through the `gws` CLI (Google's Workspace CLI) against the Gmail API, run by
-the unit's `scripts/harvest.py` with no model session.
-
-## Bins
-
-- `gws`: the Google Workspace CLI. The unit declares it in `requires.bins`;
-  enabling the unit resolves it on the machine.
+the unit's `scripts/harvest.py` with no model session. `process` and
+`routine` add nothing to their stock bases.
 
 ## Hosts
 
@@ -51,29 +47,3 @@ live run.
   Gmail's, read-only.
 - Never bind a login with a Gmail write scope: any of them can also send, and
   this stage runs unattended.
-
-## Profile
-
-```jsonc
-// gmail-gws.harvest: the jail of a gmail-gws harvest stage.
-{
-  "v": 1,
-  "profile": {
-    "meta": {
-      "name": "gmail-gws-harvest",
-      "description": "the gmail-gws harvest slice: the Gmail API through gws."
-    },
-    "network": {
-      // Allow-list mode: naming any host denies every other.
-      "allow_domain": [
-        // The venue: the Gmail API.
-        "gmail.googleapis.com",
-        // gws's token refresh.
-        "oauth2.googleapis.com",
-        // gws's discovery document, when its cache is cold.
-        "www.googleapis.com"
-      ]
-    }
-  }
-}
-```

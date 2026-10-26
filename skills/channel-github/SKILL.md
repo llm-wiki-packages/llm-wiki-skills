@@ -51,7 +51,7 @@ llm-wiki-ops policy get <stage> channel-github
 
 A script stage: the runner starts
 `llm-wiki-ops run ops/skills/channel-github/scripts/harvest.py ticket=<id>`
-in the `github.harvest` jail, and the script is the whole worker. A session
+in the harvest stage's jail, and the script is the whole worker. A session
 never types an API call.
 
 1. Parses `options.select` — `stars:<login>`, `org:<org>`, `user:<login>`,
@@ -140,7 +140,7 @@ A routines job's entry would reach a session unit as `/channel-github
 <args> ticket=<id> stage=routine`; this unit's routine is a script, so the
 runner starts
 `llm-wiki-ops run ops/skills/channel-github/scripts/lists.py ticket=<id>`
-in the `github.routine` jail instead, the entry's `args` before `ticket=`
+in the routine stage's jail instead, the entry's `args` before `ticket=`
 (`references/enable.md` declares the job). It runs one op, the sequence a
 hand run of the same verbs would:
 

@@ -48,9 +48,9 @@ separately; either works without the other.
    with a `bind skill` line: leave it unrun, a skill-wide mapping would
    answer for every mailbox.
 
-4. **Review and bind the harvest sandbox**: `/llm-wiki:enable
+4. **Review the sandbox and enable the skill**: `/llm-wiki:enable
    channel-gmail-gws` walks `llm-wiki-ops reference
-   llm-wiki-packages/llm-wiki-skills:references/sandboxes/gmail-gws/gmail-gws.harvest.md`.
+   llm-wiki-packages/llm-wiki-skills:sandboxes/gmail-gws.md`.
    Enable it on every other machine that pulls, too — enablement never
    travels with a `git pull`.
 
@@ -81,7 +81,7 @@ units = true
 ```
 
 — or from a `nono` session whose own jail grants the login directory and
-the three hosts in the sandbox reference. Log that login in once
+the three hosts in the sandbox's prose. Log that login in once
 (`gws auth login -s gmail`, default directory `~/.config/gws`, or a
 `GOOGLE_WORKSPACE_CLI_CONFIG_DIR` of its own) and pass it as `--config-dir`.
 Smoke test, read-only: `/channel-gmail-gws triage --max 10`. Drafts test:

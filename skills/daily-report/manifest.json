@@ -6,16 +6,15 @@
   ],
   "name": "daily-report",
   "requires": {
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report",
   "stages": {
     "routine": {
-      "model": "frontier",
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report/daily-report.routine"
+      "model": "frontier"
     }
   },
   "usage": "/daily-report [date|focus|setup]",
   "v": 1,
-  "venue": "daily-report",
   "version": "0.1.0"
 }

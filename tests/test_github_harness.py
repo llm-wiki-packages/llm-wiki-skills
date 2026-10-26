@@ -1,6 +1,6 @@
-"""channel-github, the harness tier: the unit installed, bound and enabled
+"""channel-github, the harness tier: the unit installed and enabled
 through the REAL CLI, its two script stages started by the runner in the jails
-their sandboxes compose. Nothing here reaches GitHub: the harvest case is the
+its `sandbox.jsonc` composes. Nothing here reaches GitHub: the harvest case is the
 one that fails before its first call, and the routine reads only pages the
 case wrote.
 """
@@ -73,7 +73,7 @@ def _repo_page(ops, env, wiki, full: str, tags: str, stars: int) -> str:
 
 
 def test_the_routine_regenerates_the_list_pages_into_its_dest_under_its_op(ops, env, wiki):
-    """A routines job naming the unit runs `lists.py` in the `github.routine` jail: it reads `sources/`, writes only its `dest`, and its op close is the report."""
+    """A routines job naming the unit runs `lists.py` in the routine stage's jail: it reads `sources/`, writes only its `dest`, and its op close is the report."""
     enabled(ops, env, wiki, UNIT)
     paths = [_repo_page(ops, env, wiki, "example-org/agent-kit", "github,gh-starred,agent-skills", 1200),
              _repo_page(ops, env, wiki, "example-org/mcp-db", "github,gh-watched,agent-skills", 40)]

@@ -27,16 +27,17 @@
    with the same target and slug moves it and keeps every other key:
    `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-notion-tasks
    dest=research/channels/<slug>`.
-2. **The vault and the token, before the sandbox.** Harvest reaches Notion
-   through the `notion` route of the `notion-harvest` sandbox (the sandbox
-   reference's `## Credential` section spells it out), and the route's
-   token is the wiki's own. The sandbox's probe, `ntn whoami`, runs at
-   `sandboxes enable notion-harvest` and spends that token, so do these
-   first. That enable must pass the probe: nothing is enabled until it
-   exits 0, and a refusal names `machine.probe`, its exit code and its
-   stderr — fix what the stderr names, then run `/llm-wiki:enable
-   channel-notion-tasks` again. On each machine that pulls, first name the
-   wiki's vault, `<key>` being this wiki's key in `llm-wiki-cli machine
+2. **The vault, the token and the mapping, before the enable.** Harvest
+   reaches Notion through the `notion` route on the harvest stage of the
+   unit's sandbox (the sandbox's `## Credential` section spells it out), and
+   the route's token is the wiki's own. The sandbox's probe, `ntn whoami`,
+   runs inside the composed jail at `skills enable`, where the route's
+   variable holds the phantom only once the route is mapped, so do the
+   vault, the token and step 3's mapping first. That enable must pass the
+   probe: nothing is enabled until it exits 0, and a refusal names the
+   probe's argv, its exit code and its stderr — fix what the stderr names,
+   then run `/llm-wiki:enable channel-notion-tasks` again. On each machine
+   that pulls, first name the wiki's vault, `<key>` being this wiki's key in `llm-wiki-cli machine
    wikis ls` (the `credentials` row of `llm-wiki-ops doctor` names the same
    line):
 
@@ -56,12 +57,12 @@
    phantom and the proxy supplies the token to `api.notion.com` alone.
 
    ```sh
-   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
+   llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/notion.md
    ```
-3. **Map the route, once the stage is bound to `notion-harvest`.**
-   `skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing:
-   it lists `notion` as unmapped, with the line to run. On each machine that
-   pulls:
+3. **Map the route, before the enable.** `skills enable`, which
+   `/llm-wiki:enable` runs, maps nothing: it lists `notion` as unmapped, with
+   the line to run, and its probe fails on an unmapped route. The unit only
+   needs to be installed. On each machine that pulls:
 
    ```sh
    llm-wiki-ops credentials bind skill channel-notion-tasks notion=notion

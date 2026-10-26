@@ -13,17 +13,15 @@
   ],
   "name": "channel-spotify",
   "requires": {
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify/spotify.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-spotify ticket=<id>",
   "v": 1,
-  "venue": "spotify",
   "version": "0.1.0",
   "watch": {
     "defaults": {

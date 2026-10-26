@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, UNFLOORED, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
 # The capture units whose body a session follows: each serves `harvest` or
 # `process`, no `routine`, and either some stage with no `script` or a
@@ -72,8 +72,8 @@ RETIRED_VERBS = (
     r"""["']schedule["']\s*,\s*["']tick["']""",
 )
 # Every file an agent or operator reads: the units, the repo's README and its
-# root `references/` tree.
-READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "references").rglob("*") if p.is_file())})
+# root `sandboxes/` tree.
+READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "sandboxes").rglob("*") if p.is_file())})
 
 
 def _retired_spellings(text: str) -> list:
@@ -157,8 +157,6 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
     version = lambda text: tuple(int(b) for b in text.removeprefix(">=").split("."))  # noqa: E731
     floor = unit_manifest(name)["requires"].get("ops")
-    if name in UNFLOORED:
-        return
     assert version(floor) >= version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"
 
 
@@ -312,7 +310,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "venue", "stages", "keywords", "usage", "requires", "watch"}
+    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]
@@ -427,3 +425,25 @@ def test_the_shared_title_rule_holds_what_the_host_refuses():
     assert safe("index") != "index" and safe("Index").casefold() != "index"
     assert safe("") == "Untitled" and safe("   ", fallback="x") == "x" and safe(None) == "Untitled"
 
+
+
+def _writes_a_directory_body(name: str) -> bool:
+    """Whether the unit's `capture.json` names the `items` directory as its body, in a script or its SKILL.md."""
+    unit = ROOT / "skills" / name
+    texts = [p.read_text(encoding="utf-8") for p in [*unit.glob("scripts/*.py"), unit / "SKILL.md"]]
+    return any(re.search(r'"body":\s*(?:ITEMS_DIRNAME|"items")', text) for text in texts)
+
+
+DIRECTORY_BODY = [n for n in SKILLS if _writes_a_directory_body(n)]
+
+
+def test_the_directory_body_scan_finds_the_units_it_was_written_for():
+    """A scan that matches nothing parametrizes nothing and reports green."""
+    assert DIRECTORY_BODY == ["channel-gmail", "channel-gmail-gws", "channel-notion-tasks", "channel-parentsquare"], DIRECTORY_BODY
+
+
+@pytest.mark.parametrize("name", DIRECTORY_BODY)
+def test_a_unit_with_a_directory_body_ships_transcribe_off(name):
+    """The host's transcribe stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
+    defaults = unit_manifest(name)["watch"]["defaults"]
+    assert "transcribe" in defaults and defaults["transcribe"] is None, defaults
