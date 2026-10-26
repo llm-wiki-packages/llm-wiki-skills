@@ -25,7 +25,8 @@
         "PS_PASSWORD": "required",
         "PS_USERNAME": "required"
       }
-    }
+    },
+    "ops": ">=0.8.1"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare",
   "stages": {

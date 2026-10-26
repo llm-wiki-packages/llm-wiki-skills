@@ -39,10 +39,6 @@ SOURCE = MANIFEST["repository"]
 SKILLS = [a["name"] for a in MANIFEST["artifacts"] if a["type"] == "skill"]
 TEMPLATES = ROOT / "sandboxes"
 
-# Units that declare no `requires.ops`: they ride the package's `min_ops_version`, because a floor
-# for the stdio MCP server feature waits on an ops version bump (llm-wiki-plugins#3139).
-UNFLOORED = {"channel-parentsquare"}
-
 
 def unit_manifest(name: str) -> dict:
     art = next(a for a in MANIFEST["artifacts"] if a["type"] == "skill" and a["name"] == name)

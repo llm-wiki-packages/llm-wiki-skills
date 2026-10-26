@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, UNFLOORED, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, unit_manifest
 
 # The capture units whose body a session follows: each serves `harvest` or
 # `process`, no `routine`, and either some stage with no `script` or a
@@ -157,8 +157,6 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
     version = lambda text: tuple(int(b) for b in text.removeprefix(">=").split("."))  # noqa: E731
     floor = unit_manifest(name)["requires"].get("ops")
-    if name in UNFLOORED:
-        return
     assert version(floor) >= version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"
 
 

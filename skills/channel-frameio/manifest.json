@@ -21,7 +21,7 @@
         }
       }
     ],
-    "ops": ">=0.7.0"
+    "ops": ">=0.8.1"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio",
   "stages": {
