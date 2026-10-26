@@ -33,7 +33,7 @@ def _doc(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     for token, name in _TOKENS.items():
         text = text.replace(token, name)
-    return text
+    return text.replace("{{@@brain-", "{{@brain-")
 SCRIPT = UNIT_DIR / "scripts" / "write_items.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "pull.json"
 DAY = "2026-09-18"

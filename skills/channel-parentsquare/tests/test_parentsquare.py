@@ -21,7 +21,7 @@ def _doc(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     for token, name in _TOKENS.items():
         text = text.replace(token, name)
-    return text
+    return text.replace("{{@@brain-", "{{@brain-")
 
 # parentsquare-mcp 0.4.0's registered tools that read; every other registered tool adds, edits, invites, links or removes.
 READ_TOOLS = {

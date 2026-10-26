@@ -47,7 +47,7 @@ def _doc(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     for token, name in _TOKENS.items():
         text = text.replace(token, name)
-    return text
+    return text.replace("{{@@brain-", "{{@brain-")
 SCRIPTS = UNIT_DIR / "scripts"
 LEAVES = SCRIPTS / "leaves.py"
 CAPTURE = SCRIPTS / "capture_hubspot_video.py"

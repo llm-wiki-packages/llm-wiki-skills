@@ -49,7 +49,7 @@ def _doc(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     for token, name in _TOKENS.items():
         text = text.replace(token, name)
-    return text
+    return text.replace("{{@@brain-", "{{@brain-")
 
 UNIT = "channel-circle"
 BASE = "https://example.com"

@@ -8,7 +8,9 @@ else would ship as literal text.
 
 from __future__ import annotations
 
+import ast
 import re
+from pathlib import Path
 
 import pytest
 
@@ -76,3 +78,29 @@ def test_render_refuses_a_bad_token_by_line(text):
 def test_the_literal_scan_finds_what_it_was_written_for():
     assert LITERAL.search("run `/llm-wiki:enable x`") and LITERAL.search("`llm-wiki-ops tickets open`")
     assert not LITERAL.search("/llm-wiki-server:reindex, llm-wiki-ops-v1, .llm-wiki.toml, llm-wiki-ops/v1/plugin")
+
+
+# Each unit's own tests carry a copy of the fill, since they stand alone; the
+# copy must read a doc exactly as the enabled copy does, escape included.
+UNIT_FILLS = sorted(p for p in ROOT.glob("skills/*/tests/*.py") if "\ndef _doc(" in p.read_text(encoding="utf-8"))
+
+
+def _unit_fill(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    keep = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name == "_doc")
+            or (isinstance(n, ast.Assign) and any(getattr(t, "id", None) == "_TOKENS" for t in n.targets))]
+    space = {"Path": Path}
+    exec(compile(ast.Module(body=keep, type_ignores=[]), str(path), "exec"), space)
+    return space["_doc"]
+
+
+def test_the_unit_fill_scan_finds_its_copies():
+    assert len(UNIT_FILLS) >= 5, UNIT_FILLS
+
+
+@pytest.mark.parametrize("path", UNIT_FILLS, ids=_id)
+def test_a_units_own_fill_reads_a_doc_as_render_does(path, tmp_path):
+    text = "/{{@brain-plugin}}:x `{{@brain-cli-ops}} y` {{@brain-cli}} {{@brain-cli-search}}\n{{@@brain-cli-ops}} {{@index}}\n"
+    sample = tmp_path / "doc.md"
+    sample.write_text(text, encoding="utf-8")
+    assert _unit_fill(path)(sample) == render(text)
