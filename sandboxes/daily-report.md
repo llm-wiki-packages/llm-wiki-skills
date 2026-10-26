@@ -7,7 +7,7 @@ writes the day's report and its promotions under `wiki/`.
 ## Hosts
 
 None of its own. The model endpoints are the harness profile's; see
-`llm-wiki-ops reference harness`.
+`{{@brain-cli-ops}} reference harness`.
 
 ## Filesystem
 
@@ -36,7 +36,7 @@ Nothing here writes `.git`: under the ticket, each write is listed in the
 ticket's capture directory, which the runner grants itself — a verb's by the
 verb, a Write or Edit by the wiki's `op record` hook — `op close` posts the
 run's report there, and the host commits at the landing
-(`llm-wiki-ops reference operations`).
+(`{{@brain-cli-ops}} reference operations`).
 
 ## Credential
 

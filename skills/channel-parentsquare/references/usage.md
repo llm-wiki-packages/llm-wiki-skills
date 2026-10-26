@@ -6,7 +6,7 @@ No other argument. One invocation serves one account and one day directory.
 
 ## Script
 
-`scripts/keys.py`, run as `llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py <arm> <capture_dir>/draft.json`.
+`scripts/keys.py`, run as `{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/keys.py <arm> <capture_dir>/draft.json`.
 The draft is a JSON file the session wrote with its file-writing tool: served text never rides a command line.
 The harvest reads through the `parentsquare` MCP server the sandbox declares, and both steps write with the front door's verbs.
 

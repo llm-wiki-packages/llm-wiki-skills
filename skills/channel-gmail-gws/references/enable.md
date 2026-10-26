@@ -26,7 +26,7 @@ separately; either works without the other.
    as the slug — a wiki holds one job per target:
 
    ```sh
-   llm-wiki-ops jobs add acme-mail slug=acme-mail skill=channel-gmail-gws description="Acme mailbox" options.mailbox=me@acme.example
+   {{@brain-cli-ops}} jobs add acme-mail slug=acme-mail skill=channel-gmail-gws description="Acme mailbox" options.mailbox=me@acme.example
    ```
 
    `add` asks the rest (`lookback_days`, `cap`, `exclude_labels`,
@@ -37,8 +37,8 @@ separately; either works without the other.
    the directory is the credential, adopted where it stands:
 
    ```sh
-   llm-wiki-ops credentials set gws-acme-mail kind=dir login=none path=/Users/<you>/.config/gws-acme-mail
-   llm-wiki-ops credentials bind job acme-mail dir=gws-acme-mail
+   {{@brain-cli-ops}} credentials set gws-acme-mail kind=dir login=none path=/Users/<you>/.config/gws-acme-mail
+   {{@brain-cli-ops}} credentials bind job acme-mail dir=gws-acme-mail
    ```
 
    `bind` refuses a name not set on this machine. A machine with no binding
@@ -48,13 +48,13 @@ separately; either works without the other.
    with a `bind skill` line: leave it unrun, a skill-wide mapping would
    answer for every mailbox.
 
-4. **Review the sandbox and enable the skill**: `/llm-wiki:enable
-   channel-gmail-gws` walks `llm-wiki-ops reference
+4. **Review the sandbox and enable the skill**: `/{{@brain-plugin}}:enable
+   channel-gmail-gws` walks `{{@brain-cli-ops}} reference
    llm-wiki-packages/llm-wiki-skills:sandboxes/gmail-gws.md`.
    Enable it on every other machine that pulls, too — enablement never
    travels with a `git pull`.
 
-5. **First pull, by hand**: `llm-wiki-ops jobs claim acme-mail`, then watch
+5. **First pull, by hand**: `{{@brain-cli-ops}} jobs claim acme-mail`, then watch
    its report. A `failed` with `auth` is the login (step 1 or 3); `denied` is
    the sandbox (step 4). That a jailed gws refreshes its token through the
    granted directory is unverified until this first run says so — report
@@ -66,7 +66,7 @@ separately; either works without the other.
 
 ## Attended modes
 
-The modes run their scripts through `llm-wiki-ops run` from the operator's
+The modes run their scripts through `{{@brain-cli-ops}} run` from the operator's
 session, and need a login that can create drafts and labels — the
 operator's everyday one, never the pipeline's directory. Read off the
 plugin's contracts, unverified by a run here: `run` from an unconfined

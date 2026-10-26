@@ -7,15 +7,15 @@ Nothing here needs an edit to the unit. Three dials, all the wiki's:
    `$newsletters`), the draft voice, working hours and hard rules. Both faces
    read it: the process step to junk and categorize, the attended modes to
    classify and draft. `/channel-gmail-gws setup` runs the interview
-   (`llm-wiki-ops reference channel-gmail-gws/profile`); `llm-wiki-ops policy
+   (`{{@brain-cli-ops}} reference channel-gmail-gws/profile`); `{{@brain-cli-ops}} policy
    get channel-gmail-gws` reads it back.
 2. **A job's mechanical filters** — `options.lookback_days`, `options.cap`,
    `options.exclude_labels`, `options.exclude_senders`, per mailbox, asked at
-   `jobs add` and changed with `llm-wiki-ops jobs edit <slug>
+   `jobs add` and changed with `{{@brain-cli-ops}} jobs edit <slug>
    options.exclude_senders=@noisy.example`. Cadence is the job's `every`
    (default `1d`).
 3. **A playbook of the wiki's own** — a `## Playbook: <name>` section in the
-   overlay, in the shape `llm-wiki-ops reference
+   overlay, in the shape `{{@brain-cli-ops}} reference
    channel-gmail-gws/playbook-template` gives, run with `--playbook <name>`.
    A shipped playbook's name in the overlay wins over the shipped one.
 
@@ -28,7 +28,7 @@ Questions to ask the operator the first time:
 - Draft voice: sign-off, length, anything never to promise.
 - Working hours, and what "urgent" means outside them.
 
-Each answer is offered back as the overlay (`llm-wiki-ops policy set
+Each answer is offered back as the overlay (`{{@brain-cli-ops}} policy set
 channel-gmail-gws`, the whole text on stdin, read first), performed only on
 the operator's yes.
 
@@ -41,7 +41,7 @@ shows what each stage adds to its stock base and asks. What the stages
 reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/gmail-gws.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/gmail-gws.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

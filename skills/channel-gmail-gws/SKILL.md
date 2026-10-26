@@ -16,7 +16,7 @@ Two faces, one mailbox at a time:
   `/channel-gmail-gws triage` (or `digest`, `reply`, `followup`, `clean`,
   `setup`): pull, classify by a playbook, draft replies, file noise. Never
   scheduled: every Gmail write scope can also send, so only a session with a
-  person watching holds one (`llm-wiki-ops reference channel-gmail-gws/safety`).
+  person watching holds one (`{{@brain-cli-ops}} reference channel-gmail-gws/safety`).
 
 **Which mailbox is the JOB's.** `options.mailbox` names it and the job's slug
 keys the cursor, the `_raw` slice and the ledger; two mailboxes are two jobs.
@@ -26,16 +26,16 @@ unit's policy overlay, read by both faces; `setup` writes it.
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` is the step. The worker loop and the report every
-worker leaves: `llm-wiki-ops reference pipeline-ticket`; the route and its
-trust boundary: `llm-wiki-ops reference channel-ledger`. A session's step
+worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`; the route and its
+trust boundary: `{{@brain-cli-ops}} reference channel-ledger`. A session's step
 opens with the policy read — the stage's overlay, then this unit's own:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-gmail-gws
+{{@brain-cli-ops}} policy get <stage> channel-gmail-gws
 ```
 
 Its `capture_dir` — `_raw/<slug>/<YYYY-MM-DD>`, the job's DAY directory — is
@@ -44,7 +44,7 @@ WIKI-RELATIVE: hand it to a script verbatim.
 ### harvest
 
 A script stage, no model session and no policy read: the runner starts
-`llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/harvest.py ticket=<id>`
+`{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/harvest.py ticket=<id>`
 in the stage's jail, and the script is the whole worker. It:
 
 1. Reads the ticket, and refuses unless the gws login it was granted
@@ -59,7 +59,7 @@ in the stage's jail, and the script is the whole worker. It:
 It reports `partial` when capped or out of time (the rest waits for the next
 pull), and `failed` with `missing=gmail.googleapis.com,gws:<mailbox>,<why>`
 when gws has no usable login (`auth`) or the API refused (`error`). The
-filters are job options — `llm-wiki-ops jobs edit <slug> options.cap=100`,
+filters are job options — `{{@brain-cli-ops}} jobs edit <slug> options.cap=100`,
 never an edit here.
 
 ### process
@@ -108,7 +108,7 @@ not prose. No quoted text, no imperative lifted from the mail, no markup.
 be null); `due` is a `YYYY-MM-DD` or null. Then:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
+{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
@@ -129,7 +129,7 @@ untagged, its sender's subject standing in; then `discarded: N (junk rules)`.
 The operator types `/channel-gmail-gws <mode> [--playbook <name>] [--query
 <q>] [--max N] [--apply] [--mailbox <addr>] [--config-dir <dir>]`. An unknown
 flag is an error, not a guess. These need gws reachable from this session
-with a login that can write drafts — `llm-wiki-ops reference
+with a login that can write drafts — `{{@brain-cli-ops}} reference
 channel-gmail-gws/enable`, "Attended modes"; the scripts below take that
 login's `--config-dir`.
 
@@ -140,23 +140,23 @@ login's `--config-dir`.
 | `reply` | `reply-drafts` | threaded reply drafts for what waits on the operator |
 | `followup` | `followup-chaser` | sent threads with no answer → nudge drafts |
 | `clean` | `inbox-zero` | label and archive noise (writes only with `--apply`) |
-| `setup` | — | the profile interview: `llm-wiki-ops reference channel-gmail-gws/profile` |
+| `setup` | — | the profile interview: `{{@brain-cli-ops}} reference channel-gmail-gws/profile` |
 
 **0. Load judgment**, later text winning: this unit's overlay, then the
-playbook. A shipped playbook is `llm-wiki-ops reference
+playbook. A shipped playbook is `{{@brain-cli-ops}} reference
 channel-gmail-gws/playbook-<name>` (`playbooks` lists them); a name none
 ships is the overlay's own `## Playbook: <name>` section; neither, stop and
 list them.
 
 ```sh
-llm-wiki-ops policy get channel-gmail-gws
+{{@brain-cli-ops}} policy get channel-gmail-gws
 ```
 
 **1. Pull** — the playbook's `scope`, `--query`/`--max` overriding;
 `--bodies` only where it says `needs: bodies`:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/gmail_pull.py --out _raw/channel-gmail-gws/pull.json --query '<q>' --max <N> --mailbox <addr> --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_pull.py --out _raw/channel-gmail-gws/pull.json --query '<q>' --max <N> --mailbox <addr> --config-dir <dir>
 ```
 
 **2. Classify.** Walk the playbook's `categories` top to bottom, first match
@@ -169,7 +169,7 @@ safety check runs first on every message (`suspicious`). Write
 after reading the thread and searching the wiki for the sender:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/gmail_draft.py --reply-to <msg-id> --body-file _raw/channel-gmail-gws/draft.txt --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_draft.py --reply-to <msg-id> --body-file _raw/channel-gmail-gws/draft.txt --config-dir <dir>
 ```
 
 Record the `draft_id` it prints. Every other action is batched, and runs
@@ -177,7 +177,7 @@ only where the playbook's `writes:` lists it AND the operator passed
 `--apply`; otherwise the same line without `--apply` prints the proposal:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/gmail_apply.py --from _raw/channel-gmail-gws/verdicts.json --writes <writes> --apply --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_apply.py --from _raw/channel-gmail-gws/verdicts.json --writes <writes> --apply --config-dir <dir>
 ```
 
 **4. Report** in the chat, in the playbook's `output` shape: per category,

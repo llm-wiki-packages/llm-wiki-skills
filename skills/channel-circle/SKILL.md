@@ -10,7 +10,7 @@ You harvest Circle.so-hosted communities for this wiki and render their
 lessons into pages. You are invoked `/channel-circle ticket=<id>`, in every
 mode, and the ticket carries the job's resolved config — `harvest.*`,
 `min_date`, `known[]` — so honor it and never re-ask. The worker loop and the
-report every worker leaves: `llm-wiki-ops reference pipeline-ticket`.
+report every worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`.
 Unverified under a spawned slice: no live community has run there.
 
 Circle.so is a hosted community/course platform (React SPA, Rails backend).
@@ -20,7 +20,7 @@ Communities run on `*.circle.so` or a **custom domain** (e.g.
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -28,7 +28,7 @@ sections below are those steps. Either step opens with the policy read — the
 stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-circle
+{{@brain-cli-ops}} policy get <stage> channel-circle
 ```
 
 ### harvest
@@ -36,7 +36,7 @@ llm-wiki-ops policy get <stage> channel-circle
 One ticket walks the whole section: this unit enumerates the lessons, applies
 the ticket's own scope, exclusions and `known[]`, captures each into its own
 directory under `_raw/<slug>/`, and posts `tickets update` after every leaf.
-Paths are WIKI-RELATIVE — `llm-wiki-ops run` starts a script at the WIKI
+Paths are WIKI-RELATIVE — `{{@brain-cli-ops}} run` starts a script at the WIKI
 ROOT, not where you stand — so the root argument is `.` and `<capture_dir>`
 is the ticket's own `capture_dir`, verbatim; `-h` after a script's path
 reaches the script. `plan` and `report` run on `--ticket <id>` and nothing
@@ -51,8 +51,8 @@ never write outside `_raw/<slug>/`.
    plan:
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/capture_lesson.py . --out <capture_dir> --ticket <id>
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py plan <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/capture_lesson.py . --out <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py plan <capture_dir> --ticket <id>
 ```
 
    `plan.json` holds the `deadline` and the ordered `leaves[]` — `order`,
@@ -67,11 +67,11 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py plan <capture
    between requests to the one host, never parallel within the domain:
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> --ticket <id> [--headed] [--timeout-ms 45000]
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py detect <capture_dir> --leaf <n>
-llm-wiki-ops run scripts/assets.py download <leaf.dir>/assets.json --dest _raw/<slug>/assets
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py record <capture_dir> --leaf <n>
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> --ticket <id> [--headed] [--timeout-ms 45000]
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py detect <capture_dir> --leaf <n>
+{{@brain-cli-ops}} run scripts/assets.py download <leaf.dir>/assets.json --dest _raw/<slug>/assets
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py record <capture_dir> --leaf <n>
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id>
 ```
 
    The capture dumps `page.html` (rendered DOM — the lesson body AND
@@ -102,7 +102,7 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
 3. Report last, with everything you know:
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> [--missing-leaf <n> <denied|timeout|auth|error>]... [--missing-host <host> <denied|timeout|auth|error>]... [--auth-expired] [--gone] [--reason <text>]
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> [--missing-leaf <n> <denied|timeout|auth|error>]... [--missing-host <host> <denied|timeout|auth|error>]... [--auth-expired] [--gone] [--reason <text>]
 ```
 
    A lesson you could not reach is `--missing-leaf <n> <why>`; a media host the
@@ -125,8 +125,8 @@ nothing written.
    several, take the lesson's own):
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/to_markdown.py <capture_dir>/page.html --out <capture_dir>/page.md
-llm-wiki-ops run scripts/format_transcript.py <capture_dir>/captions/<srclang>.vtt --out <capture_dir>/transcript.md
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/to_markdown.py <capture_dir>/page.html --out <capture_dir>/page.md
+{{@brain-cli-ops}} run scripts/format_transcript.py <capture_dir>/captions/<srclang>.vtt --out <capture_dir>/transcript.md
 ```
 
 2. Edit `page.md` in place — never a shell one-liner — into its own `# H1`
@@ -143,10 +143,10 @@ llm-wiki-ops run scripts/format_transcript.py <capture_dir>/captions/<srclang>.v
    filename, already settled against the run, and not yours to pick:
 
 ```
-cat <capture_dir>/page.md | llm-wiki-ops page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
-cat <capture_dir>/page.md | llm-wiki-ops page edit '<dest>/<title>.md' resource='<item>' type=lesson extracted=true --stdin
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<dest>/<title>.md' resource='<item>' type=lesson extracted=true --stdin
 echo '["<dest>/<title>.md"]' > <capture_dir>/written.json
-llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
 ```
 
    Every venue value on those lines — `<title>`, `<item>` — is copied VERBATIM
@@ -168,10 +168,10 @@ llm-wiki-ops run ops/skills/channel-circle/scripts/section_plan.py report <captu
   logged-in profile to the job claims none of its harvests: the host never
   grants a browser dir nobody has logged in to.
 - One-time manual login, by a person at a browser, which the host arranges
-  and a worker never does: `llm-wiki-ops credentials set <domain> kind=dir
-  login=browser host=<domain>`, then `llm-wiki-ops credentials login <domain>`.
+  and a worker never does: `{{@brain-cli-ops}} credentials set <domain> kind=dir
+  login=browser host=<domain>`, then `{{@brain-cli-ops}} credentials login <domain>`.
   It saves a persistent Chrome profile in the credential's directory. Then
-  `llm-wiki-ops credentials bind job <slug> dir=<domain>` maps it to the job.
+  `{{@brain-cli-ops}} credentials bind job <slug> dir=<domain>` maps it to the job.
 - **Cloudflare-fronted — the profile is what replays, and `<domain>.storage`
   is deliberately unused here.** A fresh bundled-Chromium context gets a
   Turnstile challenge; real Chrome (`channel="chrome"`) with the persistent
@@ -302,7 +302,7 @@ children AND the 5xx count hits 0. Probe with the bundled script
 (diagnostic only — not part of the worker loop):
 
 ```
-llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py . --ticket <id> [--settle-ms 8000]
+{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/outage_probe.py . --ticket <id> [--settle-ms 8000]
 ```
 
 It probes the ticket's own `target`, through `tickets open`. Always exits 0 and prints a JSON verdict;

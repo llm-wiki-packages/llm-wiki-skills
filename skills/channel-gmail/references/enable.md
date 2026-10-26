@@ -1,7 +1,7 @@
 # channel-gmail — after enabling
 
 1. One watch per mailbox. Ask a slug and a description for each, then:
-   `llm-wiki-ops jobs add <slug> slug=<slug>
+   `{{@brain-cli-ops}} jobs add <slug> slug=<slug>
    description="<whose mailbox>" skill=channel-gmail
    options.mailbox=<who>@example.com [every=1d]` — the target is a bare
    channel NAME, never a url, and a wiki holds ONE job per target: a second
@@ -23,11 +23,11 @@
    says `ok`, and the days pile up as pages in the staged tree that nothing
    reads and curate is left to judge. The skill cannot detect it: `dest` is
    the job's answer, and a harvest ticket does not carry one at all. Check
-   each job with `llm-wiki-ops jobs show <slug>` (it names `dest` and the
+   each job with `{{@brain-cli-ops}} jobs show <slug>` (it names `dest` and the
    target), and re-point any that is not under `research/channels/`.
    `jobs edit` refuses `dest`, but re-running `add` with the same target
    and slug moves it and keeps every other key:
-   `llm-wiki-ops jobs add <its target> slug=<slug> skill=channel-gmail
+   `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-gmail
    dest=research/channels/<slug>`.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
    not a secret. The skill declares `requires.credentials.file: "required"` and never
@@ -39,21 +39,21 @@
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
    mailbox". Bind the job, never the skill: a skill's mapping answers for
-   every mailbox. `skills enable --confirm`, which `/llm-wiki:enable` runs,
+   every mailbox. `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs,
    maps nothing and lists the skill's `file` slot as unmapped with a `bind
    skill` line; leave that line unrun. Exactly what to run, on the machine
    that pulls:
-   `printf '%s' '<who>@example.com' | llm-wiki-ops credentials set <slug>-mailbox`
+   `printf '%s' '<who>@example.com' | {{@brain-cli-ops}} credentials set <slug>-mailbox`
    — the name is the operator's to choose (`<slug>-mailbox` reads well in
    `credentials bindings`); the VALUE is unused by everything, so set it to
    the mailbox's address, a label, and NEVER to a real password or token
    (a spawned slice is granted its own copy of that one value). Then:
-   `llm-wiki-ops credentials bind job <slug> file=<slug>-mailbox` — `bind`
+   `{{@brain-cli-ops}} credentials bind job <slug> file=<slug>-mailbox` — `bind`
    refuses a name that is not set on this machine. After a peer changes the
    job, look at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.
 3. Enable the skill on every OTHER machine that pulls
-   (`/llm-wiki:enable channel-gmail`, which reviews the unit's sandbox
+   (`/{{@brain-plugin}}:enable channel-gmail`, which reviews the unit's sandbox
    there too) — installed is not loaded, and enablement never
    travels with a `git pull`.
 4. **Where this skill's HARVEST is expected to work: only where the

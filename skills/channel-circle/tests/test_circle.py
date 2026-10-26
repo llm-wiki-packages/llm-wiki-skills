@@ -39,6 +39,18 @@ CAPTURE = SCRIPTS / "capture_lesson.py"
 TO_MARKDOWN = SCRIPTS / "to_markdown.py"
 FIX = Path(__file__).resolve().parent / "fixtures"
 
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text.replace("{{@@brain-", "{{@brain-")
+
 UNIT = "channel-circle"
 BASE = "https://example.com"
 TARGET = f"{BASE}/c/course-one"
@@ -595,7 +607,7 @@ def test_a_hostile_href_never_reaches_a_plan(wiki_root, tmp_path):
 def test_no_documented_per_leaf_command_takes_a_url():
     """The worker's command line is a shell. SKILL.md's per-leaf commands name
     a lesson `--leaf <n>` and nothing in its code blocks interpolates a url."""
-    skill = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    skill = _doc(UNIT_DIR / "SKILL.md")
     blocks = "\n".join(re.findall(r"^```[^\n]*\n(.*?)^```", skill, flags=re.M | re.S))
     assert "--leaf <n>" in blocks
     for placeholder in ("<leaf.url>", "<url>", "<lesson-url>", "--base-url", "<course-url>"):
@@ -1121,7 +1133,7 @@ def test_the_documented_page_line_names_a_type():
     """`docs/contracts/note-format.md` requires `type` on every page and
     `page create` defaults a missing one to `note`. A lesson is not a note, and
     the page the SKILL writes is only as good as the line it prints."""
-    skill = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    skill = _doc(UNIT_DIR / "SKILL.md")
     lines = [line for line in skill.splitlines() if "llm-wiki-ops page create" in line or "llm-wiki-ops page edit" in line]
     assert lines, "no documented page line"
     for line in lines:

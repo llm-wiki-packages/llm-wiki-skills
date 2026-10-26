@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from harness import doc
+
 ROOT = Path(__file__).resolve().parents[1]
 USAGES = sorted(ROOT.glob("skills/*/references/usage.md"))
 _CELLS = re.compile(r"(?<!\\)\|")
@@ -47,7 +49,7 @@ def _argparse_of(path: Path) -> tuple[set, set]:
 
 def _rows(usage: Path):
     """`(first cell, whole row)` of each table row of the file."""
-    for line in usage.read_text(encoding="utf-8").splitlines():
+    for line in doc(usage).splitlines():
         if line.startswith("|") and not line.startswith("| :--"):
             cells = [c.strip() for c in _CELLS.split(line.strip().strip("|"))]
             yield cells[0], line

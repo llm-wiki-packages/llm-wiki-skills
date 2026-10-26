@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from harness import ROOT, _cli, enabled, rooted, run, unit_manifest
+from harness import doc as rendered
 
 DOCS = sorted([*ROOT.glob("skills/*/*.md"), *ROOT.glob("skills/*/references/*.md"), ROOT / "README.md"])
 
@@ -193,7 +194,7 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
     # `skills/<unit>/SKILL.md` and `skills/<unit>/references/*.md` both name a unit.
     parts = doc.relative_to(ROOT).parts
     unit = parts[1] if parts[0] == "skills" else None
-    wrong = _wrong(cli, job_record, doc.read_text(encoding="utf-8"), unit)
+    wrong = _wrong(cli, job_record, rendered(doc), unit)
     assert not wrong, f"{doc.relative_to(ROOT)}:\n  " + "\n  ".join(wrong)
 
 
@@ -265,7 +266,7 @@ def test_every_plugin_script_a_doc_runs_is_in_the_plugin():
         {
             (f"{doc.relative_to(ROOT)}: run {rel}", rel)
             for doc in DOCS
-            for rel in _PLUGIN_ADDRESS.findall(" ".join(doc.read_text(encoding="utf-8").split()))
+            for rel in _PLUGIN_ADDRESS.findall(" ".join(rendered(doc).split()))
             if not (Path(plugin) / rel).is_file()
         }
     )
@@ -282,7 +283,7 @@ def test_every_unit_script_a_doc_runs_is_in_the_unit():
     missing = sorted(
         f"{doc.relative_to(ROOT)}: run ops/skills/{unit}/scripts/{name}"
         for doc in DOCS
-        for unit, name in _UNIT_ADDRESS.findall(" ".join(doc.read_text(encoding="utf-8").split()))
+        for unit, name in _UNIT_ADDRESS.findall(" ".join(rendered(doc).split()))
         if not (ROOT / "skills" / unit / "scripts" / name).is_file()
     )
     assert not missing, "\n  ".join(["a doc runs a unit script that is not there:", *missing])
@@ -293,13 +294,13 @@ def test_the_unit_address_scan_finds_the_ones_it_was_written_for():
     found = {
         (unit, name)
         for doc in DOCS
-        for unit, name in _UNIT_ADDRESS.findall(" ".join(doc.read_text(encoding="utf-8").split()))
+        for unit, name in _UNIT_ADDRESS.findall(" ".join(rendered(doc).split()))
     }
     assert ("channel-youtube", "youtube_note.py") in found and len(found) >= 10, sorted(found)
 
 
 _REFERENCE = re.compile(r"llm-wiki-ops reference ([a-z0-9][a-z0-9-]*)(?![\w/:.-])")
-_REFERENCED = sorted({name for doc in DOCS for name in _REFERENCE.findall(" ".join(doc.read_text(encoding="utf-8").split()))})
+_REFERENCED = sorted({name for doc in DOCS for name in _REFERENCE.findall(" ".join(rendered(doc).split()))})
 
 
 @pytest.mark.parametrize("name", _REFERENCED)

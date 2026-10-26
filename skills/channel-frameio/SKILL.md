@@ -42,7 +42,7 @@ left out under `unplanned`).
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -50,13 +50,13 @@ sections below are those steps. Either step opens with the policy read — the
 stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-frameio
+{{@brain-cli-ops}} policy get <stage> channel-frameio
 ```
 
 ### harvest
 
 You are started IN your capture directory, and the worker loop and the report
-every worker leaves are `llm-wiki-ops reference pipeline-ticket`; this section
+every worker leaves are `{{@brain-cli-ops}} reference pipeline-ticket`; this section
 is what this venue adds.
 
 **Harvest is bytes.** You capture what the venue served and write one flat
@@ -77,7 +77,7 @@ ONE process ticket per `captured=` directory.
 #### 1. Read the job
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The fields this unit serves:
@@ -101,7 +101,7 @@ split), `min_date` (a listing card carries no date), `credential_mode`
 #### 2. Enumerate the tree (once, before any downloads)
 
 ```
-llm-wiki-ops run ops/skills/channel-frameio/scripts/enumerate_tree.py <target> --out <capture_dir>/tree.json
+{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/enumerate_tree.py <target> --out <capture_dir>/tree.json
 ```
 
 Walks folders via `data-asset-id` routing (no clicks) and writes a flat
@@ -116,7 +116,7 @@ none, and is outside `hosts` — report it and stop.
 #### 3. Capture the leaves and post progress
 
 ```
-llm-wiki-ops run ops/skills/channel-frameio/scripts/harvest_share.py <capture_dir> --ticket <id> \
+{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/harvest_share.py <capture_dir> --ticket <id> \
     [--title-strip "<share suffix>"] [--author NAME] [--group "<bundle name>"] [--group-type <kind>]
 ```
 
@@ -196,7 +196,7 @@ capturing machine; only its extracted text reaches the page.
 ### process
 
 One captured leaf, one page. You are started IN that leaf's capture dir. The
-fields this step reads (`llm-wiki-ops --json tickets open <id>`):
+fields this step reads (`{{@brain-cli-ops}} --json tickets open <id>`):
 
 | field | what it is here |
 | :--- | :--- |
@@ -214,7 +214,7 @@ No network, no credential, no browser.
    reason and stops:
 
    ```
-   llm-wiki-ops run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
+   {{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
        --capture-dir <capture_dir> --dest <dest> --ticket <id> --skip "<reason>"
    ```
 
@@ -222,7 +222,7 @@ No network, no credential, no browser.
    itself:
 
    ```
-   llm-wiki-ops run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
+   {{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
        --capture-dir <capture_dir> --dest <dest> --ticket <id>
    ```
 
@@ -244,10 +244,10 @@ retype it, and a settled title may itself carry a `'` (`safe_title` maps `"`
 to one):
 
 ```
-llm-wiki-ops page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" --stdin
+{{@brain-cli-ops}} page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" --stdin
 ```
 
-with the body on stdin, and `llm-wiki-ops page edit "<dest>/<title>.md" …
+with the body on stdin, and `{{@brain-cli-ops}} page edit "<dest>/<title>.md" …
 --stdin` on the one refusal that means this job landed the page before. A
 video leaf gets `extracted=queued` and `media=<capture_dir>/video.mp4` with an
 EMPTY body instead: that is the transcribe stage's item queue, and a page

@@ -28,11 +28,11 @@ hour.
 
 The token is the wiki's own vault entry: a fine-grained personal access
 token with no permissions at all (public repository read is implicit). Once
-per machine that harvests: name the vault, `llm-wiki-cli machine wikis
+per machine that harvests: name the vault, `{{@brain-cli}} machine wikis
 vault <key> local`; store the token with the host it may be spent at,
-`llm-wiki-ops credentials set github` with `{"value": "<token>", "host":
+`{{@brain-cli-ops}} credentials set github` with `{"value": "<token>", "host":
 "api.github.com"}` at its prompt; enable the skill; then map the route,
-`llm-wiki-ops credentials bind skill channel-github github=github`. The
+`{{@brain-cli-ops}} credentials bind skill channel-github github=github`. The
 route is the stage's, never the harness profile's.
 
 The routine has no credential.

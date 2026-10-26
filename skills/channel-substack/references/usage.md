@@ -6,7 +6,7 @@ No other argument. One harvest ticket captures a whole archive; one process tick
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-substack/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |
@@ -16,7 +16,7 @@ Each runs as `llm-wiki-ops run ops/skills/channel-substack/scripts/<script> …`
 | `capture_posts.py --report` | harvest, last | `--capture-dir <capture_dir> --report --ticket <id> [--missing URL=WHY]…` |
 | `to_markdown.py` | process | `<capture_dir>/page.html --out - --selector .available-content --base-url URL` |
 
-The process report is `llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json` (SKILL.md, process).
+The process report is `{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok written_from=written.json` (SKILL.md, process).
 
 `WHY` is `denied`, `timeout`, `auth` or `error`. `--max-leaves` defaults to
 200 and `--deadline-minutes` to 20. `-h` after a path lists the rest.

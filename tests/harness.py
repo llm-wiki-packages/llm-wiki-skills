@@ -21,6 +21,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -38,6 +39,40 @@ MANIFEST = json.loads((ROOT / "llm-wiki-package.json").read_text(encoding="utf-8
 SOURCE = MANIFEST["repository"]
 SKILLS = [a["name"] for a in MANIFEST["artifacts"] if a["type"] == "skill"]
 TEMPLATES = ROOT / "sandboxes"
+
+# The `{{@brain-…}}` tokens `skills enable` and `reference` fill in a unit's
+# `*.md` (the `unit-manifest` contract's Tokens section). The CLI names are
+# permanent; `brain` is the plugin namespace.
+TOKENS = {"brain-plugin": "brain", "brain-cli": "llm-wiki-cli", "brain-cli-ops": "llm-wiki-ops", "brain-cli-search": "llm-wiki-search"}
+_TOKEN_OPEN = re.compile(r"\{\{@(@?)brain-")
+_TOKEN_KEY = re.compile(r"(brain-[a-z-]*)\}\}")
+
+
+def render(text: str, *, where: str = "<text>") -> str:
+    """`text` as an enabled copy reads it. `{{@@brain-` is a literal
+    `{{@brain-`; any other `{{@…}}` passes through; a bad token inside the
+    namespace raises, naming `where` and the line."""
+    out, at = [], 0
+    for m in _TOKEN_OPEN.finditer(text):
+        out.append(text[at : m.start()])
+        if m.group(1):
+            out.append("{{@brain-")
+            at = m.end()
+            continue
+        key = _TOKEN_KEY.match(text, m.start() + 3)
+        if not key or key.group(1) not in TOKENS:
+            line = text.count("\n", 0, m.start()) + 1
+            seen = text[m.start() :].split("\n", 1)[0][:40]
+            raise ValueError(f"{where}:{line}: {seen!r} is not a token; the keys are " + ", ".join(f"{{{{@{k}}}}}" for k in TOKENS))
+        out.append(TOKENS[key.group(1)])
+        at = key.end()
+    out.append(text[at:])
+    return "".join(out)
+
+
+def doc(path: Path) -> str:
+    """A shipped `*.md`, rendered as the wiki reads it."""
+    return render(path.read_text(encoding="utf-8"), where=str(path.relative_to(ROOT)))
 
 
 def unit_manifest(name: str) -> dict:

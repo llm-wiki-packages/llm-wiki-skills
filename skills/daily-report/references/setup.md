@@ -76,10 +76,10 @@ With the operator present:
    sections is this, never the sample:
 
    ```sh
-   llm-wiki-ops op open grill
-   llm-wiki-ops jobs ls
-   llm-wiki-ops page ls filter=under:wiki/profile
-   llm-wiki-ops search status
+   {{@brain-cli-ops}} op open grill
+   {{@brain-cli-ops}} jobs ls
+   {{@brain-cli-ops}} page ls filter=under:wiki/profile
+   {{@brain-cli-ops}} search status
    ```
 
 2. **Ask what they care about seeing each morning**, in their words, few
@@ -94,8 +94,8 @@ With the operator present:
    explicit yes and never otherwise:
 
    ```sh
-   llm-wiki-ops policy get daily-report
-   llm-wiki-ops policy set daily-report     # the prose arrives on stdin
+   {{@brain-cli-ops}} policy get daily-report
+   {{@brain-cli-ops}} policy set daily-report     # the prose arrives on stdin
    ```
 
    One call carrying the complete folded text: which signals feed which
@@ -113,7 +113,7 @@ With the operator present:
    again:
 
    ```sh
-   llm-wiki-ops policy retire daily-report-setup
+   {{@brain-cli-ops}} policy retire daily-report-setup
    ```
 
 6. **Log the pass, then close the run.** The `schema`-prefixed line goes to
@@ -121,7 +121,7 @@ With the operator present:
    it stays uncommitted. Never `git commit`.
 
    ```sh
-   llm-wiki-ops op close grill outcome=ok summary="daily-report setup: brief (re)designed"
+   {{@brain-cli-ops}} op close grill outcome=ok summary="daily-report setup: brief (re)designed"
    ```
 
 A scheduled run never asks questions. It authors the best page it can from

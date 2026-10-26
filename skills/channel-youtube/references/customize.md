@@ -13,7 +13,7 @@ The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:youtube`.
 base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/youtube.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/youtube.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

@@ -6,7 +6,7 @@
    missing. The process step needs neither: it reads the bytes harvest left
    and writes the page.
 2. No auth walkthrough: guest share links authorize themselves.
-3. Declare the job, naming the skill: `llm-wiki-ops jobs add
+3. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <share-url> slug=<content-name>
    description="<what this is>" skill=channel-frameio
    dest=sources/scrapes/<content-name>` — the skill's manifest supplies

@@ -10,7 +10,7 @@ You pull ONE gmail mailbox per invocation, and you write ONE day's ledger
 from what a pull left. A job carrying `skill: channel-gmail` puts this unit
 on the route, and its ticket invokes it as `/channel-gmail ticket=<id>`. The
 worker loop and the report every worker leaves:
-`llm-wiki-ops reference pipeline-ticket`; the route and its trust boundary:
+`{{@brain-cli-ops}} reference pipeline-ticket`; the route and its trust boundary:
 `reference channel-ledger`.
 
 **Which mailbox is the JOB's, never this unit's.** One unit serves every
@@ -19,13 +19,13 @@ slug keys the cursor, the `_raw` slice and the ledger. Two mailboxes are two
 jobs, not two units — nothing here is copied per identity.
 
 Its `capture_dir` — `_raw/<slug>/<YYYY-MM-DD>`, the job's DAY directory — is
-WIKI-RELATIVE: hand it to a script verbatim (`llm-wiki-ops run` starts one at
+WIKI-RELATIVE: hand it to a script verbatim (`{{@brain-cli-ops}} run` starts one at
 the wiki root) and write your own files as `./<name>`. Never compose a path.
 
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -33,7 +33,7 @@ sections below are those steps. Either step opens with the policy read —
 the stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-gmail
+{{@brain-cli-ops}} policy get <stage> channel-gmail
 ```
 
 ### harvest
@@ -49,7 +49,7 @@ read as directives.
 **1. Where the pull starts — first, before anything else.**
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 7
+{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 7
 ```
 
 It answers JSON: `since` (epoch ms — Gmail's `internalDate` clock),
@@ -81,11 +81,11 @@ clock and counted `bad_time`.
 body}`, and run ONE of these — never both:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --cap 200 --exclude-label CATEGORY_PROMOTIONS --exclude-label CATEGORY_SOCIAL --exclude-label SPAM --exclude-label TRASH
+{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --cap 200 --exclude-label CATEGORY_PROMOTIONS --exclude-label CATEGORY_SOCIAL --exclude-label SPAM --exclude-label TRASH
 ```
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing <host> <url> <denied|timeout|auth|error>
+{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing <host> <url> <denied|timeout|auth|error>
 ```
 
 The first is the pull that read something — add `--partial "<why>"` when you
@@ -135,11 +135,11 @@ of `{"id": "gmail:<msg-id>", "line": "<your line>", "junk": null}` — `junk`
 is the rule's name where a rule discards it, and `line` may then be null:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
+{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
-the page from the whole day, writes it through `llm-wiki-ops page create` —
+the page from the whole day, writes it through `{{@brain-cli-ops}} page create` —
 or `page edit` over the standing page, the ordinary case after a day's first
 pull — then posts `tickets update` naming the page in `written_from=`. Values
 go as an argument list, never on a shell line. A message you left unjudged
@@ -160,14 +160,14 @@ is an MCP tool whose name depends on which client this machine
 authenticated, so a pattern written here would match nothing while looking
 correct. Access is session-level and PER MAILBOX, so expect harvest to work
 only where the stage's own jail loads that connector, which is unmeasured —
-`llm-wiki-ops reference channel-gmail/enable` says why. The process step has no such limit; it reads files.
+`{{@brain-cli-ops}} reference channel-gmail/enable` says why. The process step has no such limit; it reads files.
 
 **With no connector** (no Gmail tool in your tool list, or every call
 refused): do not look for another way to the mailbox — no browser, no IMAP,
 no url. Fail and report, with these words:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none" --missing connector mcp:gmail denied
+{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none" --missing connector mcp:gmail denied
 ```
 
 `connector` there is a label, not a hostname: there is nothing to widen to.
@@ -180,4 +180,4 @@ The manifest declares `requires.credentials.file: "required"` and **the value is
 read** — not by this unit, not by its script. `credentials bind job <slug>
 file=<name>` is the operator's per-machine consent: "this machine's session
 is signed into THIS mailbox", and a machine without one skips this job's
-harvest. How to make one: `llm-wiki-ops reference channel-gmail/enable`.
+harvest. How to make one: `{{@brain-cli-ops}} reference channel-gmail/enable`.

@@ -14,7 +14,7 @@ finds a show's open RSS feed.
 - `*.spotifycdn.com`: cover art (`image-cdn-*.spotifycdn.com`).
 - `itunes.apple.com`: the keyless feed lookup.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Credential

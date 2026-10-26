@@ -7,7 +7,7 @@ slug for each, and record them in the installed SKILL.md under a
 Ask free-only vs licensed. Free needs no auth; licensed needs a
 Playwright storage state for the newsletter's own domain (custom-domain
 newsletters may not share substack.com cookies). Licensed also needs the
-skill to DECLARE a credential — see `llm-wiki-ops reference channel-substack/enable` for the steps
+skill to DECLARE a credential — see `{{@brain-cli-ops}} reference channel-substack/enable` for the steps
 and their cost.
 
 Ask for an age floor (e.g. only posts from the last 3 months) — that
@@ -22,7 +22,7 @@ shows what each stage adds to its stock base and asks. What the stages
 reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/substack.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/substack.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

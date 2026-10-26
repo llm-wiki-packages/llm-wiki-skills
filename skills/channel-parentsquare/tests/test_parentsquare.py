@@ -11,6 +11,18 @@ import pytest
 
 UNIT = Path(__file__).resolve().parents[1]
 
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text.replace("{{@@brain-", "{{@brain-")
+
 # parentsquare-mcp 0.4.0's registered tools that read; every other registered tool adds, edits, invites, links or removes.
 READ_TOOLS = {
     "list_schools", "list_school_features", "get_feeds", "get_post", "list_conversations", "get_conversation",
@@ -23,14 +35,14 @@ USED = {"list_schools", "get_feeds", "get_post", "list_notices"}
 
 
 def test_the_body_names_the_read_tools_it_uses_by_their_full_name():
-    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT / "SKILL.md")
     named = set(re.findall(r"mcp__parentsquare__(\w+)", text))
     assert USED <= named, USED - named
     assert named <= READ_TOOLS, named - READ_TOOLS
 
 
 def test_the_body_reports_degraded_when_the_server_is_absent():
-    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT / "SKILL.md")
     assert "DEGRADED" in text and "status=failed" in text
 
 
@@ -44,7 +56,7 @@ def test_the_manifest_binds_the_login_by_variable():
 
 
 def test_the_venue_list_of_read_tools_is_the_whole_list():
-    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT / "SKILL.md")
     block = text.split("The server's read tools, 0.4.0:", 1)[1].split("This unit uses", 1)[0]
     assert set(re.findall(r"`(\w+)`", block)) == READ_TOOLS
 
@@ -137,7 +149,7 @@ SERVED = ("title", "date", "subject", "body", "author", "school", "comment")
 
 def test_no_shell_block_in_the_body_carries_served_text():
     """A fenced command or an inline one names a served field as an argument only if the session would type venue text into a shell."""
-    text = (UNIT / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT / "SKILL.md")
     shell = re.findall(r"^```sh\n(.*?)^```", text, re.M | re.S) + re.findall(r"`([^`\n]*(?:llm-wiki-ops|sha1sum|date -u)[^`\n]*)`", text)
     assert shell, "the scan found no command at all"
     leaks = [line for block in shell for line in block.splitlines() if re.search(rf"<({'|'.join(SERVED)})>", line)]

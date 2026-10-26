@@ -17,8 +17,8 @@ Ask, with an operator at the keyboard:
 Then offer to save the answers:
 
 ```sh
-llm-wiki-ops policy get daily-report     # read FIRST
-llm-wiki-ops policy set daily-report     # on the operator's yes, prose on stdin
+{{@brain-cli-ops}} policy get daily-report     # read FIRST
+{{@brain-cli-ops}} policy set daily-report     # on the operator's yes, prose on stdin
 ```
 
-`llm-wiki-ops reference daily-report/setup` prints the full interview (`setup.md`); `/daily-report setup` runs it.
+`{{@brain-cli-ops}} reference daily-report/setup` prints the full interview (`setup.md`); `/daily-report setup` runs it.

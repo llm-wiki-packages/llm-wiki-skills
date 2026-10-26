@@ -6,7 +6,7 @@ No other argument. One invocation serves one mailbox (`options.mailbox`) and one
 
 ## Script
 
-`scripts/write_items.py`, run as `llm-wiki-ops run ops/skills/channel-gmail/scripts/write_items.py <arm> <capture_dir> --ticket <id> …`.
+`scripts/write_items.py`, run as `{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py <arm> <capture_dir> --ticket <id> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | arm | step | further argv |

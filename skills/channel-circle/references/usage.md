@@ -6,7 +6,7 @@ No other argument. One harvest ticket walks a whole section; one process ticket 
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-circle/scripts/<script> …`
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/<script> …`
 at the wiki root. `<capture_dir>` is the ticket's own, wiki-relative,
 verbatim; a lesson is named by `--leaf <n>`, its `order` in `plan.json`, never
 by url.

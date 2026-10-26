@@ -13,7 +13,7 @@ metadata, captions and media, fetched by yt-dlp.
 - `*.googlevideo.com`: the media streams.
 - `*.ytimg.com`: thumbnails.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Filesystem

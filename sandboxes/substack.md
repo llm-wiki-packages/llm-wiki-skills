@@ -11,7 +11,7 @@ publication's archive API, its posts, and the images on its CDN.
 - `*.substack.com`: each publication's subdomain and `api.substack.com`.
 - `substackcdn.com`: post images.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Filesystem

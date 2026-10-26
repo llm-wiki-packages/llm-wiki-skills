@@ -6,7 +6,7 @@
   ],
   "name": "daily-report",
   "requires": {
-    "ops": ">=0.8.1"
+    "ops": ">=0.9.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report",
   "stages": {

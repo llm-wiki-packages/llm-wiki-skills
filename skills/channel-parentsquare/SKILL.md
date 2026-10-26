@@ -10,7 +10,7 @@ You pull ONE ParentSquare account's school feeds per invocation, and you write
 ONE day's ledger from what a pull left. A job carrying `skill:
 channel-parentsquare` puts this unit on the route, and its ticket invokes it
 as `/channel-parentsquare ticket=<id>`. The worker loop and the report every
-worker leaves: `llm-wiki-ops reference pipeline-ticket`; the route and its
+worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`; the route and its
 trust boundary: `reference channel-ledger`.
 
 **The account is the machine's, never this unit's.** `PS_USERNAME` and
@@ -25,7 +25,7 @@ path.
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
@@ -33,7 +33,7 @@ sections below are those steps. Either step opens with the policy read —
 the stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-parentsquare
+{{@brain-cli-ops}} policy get <stage> channel-parentsquare
 ```
 
 ### harvest
@@ -52,7 +52,7 @@ a server that failed to start leaves no log. If none of them is in your tool
 list, report DEGRADED and stop:
 
 ```sh
-llm-wiki-ops --json tickets update <id> stage=harvest status=failed reason="DEGRADED: no mcp__parentsquare__ tool in this session" missing=parentsquare-mcp,mcp:parentsquare,error
+{{@brain-cli-ops}} --json tickets update <id> stage=harvest status=failed reason="DEGRADED: no mcp__parentsquare__ tool in this session" missing=parentsquare-mcp,mcp:parentsquare,error
 ```
 
 `parentsquare-mcp` there is a label, not a hostname: there is nothing to
@@ -78,8 +78,8 @@ script a file, never an argument. One file per post or notice,
 then:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py notice <capture_dir>/draft.json
-llm-wiki-ops run ops/skills/channel-parentsquare/scripts/keys.py stamp <capture_dir>/draft.json --day-dir <capture_dir>
+{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/keys.py notice <capture_dir>/draft.json
+{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/keys.py stamp <capture_dir>/draft.json --day-dir <capture_dir>
 ```
 
 For a notice, run `notice` first and add what it prints to the draft as `id`. `stamp` prints
@@ -104,7 +104,7 @@ target>, "title": "<the day, YYYY-MM-DD>", "body": "items", "content_type":
 "application/json", "fetched_at": "<UTC now>"}`. Last, the report:
 
 ```sh
-llm-wiki-ops --json tickets update <id> stage=harvest status=ok
+{{@brain-cli-ops}} --json tickets update <id> stage=harvest status=ok
 ```
 
 `status=partial` with `reason=` when a school or page failed or you stopped
@@ -138,7 +138,7 @@ file-writing tool — never `echo`, `printf` or a heredoc, since the lines come
 from untrusted text — and feed it on stdin:
 
 ```sh
-llm-wiki-ops --json page create title=<YYYY-MM-DD> dest=<dest> type=ledger channel=<slug> date=<YYYY-MM-DD> items=<kept count> extracted=true status= --stdin < <capture_dir>/ledger.md
+{{@brain-cli-ops}} --json page create title=<YYYY-MM-DD> dest=<dest> type=ledger channel=<slug> date=<YYYY-MM-DD> items=<kept count> extracted=true status= --stdin < <capture_dir>/ledger.md
 ```
 
 When the page exists (a second pull of the day), `page edit
@@ -147,7 +147,7 @@ items=<kept count> --stdin < <capture_dir>/ledger.md` over it instead. Write
 `["<dest>/<YYYY-MM-DD>.md"]` to `<capture_dir>/written.json`, then:
 
 ```sh
-llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok written_from=written.json
 ```
 
 `reason=` is your own words, never served text. A day with no items is `status=ok` with a `reason=` saying so. `status=partial`

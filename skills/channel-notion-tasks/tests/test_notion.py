@@ -22,6 +22,18 @@ import pytest
 
 UNIT_DIR = Path(__file__).resolve().parents[1]  # the unit, wherever its tree sits
 UNIT = "channel-notion-tasks"
+
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text.replace("{{@@brain-", "{{@brain-")
 SCRIPT = UNIT_DIR / "scripts" / "write_items.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "pull.json"
 DAY = "2026-09-18"
@@ -366,7 +378,7 @@ def test_a_failure_with_nothing_read_is_failed_and_leaves_no_stale_pull(tmp_path
 
 
 def test_skill_md_runs_no_ntn_of_its_own():
-    text = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT_DIR / "SKILL.md")
     blocks = re.findall(r"^```sh\n(.*?)^```$", text, re.M | re.S)
     bare = [line for block in blocks for line in block.replace("\\\n", " ").splitlines() if re.search(r"(^|\|)\s*ntn\s", line)]
     assert not bare, f"a venue command belongs in a script: {bare}"

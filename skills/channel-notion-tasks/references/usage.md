@@ -6,7 +6,7 @@ No other argument. One invocation serves one workspace (`options.workspace`) and
 
 ## Scripts
 
-Both run as `llm-wiki-ops run ops/skills/channel-notion-tasks/scripts/<script> …`.
+Both run as `{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

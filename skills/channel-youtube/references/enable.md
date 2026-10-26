@@ -1,6 +1,6 @@
 # channel-youtube — after enabling
 
-1. Declare the job, naming the skill: `llm-wiki-ops jobs add
+1. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <video-url> slug=<video-name>
    description="<what this is>" skill=channel-youtube` — the skill's manifest
    supplies the rest (`every=once`, `harvest.scope=page`,
@@ -14,9 +14,9 @@
    jailed browser it opens, and bind it to the job:
 
    ```sh
-   llm-wiki-ops credentials set youtube kind=dir login=browser host=youtube.com
-   llm-wiki-ops credentials login youtube
-   llm-wiki-ops credentials bind job <slug> dir=youtube
+   {{@brain-cli-ops}} credentials set youtube kind=dir login=browser host=youtube.com
+   {{@brain-cli-ops}} credentials login youtube
+   {{@brain-cli-ops}} credentials bind job <slug> dir=youtube
    ```
 
    Use a throwaway Google account, and never open that profile in a browser
@@ -26,6 +26,6 @@
    `credentials login youtube` again and the next harvest re-exports from
    the fresh profile. Public videos need none of this. Bind the job, not
    the skill: a skill's `dir` is handed to every job of the skill.
-   `skills enable --confirm`, which `/llm-wiki:enable` runs, maps nothing
+   `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs, maps nothing
    and lists the skill's `dir` slot as unmapped with a `bind skill` line;
    leave that line unrun.

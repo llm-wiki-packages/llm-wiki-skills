@@ -6,7 +6,20 @@ from pathlib import Path
 import pytest
 
 SKILL = Path(__file__).resolve().parents[1]
-BODY = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text.replace("{{@@brain-", "{{@brain-")
+
+
+BODY = _doc(SKILL / "SKILL.md")
 SETUP = SKILL / "references" / "setup.md"
 
 
@@ -19,7 +32,7 @@ def test_the_frontmatter_names_this_directory():
 
 def test_the_body_names_itself_as_a_unit_invocation():
     assert "whereami skill=daily-report " in BODY
-    assert "llm-wiki:daily-report" not in BODY
+    assert "PLUGIN:daily-report" not in BODY
 
 
 LOCAL = sorted(p.name for p in (SKILL / "references").glob("*"))
@@ -44,7 +57,7 @@ MARKER_GUARD = "when §1's read returned it"
 
 
 def test_the_setup_marker_is_retired_only_when_it_was_found():
-    setup = SETUP.read_text(encoding="utf-8")
+    setup = _doc(SETUP)
     assert "llm-wiki-ops policy retire daily-report-setup" in setup
     assert MARKER_GUARD in setup, "setup.md retires the marker unconditionally"
     assert MARKER_GUARD in BODY, "the skill body's §8 clause carries no condition"
@@ -93,7 +106,7 @@ def test_the_skill_never_commits_or_posts_its_own_report():
 def test_no_file_of_the_unit_runs_git_commit(doc):
     """By hand and under a ticket alike, the op's close commits what the run
     wrote; the setup path closes `grill` the same way."""
-    assert "llm-wiki-ops git commit" not in (SKILL / doc).read_text(encoding="utf-8"), doc
+    assert "llm-wiki-ops git commit" not in _doc(SKILL / doc), doc
 
 
 def test_the_schedule_it_names_is_the_ops_morning_job():

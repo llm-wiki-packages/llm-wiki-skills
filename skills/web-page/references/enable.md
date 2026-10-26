@@ -4,5 +4,5 @@ A plain-url job names this unit as its harvester, the way a channel unit's
 job names its own — `jobs add` picks no unit for a url on its own:
 
 ```sh
-llm-wiki-ops jobs add <url> slug=<slug> description="<what this is>" skill=web-page
+{{@brain-cli-ops}} jobs add <url> slug=<slug> description="<what this is>" skill=web-page
 ```

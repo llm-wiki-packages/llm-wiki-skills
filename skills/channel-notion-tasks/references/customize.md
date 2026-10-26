@@ -23,7 +23,7 @@ The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:notion`.
 base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/notion.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/notion.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by
@@ -34,6 +34,6 @@ The `notion` route is on the template's harvest stage, and the manifest
 declares `requires.credentials.routes.notion` `"required"`. The template's
 probe, `ntn whoami`, runs after the yes at `skills enable` and spends the
 wiki's vault entry `notion` through the mapped route, so on each machine name
-the vault, store the token and map the route BEFORE `/llm-wiki:enable` (steps 2 and 3 of `llm-wiki-ops reference
+the vault, store the token and map the route BEFORE `/{{@brain-plugin}}:enable` (steps 2 and 3 of `{{@brain-cli-ops}} reference
 channel-notion-tasks/enable`). No route in a harness profile: the route is
 the stage's.

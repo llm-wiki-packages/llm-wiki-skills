@@ -7,7 +7,7 @@ no other argument. Single videos are the proven shape.
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-youtube/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/<script> …`.
 
 | script | step | argv |
 | :--- | :--- | :--- |
