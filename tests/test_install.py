@@ -9,7 +9,7 @@ import re
 
 import pytest
 
-from harness import ROOT, SKILLS, SOURCE, enabled, rooted, run, template_name, unit_manifest
+from harness import ROOT, SKILLS, SOURCE, doc, enabled, rooted, run, template_name, unit_manifest
 
 # The capture units a job is added for: each serves `harvest`, no `routine`,
 # and carries the `watch` block `jobs add` reads.
@@ -42,6 +42,11 @@ def test_skill_installs_with_package_provenance_lists_clean_and_enables(ops, env
     # Enable is the gate: it classifies the sandbox install wrote, asks, and refuses unattended without `--confirm`.
     enabled(ops, env, wiki, name)
     assert (wiki / ".agents" / "skills" / name / "SKILL.md").is_file()
+    # The enabled copy is what an agent reads, so its `*.md` carry the names, not the tokens.
+    unit = ROOT / "skills" / name
+    for source in sorted(unit.rglob("*.md")):
+        rel = source.relative_to(unit)
+        assert (wiki / ".agents" / "skills" / name / rel).read_text(encoding="utf-8") == doc(source), f"{name}/{rel}: the enabled copy is not the source filled in"
 
 
 def test_the_capture_selection_is_not_empty():

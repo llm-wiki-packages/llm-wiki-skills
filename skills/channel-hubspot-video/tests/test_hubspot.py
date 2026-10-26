@@ -36,6 +36,18 @@ import pytest
 
 UNIT_DIR = Path(__file__).resolve().parents[1]  # the unit, wherever its tree sits
 UNIT = "channel-hubspot-video"
+
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text
 SCRIPTS = UNIT_DIR / "scripts"
 LEAVES = SCRIPTS / "leaves.py"
 CAPTURE = SCRIPTS / "capture_hubspot_video.py"
@@ -398,14 +410,14 @@ def test_no_doc_or_manifest_names_the_extract_block_any_more():
     manifest = json.loads((UNIT_DIR / "manifest.json").read_text(encoding="utf-8"))
     assert "extract" not in manifest
     for name in ("SKILL.md", "references/customize.md", "references/enable.md"):
-        text = (UNIT_DIR / name).read_text(encoding="utf-8")
+        text = _doc(UNIT_DIR / name)
         assert '"extract"' not in text and "fill the manifest" not in text, name  # no doc shows or asks for the key
     for name in ("SKILL.md", "references/enable.md"):
-        assert "references/sites.json" in (UNIT_DIR / name).read_text(encoding="utf-8"), name
+        assert "references/sites.json" in _doc(UNIT_DIR / name), name
 
 
 def test_the_stages_speak_the_new_contract():
-    text = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT_DIR / "SKILL.md")
     assert re.search(r'^argument-hint: "ticket=<id>"$', text, re.M)
     for gone in ("<job.", "harvest_apply", "out_of_scope`", "scaffold", "intake.py", "job.py", "watch.py", "drain_pending"):
         assert gone not in text, gone
@@ -430,7 +442,7 @@ def test_the_stages_speak_the_new_contract():
 
 def test_every_script_this_unit_ships_is_named_where_a_worker_would_run_it():
     """A script no SKILL.md line runs, and no sibling runs, is dead surface."""
-    skill = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    skill = _doc(UNIT_DIR / "SKILL.md")
     runs = set(re.findall(r"llm-wiki-ops run \S*/([\w-]+\.py)", skill))
     siblings = "\n".join(path.read_text(encoding="utf-8") for path in SCRIPTS.glob("*.py"))
     for script in sorted(SCRIPTS.glob("*.py")):
@@ -441,7 +453,7 @@ def test_every_script_this_unit_ships_is_named_where_a_worker_would_run_it():
 def test_the_quirks_log_holds_venue_facts_and_nothing_else():
     """The log is what this VENUE does, dated. Facts about the plugin, the
     harness or the port belong in the change record, not here."""
-    log = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8").split("## Quirks log", 1)[1]
+    log = _doc(UNIT_DIR / "SKILL.md").split("## Quirks log", 1)[1]
     assert "2026-07-31" in log  # the oldest entry is still there
     for stale in ("user-invocable", "known[]", "key=value", "stage=", "Ported", "the port", "until the plugin", "Review fixes"):
         assert stale not in log, stale
@@ -928,7 +940,7 @@ def test_render_reads_its_url_off_the_plan(tmp_path):
 def test_venue_text_on_a_command_line_is_quoted_verbatim_and_never_retyped():
     """The harvest half never lets a url near a shell at all (`--leaf <n>`);
     the process half has the worker paste venue text, under one stated rule."""
-    skill = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    skill = _doc(UNIT_DIR / "SKILL.md")
     harvest = skill.split("### harvest", 1)[1].split("### process", 1)[0]
     assert "--leaf <n>" in harvest
     for typed in ("--external-url", "--base-url", "--referer", "render <item>", "render <url>", "--missing <", "--url <"):

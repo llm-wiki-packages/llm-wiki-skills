@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, doc, unit_manifest
 
 # The capture units whose body a session follows: each serves `harvest` or
 # `process`, no `routine`, and either some stage with no `script` or a
@@ -135,7 +135,7 @@ def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_tick
     process too: the manifest declares both stages, the body documents both,
     and the one invocation for either is `/<unit> ticket=<id>`."""
     assert list(unit_manifest(name)["stages"]) == ["harvest", "process"], unit_manifest(name)["stages"]
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     front = skill.split("---", 2)[1]
     assert re.search(r'^argument-hint:\s*"ticket=<id>"\s*$', front, re.M), front
     assert unit_manifest(name)["usage"] == f"/{name} ticket=<id>"
@@ -152,7 +152,7 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     two-name form is ops 1.95's, and the package's `min_ops_version` is past
     it: a unit's own floor must not fall under the package's, or a unit
     spelling the read would claim to run on a CLI that refuses it."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1].split("\n### harvest", 1)[0]
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
     version = lambda text: tuple(int(b) for b in text.removeprefix(">=").split("."))  # noqa: E731
@@ -185,7 +185,7 @@ BUDGET = {
 
 @pytest.mark.parametrize("name", CHANNELS)
 def test_a_unit_stays_under_its_budget(name):
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     lines = len(skill.split("# Quirks log\n", 1)[0].splitlines())
     assert lines <= BUDGET[name], f"{name}: {lines} lines before the quirks log, budget {BUDGET[name]} — the reasoning belongs in a reference"
 
@@ -195,7 +195,7 @@ def test_a_quirks_log_is_dated_one_liners(name):
     """One dated line per venue fact, in one shape across the units, never a
     narrative of the port: `- YYYY-MM-DD — <the fact>`. Read to the end of
     the file, so the log stays the last section."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     log = skill.split("# Quirks log\n", 1)[1] if "# Quirks log\n" in skill else ""
     entries = [line for line in log.splitlines() if line.startswith("- ")]
     undated = [line for line in entries if not re.match(r"^- 20\d\d-\d\d-\d\d — \S", line)]
@@ -208,7 +208,7 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     with no `stage=`, and the unit follows the section named by the
     answer's own `stage` — never a `stage=` in `$ARGUMENTS`, and never a
     file in the capture directory."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1]
     opener = stages.split("\n### harvest", 1)[0]
     assert "llm-wiki-ops --json tickets open <id>" in opener, opener[:300]
@@ -225,7 +225,7 @@ def test_a_routine_unit_opens_and_closes_its_op_and_never_commits(name):
     Under the ticket `op close` is the report and the landing commits under
     the unit's op (`reference skill-authoring`), so the body opens and closes
     its op, never runs `git commit`, and posts no outcome of its own."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     assert "ticket=<id> stage=routine" in skill, name
     assert f"llm-wiki-ops op open {name}" in skill and f"llm-wiki-ops op close {name} outcome=" in skill, name
     assert "llm-wiki-ops git commit" not in skill, name
@@ -238,7 +238,7 @@ def test_a_unit_is_reachable_by_the_invocation_its_spawner_types(name):
     `user-invocable: false` the harness answers that with no model turn at
     all — exit 0, no report — so the key that would make a unit undispatchable
     is refused here, beside the two the authoring contract already names."""
-    front = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
     for refused in ("user-invocable:", "disable-model-invocation:", "allowed-tools:"):
         assert refused not in front, f"{name}: {refused} makes the unit unreachable by `/{name} ticket=<id>`"
 
@@ -325,7 +325,7 @@ def test_every_script_a_unit_ships_is_one_something_runs(name):
     scripts = sorted(p for p in unit.glob("scripts/*.py") if "__pycache__" not in p.parts)
     if not scripts:
         return
-    skill = (unit / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(unit / "SKILL.md")
     run_lines = "\n".join(line for line in skill.splitlines() if "llm-wiki-ops run" in line or "run ops/skills/" in line)
     dead = []
     for script in scripts:

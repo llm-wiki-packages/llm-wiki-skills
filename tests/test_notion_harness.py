@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from harness import ROOT, claimed, declared_job, local_vault, mapped_route, pending, rooted, run, staged, template, unit_tests, unmapped_route
+from harness import ROOT, claimed, doc, declared_job, local_vault, mapped_route, pending, rooted, run, staged, template, unit_tests, unmapped_route
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-notion-tasks", "test_notion"))
@@ -68,14 +68,14 @@ def test_the_template_carries_the_notion_route_the_wikis_vault_resolves():
     }}
     assert "CREDENTIAL" not in json.dumps({k: v for k, v in harvest.items() if k != "network"}).upper()
     # The route is this stage's, filled from the wiki's vault by the skill's mapping: no login, no harness-profile route.
-    text = (ROOT / "sandboxes" / "notion.md").read_text(encoding="utf-8")
+    text = doc(ROOT / "sandboxes" / "notion.md")
     assert "llm-wiki-ops credentials set notion" in text
     assert "never the harness profile's" in " ".join(text.split())
     assert "~/.config/llm-wiki" not in text
 
 
 def test_enable_md_names_the_vault_not_a_login_or_a_harness_profile():
-    enable = (ROOT / "skills" / "channel-notion-tasks" / "references" / "enable.md").read_text(encoding="utf-8")
+    enable = doc(ROOT / "skills" / "channel-notion-tasks" / "references" / "enable.md")
     flat = " ".join(enable.split())
     assert "llm-wiki-ops credentials set notion" in flat
     assert "No `ntn login`, and no route in a harness profile" in flat
