@@ -18,10 +18,8 @@ concurrency:
 # Which llm-wiki-plugins ref the CLI comes from. `main` is what a merge here
 # must be green against; a branch may point it at a plugins branch to prove
 # itself against a CLI that has not landed, and sets it back before it lands.
-# `git clone --branch` takes a branch or tag name, never a sha, so a pin to a
-# plugins branch is that branch's name.
 env:
-  PLUGINS_REF: pr/sandbox-pass3-wiki-skills
+  PLUGINS_REF: main
 
 jobs:
   harness:
