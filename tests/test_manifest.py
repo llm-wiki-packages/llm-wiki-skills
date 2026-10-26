@@ -51,4 +51,5 @@ def test_every_units_floor_is_at_or_above_the_packages(name):
     else checks its floor. A unit spelling a lower `requires.ops` would claim
     to run on an ops CLI that `check-manifest.py` never rejects it for."""
     floor = unit_manifest(name)["requires"].get("ops")
+    assert floor, f"{name}: declares no requires.ops"
     assert _version(floor) >= _version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"
