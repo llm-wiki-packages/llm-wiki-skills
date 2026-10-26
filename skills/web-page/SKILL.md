@@ -8,7 +8,7 @@ argument-hint: "ticket=<id>"
 
 You are the plain-url harvest ticket's unit. Unlike every channel unit,
 your one stage runs with no model session at all: the pass starts
-`scripts/fetch.py` directly — `llm-wiki-ops run ops/skills/web-page/scripts/fetch.py
+`scripts/fetch.py` directly — `{{@brain-cli-ops}} run ops/skills/web-page/scripts/fetch.py
 ticket=<id>` (G2) — in the harvest stage's jail, and that script reads the
 ticket, fetches, and posts `tickets update` itself. There is no hand-run
 form: the script runs only through the runner, and `tickets run <id>
@@ -17,8 +17,8 @@ spawn=self` is refused for this unit's ticket.
 ## Running a ticket
 
 ```sh
-llm-wiki-ops --json jobs run job=<slug> wait=<s>
-llm-wiki-ops --json tickets run <id> wait=<s>
+{{@brain-cli-ops}} --json jobs run job=<slug> wait=<s>
+{{@brain-cli-ops}} --json tickets run <id> wait=<s>
 ```
 
 Either starts the stage jailed. The host's `close` (`tickets close <id>`) reads whatever `tickets update` the
@@ -40,5 +40,5 @@ refresh does differently.
 
 ## Reference
 
-`llm-wiki-ops reference pipeline-ticket` for the worker loop and the
+`{{@brain-cli-ops}} reference pipeline-ticket` for the worker loop and the
 report every worker leaves.

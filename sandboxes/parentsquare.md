@@ -26,7 +26,7 @@ source says those are S3 or CDN URLs; it pins no host and no run has
 measured one. They are refused in this jail and the server reports the
 failure. The harvest reads post text, which needs neither.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## MCP

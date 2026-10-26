@@ -23,7 +23,7 @@ The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:frameio`.
 base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/frameio.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/frameio.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

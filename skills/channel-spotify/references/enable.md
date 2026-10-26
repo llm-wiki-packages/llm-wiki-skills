@@ -6,17 +6,17 @@
    routes before the yes), and its value is the wiki's own, in
    its credential vault, mapped to the route on this machine. The route is on the
    harvest stage of the unit's sandbox (`references/customize.md`). Once
-   per machine that harvests, name the wiki's vault with `llm-wiki-cli
+   per machine that harvests, name the wiki's vault with `{{@brain-cli}}
    machine wikis vault <key> local`, `<key>` being this wiki's key in
-   `llm-wiki-cli machine wikis ls`; the `credentials` row of `llm-wiki-ops
+   `{{@brain-cli}} machine wikis ls`; the `credentials` row of `{{@brain-cli-ops}}
    doctor` names the same line, and `bind` refuses until it is run. Have the
    operator create an app at developer.spotify.com → Dashboard; then the
    OPERATOR runs this at a terminal, once per machine that harvests:
 
    ```sh
    printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
-   llm-wiki-ops credentials set spotify
-   llm-wiki-ops credentials bind skill channel-spotify spotify=spotify
+   {{@brain-cli-ops}} credentials set spotify
+   {{@brain-cli-ops}} credentials bind skill channel-spotify spotify=spotify
    ```
 
    The first line reads `<client_id>:<client_secret>` typed at the terminal
@@ -26,7 +26,7 @@
    argument (argv is readable in `ps` and lands in shell history), and
    `credentials set` asks only at a terminal: its stdin is not a pipe. The
    third maps the route to it; `bind` refuses a value whose host is not the
-   route's. `skills enable --confirm`, which `/llm-wiki:enable` runs, maps
+   route's. `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs, maps
    nothing: it lists `spotify` as unmapped, with that line. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
    token request bound for `accounts.spotify.com`. With the route mapped to a
@@ -38,7 +38,7 @@
    operator for the entity's Spotify URL, then watch that. Nothing in this
    unit searches the catalog.
 3. **Declare the job**: one per entity URL.
-   `llm-wiki-ops jobs add <entity-url> slug=<content-name>
+   `{{@brain-cli-ops}} jobs add <entity-url> slug=<content-name>
    description="<what this is>" skill=channel-spotify
    meta.group="<name>" meta.group_type=playlist|series` — a playlist or show
    is a bundle. open.spotify.com is a generic share host carrying no source

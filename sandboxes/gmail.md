@@ -10,7 +10,7 @@ through the account's Gmail connector. The slice fetches nothing else.
 - `gmailmcp.googleapis.com`: the Gmail connector's MCP endpoint (`claude mcp
   list`), and the host this unit's credential is spent at.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Credential

@@ -11,7 +11,7 @@ unattended: `reply`, `followup` and `clean --apply` write to the mailbox.
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-gmail-gws/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

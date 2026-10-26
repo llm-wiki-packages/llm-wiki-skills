@@ -9,8 +9,8 @@ each reads what is there first.
 This section answers which tags, areas and repo categories the wiki already uses.
 
 ```sh
-llm-wiki-ops run ops/skills/channel-github/scripts/catalog.py census
-llm-wiki-ops policy get channel-github
+{{@brain-cli-ops}} run ops/skills/channel-github/scripts/catalog.py census
+{{@brain-cli-ops}} policy get channel-github
 ```
 
 `census` answers the tags, areas and `wiki/areas/` hubs in use across
@@ -23,8 +23,8 @@ No repo landed yet, and a stars job declared (§8)? Offer to run it first,
 so the proposal is grounded in the operator's real stars, not guessed:
 
 ```sh
-llm-wiki-ops jobs claim <slug>
-llm-wiki-ops jobs run job=<slug> wait=600s
+{{@brain-cli-ops}} jobs claim <slug>
+{{@brain-cli-ops}} jobs run job=<slug> wait=600s
 ```
 
 ## 2. Propose the taxonomy
@@ -53,7 +53,7 @@ operator says yes.
 
 This section answers what the `channel-github` overlay holds and how it is written.
 
-`llm-wiki-ops policy set channel-github`, the whole text on stdin, freeform
+`{{@brain-cli-ops}} policy set channel-github`, the whole text on stdin, freeform
 bullets, never a schema (read it first, and keep what it already says):
 
 ```markdown
@@ -83,7 +83,7 @@ This section answers which list pages the routine writes and how they rank.
 Show `references/lists.json` (the wiki's copy) and the result:
 
 ```sh
-llm-wiki-ops run ops/skills/channel-github/scripts/catalog.py preview
+{{@brain-cli-ops}} run ops/skills/channel-github/scripts/catalog.py preview
 ```
 
 Ask:
@@ -110,7 +110,7 @@ Both templates write a harvest-shaped page, so a clip IS a repo page and the
 next harvest merges into it:
 
 - **Web Clipper** (the browser extension): Settings → Templates → Import,
-  and pick this unit's `references/clipper-github-repo.json` (`llm-wiki-ops
+  and pick this unit's `references/clipper-github-repo.json` (`{{@brain-cli-ops}}
   reference channel-github/clipper-github-repo` names its location). Its
   trigger selects it on any `github.com/<owner>/<repo>` page, its note
   location is `sources/github`, and its note name is `<owner>--<repo>` — the
@@ -169,5 +169,5 @@ stars, one for what they follow, and one routines job for the lists.
 This section answers what else to keep as the wiki's defaults.
 
 Anything asked here and not yet saved — the operator's GitHub login, the
-cadence the lists regenerate at — offer `llm-wiki-ops policy set
+cadence the lists regenerate at — offer `{{@brain-cli-ops}} policy set
 channel-github` (read first).

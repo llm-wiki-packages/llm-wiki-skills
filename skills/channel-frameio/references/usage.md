@@ -6,7 +6,7 @@ No other argument. One harvest ticket captures a whole share; one process ticket
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-frameio/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

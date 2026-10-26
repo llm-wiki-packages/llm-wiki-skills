@@ -3,7 +3,7 @@
 Most of what a wiki customizes is not in this unit's prose. Three surfaces,
 each the wiki's:
 
-1. **The overlay** — `llm-wiki-ops policy get channel-github`, written on
+1. **The overlay** — `{{@brain-cli-ops}} policy get channel-github`, written on
    the operator's yes with `policy set channel-github` (`setup` §3):
    - **Categories** — the taxonomy, one bullet each: the tag, when it
      applies, the GitHub topics that map onto it.
@@ -61,7 +61,7 @@ it as the unit's `sandbox.jsonc`; `skills enable` shows what each stage adds
 to its stock base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/github.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/github.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

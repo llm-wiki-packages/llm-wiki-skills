@@ -3,7 +3,7 @@
 A script unit: its one stage runs no model session. The runner starts
 
 ```sh
-llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>
+{{@brain-cli-ops}} run ops/skills/web-page/scripts/fetch.py ticket=<id>
 ```
 
 There is no hand-run form (SKILL.md, intro).

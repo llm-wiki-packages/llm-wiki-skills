@@ -14,7 +14,7 @@ Playwright, and the Mux stream behind the player is fetched.
 - `*.mux.com`: the rendition hosts behind the master
   (`manifest-*.edgemv.mux.com`); the exact set is unverified.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Filesystem

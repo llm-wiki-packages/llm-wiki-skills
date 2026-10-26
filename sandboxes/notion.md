@@ -13,7 +13,7 @@ public API.
   `developers.notion.com` to learn the latest version; that host is left
   out, so the template sets the version instead.
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Environment
@@ -34,12 +34,12 @@ machine, while this one reaches Notion only from this stage.
 
 The route's token is the wiki's own, in its credential vault, and the
 route's name is a binding name. Once per machine that harvests, in this
-order: name the vault, `llm-wiki-cli machine wikis vault <key> local`
-(`<key>` is this wiki's key in `llm-wiki-cli machine wikis ls`; the doctor's
+order: name the vault, `{{@brain-cli}} machine wikis vault <key> local`
+(`<key>` is this wiki's key in `{{@brain-cli}} machine wikis ls`; the doctor's
 `credentials` row names the same line); store the Notion bot token with the
-host it may be spent at, `llm-wiki-ops credentials set notion` with
+host it may be spent at, `{{@brain-cli-ops}} credentials set notion` with
 `{"value": "<token>", "host": "api.notion.com"}` at its prompt; map the
-route, `llm-wiki-ops credentials bind skill channel-notion-tasks
+route, `{{@brain-cli-ops}} credentials bind skill channel-notion-tasks
 notion=notion`; then enable the skill, whose probe spends that entry inside
 the jail and fails on an unmapped route. `skills enable` maps nothing: it
 lists `notion` as unmapped, with that line. `sandboxes

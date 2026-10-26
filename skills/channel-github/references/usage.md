@@ -11,7 +11,7 @@
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-github/scripts/<script> …`
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-github/scripts/<script> …`
 at the wiki root. `<capture_dir>` is the ticket's own, wiki-relative,
 verbatim.
 

@@ -24,7 +24,7 @@ The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:circle`.
 base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/circle.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/circle.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

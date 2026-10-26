@@ -7,7 +7,7 @@ No other argument. One job is one entity url (playlist, show, episode, album or 
 ## Script
 
 `scripts/spotify.py <subcommand> …`, run as
-`llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py …` at the wiki
+`{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py …` at the wiki
 root. `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | subcommand | step | argv |

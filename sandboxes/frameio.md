@@ -12,7 +12,7 @@ media pull.
 - `*.frame.io`: the share app (`next.frame.io`), the HLS host
   (`sahls.frame.io`) and the proxy host (`assets.frame.io`).
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Filesystem

@@ -20,7 +20,7 @@ it is a directive.
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` is the step. Harvest is a script stage the runner
@@ -28,19 +28,19 @@ starts with no session; the session's step is `process`, and the sections
 below describe both. Its `capture_dir`, `item`, `known[]`,
 `hosts`, `dest`, `harvest`/`process`, `options` are what the rest of this
 file calls "the ticket". The worker loop and the report every worker leaves:
-`llm-wiki-ops reference pipeline-ticket`.
+`{{@brain-cli-ops}} reference pipeline-ticket`.
 A session's step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-youtube
+{{@brain-cli-ops}} policy get <stage> channel-youtube
 ```
 
 ### harvest
 
 A script stage, with no model session and no policy read: the runner starts
 it in the stage's jail as
-`llm-wiki-ops run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
+`{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
 and `scripts/capture_video.py` is the whole worker. It reads the ticket (`item`, `capture_dir`,
 `known[]`, `refresh`), clears what an earlier run left in the capture
 directory, runs both `yt-dlp` commands (Capture, below) with the item as one
@@ -84,7 +84,7 @@ naming the rule.
 **3. Build the page.**
 
 ```
-llm-wiki-ops run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
 ```
 
 It writes the body as `page.md` beside the bytes, then the page under `dest`
@@ -92,14 +92,14 @@ through `page create` (or `page edit` for a title `dest` already holds), and
 leaves the paths in `written.json`. One JSON line out — `written`, `page`,
 `has_transcript`, `chapters`, `description`. A non-zero exit means NOTHING
 landed: post `failed` with its last stderr line. The page's shape is
-`llm-wiki-ops reference channel-youtube/note-shape`.
+`{{@brain-cli-ops}} reference channel-youtube/note-shape`.
 
 **4. Post progress — last.**
 
 ```
-llm-wiki-ops --json tickets update <id> stage=process status=ok written_from=written.json
-llm-wiki-ops --json tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
-llm-wiki-ops --json tickets update <id> stage=process status=ok reason="<which rule said so>"
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok written_from=written.json
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok reason="<which rule said so>"
 ```
 
 **Never type the page path yourself.** Its filename is the video's TITLE, and a
@@ -173,14 +173,14 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   need none; private, age-restricted and members-only ones need a signed-in
   session.
 - `requires.credentials.dir` is `"optional"`. Bound to a `dir` credential with
-  `login: browser` (`llm-wiki-ops reference channel-youtube/enable`), the ticket carries
+  `login: browser` (`{{@brain-cli-ops}} reference channel-youtube/enable`), the ticket carries
   `credential_dir` and `browser_python`; the harvest script exports a Netscape
   `cookies.txt` into that directory once (`scripts/export_cookies.py`, run by
   `browser_python`) and passes `--cookies` to both yt-dlp calls. Unbound,
   the argv is unchanged.
 - The jar is the live session once yt-dlp has written rotated cookies back
   into it, so no failure deletes it. A harvest that fails `auth` usually
-  means the session is dead: run `llm-wiki-ops credentials login <name>`
+  means the session is dead: run `{{@brain-cli-ops}} credentials login <name>`
   again, and the next harvest sees the profile's cookie DB newer than the
   jar and re-exports. A members-only or private video the account itself
   cannot see is also `auth`, and no login fixes that. YouTube's "confirm you're not a bot" wall is throttling, not

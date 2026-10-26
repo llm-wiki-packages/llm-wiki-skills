@@ -6,7 +6,7 @@ No other argument. One harvest ticket captures a whole section as bytes; one pro
 
 ## Scripts
 
-Each runs as `llm-wiki-ops run ops/skills/channel-hubspot-video/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/channel-hubspot-video/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim. A page is named
 by `--leaf <n>`, its index in `plan.json`, never by url.
 

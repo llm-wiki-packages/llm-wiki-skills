@@ -2,7 +2,7 @@
 
 A playbook is one small file that tells an attended mode what to do. The
 mode reads this unit's policy overlay (the profile) first, then the
-playbook; later text wins. Each is `llm-wiki-ops reference
+playbook; later text wins. Each is `{{@brain-cli-ops}} reference
 channel-gmail-gws/playbook-<name>`.
 
 | playbook | mode | what it does | writes |

@@ -8,7 +8,7 @@ The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:spotify`.
 base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/spotify.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/spotify.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by
@@ -16,5 +16,5 @@ Widening is a committed edit to the unit's `sandbox.jsonc` followed by
 host.
 
 The `spotify` route is on the template's harvest stage; nothing maps it
-until the operator does (`llm-wiki-ops reference channel-spotify/enable`),
+until the operator does (`{{@brain-cli-ops}} reference channel-spotify/enable`),
 and unmapped, every capture is keyless.

@@ -30,7 +30,7 @@ shows what each stage adds to its stock base and asks. What the stages
 reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:sandboxes/hubspot-cms.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/hubspot-cms.md
 ```
 
 Widening is a committed edit to the unit's `sandbox.jsonc` followed by

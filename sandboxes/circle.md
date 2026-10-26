@@ -12,7 +12,7 @@ in a persistent-profile Chrome.
 - `*.circle.so`: every community subdomain, and the media and asset hosts
   under it (`cdn-media.circle.so`, `assets-v2.circle.so`).
 
-The model endpoints are the harness profile's; see `llm-wiki-ops reference
+The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
 
 ## Filesystem
@@ -24,7 +24,7 @@ on macOS), which the capture scripts launch.
 ## Credential
 
 `requires.credentials.dir` is `"required"`. A members-only community replays the
-per-domain login profile `llm-wiki-ops credentials login <domain>` minted:
+per-domain login profile `{{@brain-cli-ops}} credentials login <domain>` minted:
 mapped to the job (`credentials bind job <slug> dir=<domain>`), it is
 granted to this slice read-write and the ticket hands it over as
 `credential_dir`, which `capture_lesson.py` reads off `tickets open`.

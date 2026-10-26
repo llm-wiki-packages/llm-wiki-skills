@@ -26,29 +26,29 @@ and audio exactly when the creator distributes it openly.
 ## Stages
 
 ```sh
-llm-wiki-ops --json tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` — `harvest` or `process` — is the step; the two
 sections below are those steps. One ticket = one entity URL = one capture
 directory = one report; the worker loop and the report every worker
-leaves: `llm-wiki-ops reference pipeline-ticket`.
+leaves: `{{@brain-cli-ops}} reference pipeline-ticket`.
 Either step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-spotify
+{{@brain-cli-ops}} policy get <stage> channel-spotify
 ```
 
 Both steps take `--capture-dir <capture_dir>` — the ticket's value,
-**verbatim and wiki-relative**: `llm-wiki-ops run` starts a script in the
+**verbatim and wiki-relative**: `{{@brain-cli-ops}} run` starts a script in the
 wiki root, so `.` would be the wiki, and so is every other relative path
 you pass — and `--ticket <id>`, opened for the rest of their inputs.
 
 ### harvest
 
 ```
-llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py capture --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py capture --capture-dir <capture_dir> --ticket <id>
 ```
 
 Reads the entity URL, `slug`, `min_date` and `harvest.assets` off the ticket,
@@ -70,7 +70,7 @@ entity already in `known[]` is `ok` + a reason naming `known`; a 404/410 is
 Assets next, **before** the report — a slice that ends has no second chance:
 
 ```
-llm-wiki-ops run scripts/assets.py download <capture_dir>/assets.json \
+{{@brain-cli-ops}} run scripts/assets.py download <capture_dir>/assets.json \
     --dest _raw/<slug>/assets --referer '<item>' <assets_args…>
 ```
 
@@ -83,7 +83,7 @@ llm-wiki-ops run scripts/assets.py download <capture_dir>/assets.json \
 `transcribe` policy expected text.
 
 ```
-llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id>
 ```
 
 `captured[]` is the capture dir; `missing[]` is every failed asset plus every
@@ -100,13 +100,13 @@ script could not see with `--missing <url>=<why>`.
 No network, no credential — everything this step needs is under `capture_dir`.
 
 ```
-llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id>
 ```
 
 It renders `meta.json` into the page
 — H1, creator line, the capture's warnings, the description as quoted data,
 the item table with each item's audio route — and writes it under the ticket's `dest`
-itself with `llm-wiki-ops page create`, falling back to `page edit` when the
+itself with `{{@brain-cli-ops}} page create`, falling back to `page edit` when the
 title is there. The entity's facts ride as frontmatter keys, plus `resource`
 (the ticket's `item`) and `extracted=true`.
 
@@ -119,7 +119,7 @@ here to act on.
 
 ```
 echo '["<dest>/<title>.md"]' > <capture_dir>/written.json
-llm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id> --written-from written.json
+{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id> --written-from written.json
 ```
 
 `--written-from` names a file of wiki-relative page paths — write the page
@@ -174,7 +174,7 @@ gets no `published` key at all.
   harvest sandbox's `spotify` route: in the jail `SPOTIFY_TOKEN_AUTH` holds a
   phantom, `capture` sends it on the one token request, and the proxy puts the
   wiki's own grant there. You call no `credentials` verb and read no login.
-  The operator stores the grant and maps the route to it once per machine (`llm-wiki-ops reference channel-spotify/enable`).
+  The operator stores the grant and maps the route to it once per machine (`{{@brain-cli-ops}} reference channel-spotify/enable`).
 - With the route mapped to a wrong grant, the token request fails and the
   capture says so: nothing falls back to another account.
 - **Keyless degradation**: with no route (the jail omits one this machine
