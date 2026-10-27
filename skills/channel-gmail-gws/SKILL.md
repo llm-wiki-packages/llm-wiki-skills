@@ -1,7 +1,7 @@
 ---
 name: channel-gmail-gws
 description: Use when asked to triage, digest, draft replies or follow-ups for, or clean a Gmail inbox through gws, or when a pipeline ticket invokes it (`ticket=<id>`). To follow a mailbox, use /{{@brain-plugin}}:add.
-argument-hint: "ticket=<id>"
+argument-hint: "<triage|digest|reply|followup|clean|setup> [flags] | ticket=<id>"
 ---
 
 # Channel: gmail through gws
