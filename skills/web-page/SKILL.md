@@ -1,6 +1,6 @@
 ---
 name: web-page
-description: One page, by url — the plain-url harvester behind a job that names no channel unit.
+description: Use when a pipeline ticket's harvest runs it (`ticket=<id>`), the wiki's plain-url fetch script. Never from conversation — to follow a page, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

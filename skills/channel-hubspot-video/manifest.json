@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Captures HubSpot CMS sites whose content is a HubSpot Video player rather than text: finds the lazy-loaded player, downloads its video and transcribes it.",
   "keywords": [
     "hubspot",
     "cms",
@@ -8,9 +10,12 @@
     "player",
     "host:play.hubspotvideo.com"
   ],
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-hubspot-video",
   "requires": {
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:hubspot-cms",
   "stages": {

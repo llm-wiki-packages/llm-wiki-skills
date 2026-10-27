@@ -1,6 +1,6 @@
 ---
 name: channel-hubspot-video
-description: HubSpot CMS pages whose content is a lazy-loaded HubSpot Video (Mux underneath) rather than text — a static fetch finds no player at all.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's HubSpot Video harvest or process stage. Never from conversation — to follow a site, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

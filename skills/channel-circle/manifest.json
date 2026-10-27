@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Captures courses from Circle.so communities: each lesson's text, video and captions, through a signed-in browser profile. It also reports when a community's site is down.",
   "keywords": [
     "community",
     "course",
@@ -6,15 +8,20 @@
     "lesson",
     "lessons",
     "space",
+    "captions",
+    "video",
     "host:circle.so",
     "host:*.circle.so"
+  ],
+  "mode": [
+    "pipeline"
   ],
   "name": "channel-circle",
   "requires": {
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:circle",
   "stages": {

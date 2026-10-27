@@ -1,7 +1,6 @@
 ---
 name: daily-report
-description: >
-  Use for the daily report, morning brief or dashboard, what needs attention today, or a cross-wiki what's-new; also to redesign the brief. Plain digest: use /{{@brain-plugin}}:wiki-report.
+description: Use when asked for the daily report, morning brief or dashboard, what needs attention today or a cross-wiki what's-new, or to redesign the brief. The nightly ops digest is under research/reports/.
 argument-hint: "[date|focus|setup]"
 ---
 

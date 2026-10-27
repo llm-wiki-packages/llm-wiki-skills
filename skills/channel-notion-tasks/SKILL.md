@@ -1,6 +1,6 @@
 ---
 name: channel-notion-tasks
-description: The wiki's notion-tasks channel — daily pull, then ledger extraction from what it pulled.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Notion tasks harvest or process stage. Never from conversation — to follow a workspace, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

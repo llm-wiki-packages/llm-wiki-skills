@@ -1,19 +1,25 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Pulls a Gmail mailbox through Google's connector once a day and writes that day's ledger of the messages that matter. One watch per mailbox.",
   "keywords": [
     "mail",
     "email",
     "mailbox",
     "inbox",
     "google",
+    "ledger",
     "host:gmailmcp.googleapis.com",
     "host:mail.google.com"
+  ],
+  "mode": [
+    "pipeline"
   ],
   "name": "channel-gmail",
   "requires": {
     "credentials": {
       "file": "required"
     },
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail",
   "stages": {

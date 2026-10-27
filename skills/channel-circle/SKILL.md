@@ -1,6 +1,6 @@
 ---
 name: channel-circle
-description: Circle.so capture for this wiki — persistent-profile Chrome, HLS/Wistia media, captions, outage probe.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Circle.so harvest or process stage. Never from conversation — to follow a Circle community, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 
