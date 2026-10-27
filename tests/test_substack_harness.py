@@ -168,8 +168,11 @@ def test_a_title_the_host_would_refuse_still_lands_and_forges_nothing(ops, env, 
     pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert pages and all(page.is_file() for page in pages)
     lines = pages[0].read_text(encoding="utf-8").splitlines()
-    # the venue's title reaches the page QUOTED, opening no heading and no rule of its own
-    assert lines[1] == "title: 'Lesson 3 - What is ’A-B’ testing # Forged heading ---'"
+    # the venue's title reaches the page QUOTED, opening no heading and no rule of
+    # its own — wherever in the block it sits, since the wiki's template may
+    # put its own keys first
+    block = lines[1 : lines.index("---", 1)]
+    assert "title: 'Lesson 3 - What is ’A-B’ testing # Forged heading ---'" in block
     assert "# Forged heading" not in lines and "# Forged date" not in lines
     assert [line for line in lines if line.strip() == "---"] == ["---", "---"]  # the page's own block only
     assert "lighthouses" in "\n".join(lines)
