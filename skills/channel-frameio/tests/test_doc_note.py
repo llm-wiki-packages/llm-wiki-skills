@@ -145,6 +145,7 @@ def test_the_page_is_written_by_the_front_door_from_the_wiki_root(tmp_path, monk
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
     assert f"dest={DEST}" in call["argv"] and f"resource={URL}" in call["argv"]
     assert "extracted=true" in call["argv"], "the string, not a boolean: `pages.py` reads `true`"
+    assert "template=" in call["argv"], "the page's shape is this unit's, not the wiki's template"
     assert call["argv"][-1] == "--stdin" and call["stdin"].startswith("# Deck One - Big Share\n")
     assert Path(call["cwd"]) == root.resolve() and call["inherited"] == []
     assert json.loads(capsys.readouterr().out)["written"] == [PAGE]

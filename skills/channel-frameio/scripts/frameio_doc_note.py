@@ -30,7 +30,7 @@ filename, a folder name — and a venue that can type onto a Bash line can run a
 command:
 
     llm-wiki-ops page create "title=<safe title>" "dest=<dest>" \
-        "resource=<view url>" "type=doc" "extracted=true" --stdin
+        "resource=<view url>" "type=doc" "extracted=true" "template=" --stdin
 
 with the body on stdin. On the one refusal that means this job already landed
 the page (`<path> already exists — the filename is the title`, exit 2) it runs
@@ -269,7 +269,7 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str) -> str:
         )
     where = {"cwd": str(wiki), "env": front_door_env()}
     created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
+        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "template=", "--stdin"],
         input=body, capture_output=True, text=True, **where,
     )
     rel = f"{str(dest).rstrip('/')}/{title}.md"

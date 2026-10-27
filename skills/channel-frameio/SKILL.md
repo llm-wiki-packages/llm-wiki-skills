@@ -244,7 +244,7 @@ retype it, and a settled title may itself carry a `'` (`safe_title` maps `"`
 to one):
 
 ```
-{{@brain-cli-ops}} page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" --stdin
+{{@brain-cli-ops}} page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" "template=" --stdin
 ```
 
 with the body on stdin, and `{{@brain-cli-ops}} page edit "<dest>/<title>.md" …

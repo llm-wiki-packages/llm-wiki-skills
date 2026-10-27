@@ -1138,3 +1138,5 @@ def test_the_documented_page_line_names_a_type():
     assert lines, "no documented page line"
     for line in lines:
         assert "type=lesson" in line, line
+    creates = [line for line in lines if "page create" in line]
+    assert creates and all("template=" in line for line in creates), "the lesson's shape is this unit's, not the wiki's template"

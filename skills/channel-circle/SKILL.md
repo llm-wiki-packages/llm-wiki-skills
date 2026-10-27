@@ -143,7 +143,7 @@ nothing written.
    filename, already settled against the run, and not yours to pick:
 
 ```
-cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true template= --stdin
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<dest>/<title>.md' resource='<item>' type=lesson extracted=true --stdin
 echo '["<dest>/<title>.md"]' > <capture_dir>/written.json
 {{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
