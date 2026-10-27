@@ -1,6 +1,6 @@
 {
   "argument_hint": "<setup|rank|pending|retag> [words] | ticket=<id> stage=process",
-  "description": "Keeps one categorized page per GitHub repository, fed by watched stars, organizations, users, repositories or searches. By hand it ranks those repositories against a question and keeps list pages current.",
+  "description": "Keeps one categorized page per GitHub repository, fed by watched stars, organizations, users, repositories or searches. Its routine keeps the list pages current. By hand it ranks those repositories against a question, lists clips with no GitHub facts and retags pages.",
   "keywords": [
     "repo",
     "repos",
