@@ -131,7 +131,7 @@ facts on **existing** pages; entity stubs for genuinely new recurring actors.
 
 ```sh
 {{@brain-cli-ops}} page edit wiki/entities/<Name>.md --stdin
-{{@brain-cli-ops}} page create title="<Name>" dest=wiki/entities type=entity --stdin
+{{@brain-cli-ops}} page create title="<Name>" dest=wiki/entities type=entity template= --stdin
 ```
 
 Never: topic or concept pages, restructuring, contradiction resolution,
@@ -145,7 +145,7 @@ widen it.
 `wiki/reports/YYYY-MM-DD.md`, the durable record:
 
 ```sh
-{{@brain-cli-ops}} page create title="2026-09-05" dest=wiki/reports type=report --stdin
+{{@brain-cli-ops}} page create title="2026-09-05" dest=wiki/reports type=report template= --stdin
 {{@brain-cli-ops}} page edit wiki/reports/2026-09-05.md --stdin
 ```
 

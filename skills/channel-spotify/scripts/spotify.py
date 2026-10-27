@@ -1078,7 +1078,7 @@ def write_page(root, *, title, dest, body, keys):
     # `key=value` carries text, so a bool is spelled the way YAML reads it and
     # the host's own `extracted=true` already is — never Python's `False`.
     pairs = [f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in keys.items()]
-    rc, answer = _ops(root, "page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", input=body.encode())
+    rc, answer = _ops(root, "page", "create", f"title={title}", f"dest={dest}", *pairs, "template=", "--stdin", input=body.encode())
     said = str(answer.get("error") or "")
     if rc == 2 and "already exists" in said:
         path = f"{str(dest).rstrip('/')}/{title}.md"

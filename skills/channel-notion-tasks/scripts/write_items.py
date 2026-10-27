@@ -789,7 +789,7 @@ def write_page(dest, title, front, body):
     # curate, revise and retire are what move a status) and does not need it:
     # a page created without a status still has none after an edit.
     created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "status=", "--stdin"],
+        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "status=", "template=", "--stdin"],
         input=body, capture_output=True, text=True, **where,
     )
     rel = f"{dest}/{title}.md"

@@ -146,7 +146,7 @@ hand run of the same verbs would:
 
 ```sh
 {{@brain-cli-ops}} op open channel-github
-{{@brain-cli-ops}} page create title=<list title> dest=<dest> type=list tags=github,github-list --stdin
+{{@brain-cli-ops}} page create title=<list title> dest=<dest> type=list tags=github,github-list template= --stdin
 {{@brain-cli-ops}} op close channel-github outcome=ok summary=<one line>
 ```
 

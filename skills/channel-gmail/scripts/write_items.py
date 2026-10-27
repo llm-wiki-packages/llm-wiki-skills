@@ -773,7 +773,7 @@ def write_page(dest, day, keys, body):
     it — `status=` is `page curate`'s, `revise`'s and `retire`'s — and does
     not need to: the page it edits was created without one."""
     rel = f"{dest.rstrip('/')}/{day}.md"
-    made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, "status=", "--stdin"], body)
+    made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, "status=", "template=", "--stdin"], body)
     if made.returncode == 0:
         return rel, None
     edited = _ops(["page", "edit", rel, *keys, "--stdin"], body)

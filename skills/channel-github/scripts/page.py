@@ -324,7 +324,7 @@ def load_judgment(path: Path) -> dict:
 def write_page(dest: str, title: str, held: Path | None, keys: dict, body: str) -> str:
     pairs = [f"{k}={v}" for k, v in keys.items()]
     if held is None:
-        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", stdin=body)
+        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "template=", "--stdin", stdin=body)
         if rc == 2 and "already exists" in str(answer.get("error") or ""):
             held = Path(dest) / f"{title}.md"
         elif rc != 0 or not answer.get("path"):

@@ -37,7 +37,7 @@ def write_list_page(dest: str, title: str, description: str, body: str) -> tuple
     if Path(path).is_file():
         rc, answer = ops_json("page", "edit", path, *pairs, "--stdin", stdin=body)
     else:
-        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", stdin=body)
+        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "template=", "--stdin", stdin=body)
     if rc != 0:
         return None, f"{title}: {answer.get('error') or answer}"
     return answer.get("path") or path, None

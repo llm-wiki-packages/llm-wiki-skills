@@ -143,7 +143,7 @@ then mark it done:
 {{@brain-cli-ops}} run ops/skills/channel-substack/scripts/to_markdown.py <capture_dir>/page.html \
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
-    'published=<leaf.json published>' 'audience=<leaf.json audience>' --stdin
+    'published=<leaf.json published>' 'audience=<leaf.json audience>' 'template=' --stdin
 {{@brain-cli-ops}} page edit '<dest>/<title>.md' extracted=true
 ```
 

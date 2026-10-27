@@ -138,7 +138,7 @@ file-writing tool — never `echo`, `printf` or a heredoc, since the lines come
 from untrusted text — and feed it on stdin:
 
 ```sh
-{{@brain-cli-ops}} --json page create title=<YYYY-MM-DD> dest=<dest> type=ledger channel=<slug> date=<YYYY-MM-DD> items=<kept count> extracted=true status= --stdin < <capture_dir>/ledger.md
+{{@brain-cli-ops}} --json page create title=<YYYY-MM-DD> dest=<dest> type=ledger channel=<slug> date=<YYYY-MM-DD> items=<kept count> extracted=true status= template= --stdin < <capture_dir>/ledger.md
 ```
 
 When the page exists (a second pull of the day), `page edit

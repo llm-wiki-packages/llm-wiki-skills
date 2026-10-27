@@ -464,7 +464,7 @@ def write_page(wiki, dest, title, front, body, ops=None):
     keys += [f"{k}={','.join(str(one) for one in v)}" for k, v in front.items() if isinstance(v, list) and v]
     keys += [f"extracted={EXTRACTED}"]
     created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
+        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "template=", "--stdin"],
         input=body, capture_output=True, text=True, **where,
     )
     rel = f"{str(dest).rstrip('/')}/{title}.md"

@@ -101,8 +101,8 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
 
 ```sh
 {{@brain-cli-ops}} run ops/skills/channel-hubspot-video/scripts/to_markdown.py <capture_dir>/page.html --selector '<content_selector>' --drop-selector '<drop selector>' --title-selector '<title_selector>' --base-url '<item>'
-{{@brain-cli-ops}} page create 'title=<the capture title>' 'dest=<dest>' 'resource=<item>' 'extracted=true' '<key>=<value>' --stdin
-{{@brain-cli-ops}} page create 'title=<the capture title> (video)' 'dest=<dest>' 'resource=<stream_url>' 'extracted=queued' 'media=<capture_dir>/media.<ext>' --stdin
+{{@brain-cli-ops}} page create 'title=<the capture title>' 'dest=<dest>' 'resource=<item>' 'extracted=true' '<key>=<value>' 'template=' --stdin
+{{@brain-cli-ops}} page create 'title=<the capture title> (video)' 'dest=<dest>' 'resource=<stream_url>' 'extracted=queued' 'media=<capture_dir>/media.<ext>' 'template=' --stdin
 {{@brain-cli-ops}} run ops/skills/channel-hubspot-video/scripts/leaves.py report <capture_dir> --ticket <id> --written-from written.json
 ```
 
