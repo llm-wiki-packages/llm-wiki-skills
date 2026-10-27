@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Pulls an account's ParentSquare school posts and notices once a day and writes that day's ledger. One watch per account.",
   "keywords": [
     "parentsquare",
     "school",
@@ -7,7 +9,13 @@
     "classroom",
     "teacher",
     "district",
+    "feed",
+    "ledger",
+    "notices",
     "host:www.parentsquare.com"
+  ],
+  "mode": [
+    "pipeline"
   ],
   "name": "channel-parentsquare",
   "requires": {
@@ -26,7 +34,7 @@
         "PS_USERNAME": "required"
       }
     },
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare",
   "stages": {

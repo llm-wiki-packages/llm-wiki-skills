@@ -1,6 +1,6 @@
 ---
 name: channel-gmail
-description: Gmail mailboxes for this wiki — cursor pull and daily ledger, one watch per mailbox.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Gmail harvest or process stage. Never from conversation — to follow a mailbox, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

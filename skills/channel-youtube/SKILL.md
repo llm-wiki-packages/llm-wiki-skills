@@ -1,6 +1,6 @@
 ---
 name: channel-youtube
-description: YouTube capture and note building for this wiki — yt-dlp ground truth, deterministic notes.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's YouTube harvest or process stage. Never from conversation — to follow a channel, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: channel-frameio
-description: Frame.io guest-share capture for this wiki — tree enumeration, per-leaf asset capture, and the document page.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Frame.io harvest or process stage. Never from conversation — to follow a share, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

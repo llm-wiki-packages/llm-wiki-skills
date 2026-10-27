@@ -1,6 +1,6 @@
 ---
 name: channel-spotify
-description: Spotify entity capture — playlists, shows, episodes, audiobooks. Metadata via the Web API; audio only from openly-distributed podcast RSS feeds; DRM catalog audio stays reference-only.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Spotify harvest or process stage. Never from conversation — to follow a show or playlist, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

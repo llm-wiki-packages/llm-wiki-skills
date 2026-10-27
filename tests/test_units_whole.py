@@ -144,6 +144,55 @@ def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_tick
     assert re.search(r"^### harvest\b", skill, re.M) and re.search(r"^### process\b", skill, re.M), skill[:400]
 
 
+# The frontmatter is read by the model in every session in the wiki and decides
+# what it invokes; the manifest's `description` is what `skills ls` and `skills
+# search` show. So the frontmatter says WHEN, in the house opener, inside the
+# session budget the ops CLI warns past.
+OPENERS = ("Use when", "Use whenever", "Use before", "Use after", "Use at")
+SESSION_BUDGET = 200
+
+
+def _front_description(name: str) -> str:
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
+    block = re.search(r"^description:[ \t]*(.*?)(?=^\S)", front, re.M | re.S).group(1)
+    return " ".join(line.strip() for line in block.splitlines() if line.strip() not in (">", ">-", "|")).strip()
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_the_frontmatter_description_says_when_inside_the_session_budget(name):
+    described = _front_description(name)
+    assert described.startswith(OPENERS), f"{name}: {described[:70]!r}"
+    assert len(described) <= SESSION_BUDGET, f"{name}: {len(described)} chars, over {SESSION_BUDGET}"
+    # The plugin's routine is pipeline-only: a unit pointing a conversation at it is the hijack #3702 removes.
+    assert "wiki-report" not in described, described
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_pipeline_only_unit_tells_a_session_not_to_invoke_it(name):
+    if unit_manifest(name)["mode"] != ["pipeline"]:
+        return
+    assert "Never from conversation" in _front_description(name), _front_description(name)
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_the_argument_hints_name_what_the_runner_passes_and_only_the_manifest_does(name):
+    """A stage with no `script` is a session the runner starts as
+    `/<unit> … ticket=<id> stage=<stage>`; a script stage has no slash form.
+    The manifest's `argument_hint` is the whole shape, those runner tokens
+    included; the frontmatter's is what a person types, so never `stage=`."""
+    manifest = unit_manifest(name)
+    hint = manifest["argument_hint"]
+    slashed = [s for s, spec in manifest["stages"].items() if "script" not in spec]
+    if slashed:
+        assert "ticket=<id>" in hint, hint
+        named = re.search(r"stage=<?([a-z|]+)>?", hint)
+        assert named and named.group(1).split("|") == slashed, f"{name}: {hint!r} vs the slashed stages {slashed}"
+    else:
+        assert "ticket=" not in hint and "stage=" not in hint, hint
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
+    assert "stage=" not in (re.search(r"^argument-hint:(.*)$", front, re.M) or ["", ""])[1], front
+
+
 @pytest.mark.parametrize("name", CHANNELS)
 def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     """A wiki steers a unit through its overlays, never by editing the unit:
@@ -310,7 +359,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch"}
+    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch", "description", "mode", "argument_hint"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]

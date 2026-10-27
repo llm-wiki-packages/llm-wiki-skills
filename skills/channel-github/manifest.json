@@ -1,4 +1,6 @@
 {
+  "argument_hint": "<setup|rank|pending|retag> [words] | ticket=<id> stage=process",
+  "description": "Keeps one categorized page per GitHub repository, fed by watched stars, organizations, users, repositories or searches. Its routine keeps the list pages current. By hand it ranks those repositories against a question, lists clips with no GitHub facts and retags pages.",
   "keywords": [
     "repo",
     "repos",
@@ -16,6 +18,10 @@
     "host:github.com",
     "host:api.github.com"
   ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
   "name": "channel-github",
   "requires": {
     "credentials": {
@@ -23,7 +29,7 @@
         "github": "optional"
       }
     },
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github",
   "stages": {

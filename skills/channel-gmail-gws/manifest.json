@@ -1,4 +1,6 @@
 {
+  "argument_hint": "<triage|digest|reply|followup|clean|setup> [flags] | ticket=<id> stage=process",
+  "description": "Pulls a Gmail mailbox through the gws command line once a day and writes a ledger of what needs a reply, an action, a wait or just a read. By hand it triages the inbox, writes digests, drafts replies and follow-ups, and files noise.",
   "keywords": [
     "mail",
     "email",
@@ -11,7 +13,16 @@
     "drafts",
     "followup",
     "actionable",
+    "digest",
+    "ledger",
+    "waiting",
+    "fyi",
+    "cleanup",
     "host:gmail.googleapis.com"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
   ],
   "name": "channel-gmail-gws",
   "requires": {
@@ -32,7 +43,7 @@
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.9.0"
+    "ops": ">=0.10.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gmail-gws",
   "stages": {

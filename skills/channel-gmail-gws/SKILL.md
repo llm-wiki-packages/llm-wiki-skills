@@ -1,6 +1,6 @@
 ---
 name: channel-gmail-gws
-description: Gmail through the gws CLI — a daily actionable ledger per mailbox (needs-reply, action, waiting, fyi), plus attended triage, digests, reply drafts, follow-ups and cleanup.
+description: Use when asked to triage, digest, draft replies or follow-ups for, or clean a Gmail inbox through gws, or when a pipeline ticket invokes it (`ticket=<id>`). To follow a mailbox, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

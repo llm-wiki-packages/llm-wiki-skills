@@ -1,6 +1,6 @@
 ---
 name: channel-github
-description: GitHub repos as organized references — watch stars, orgs, users, repos or searches; one categorized page per repo, ranked answers and list pages.
+description: Use when asked to set up, rank, list pending or retag this wiki's GitHub repo pages, or when a pipeline ticket invokes it (`ticket=<id>`). To follow stars, an org or a repo, use /{{@brain-plugin}}:add.
 argument-hint: "<setup|rank|pending|retag> [words] | ticket=<id>"
 ---
 

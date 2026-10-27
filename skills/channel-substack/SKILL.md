@@ -1,6 +1,6 @@
 ---
 name: channel-substack
-description: Substack capture for this wiki — archive-API enumeration, paywall split, per-post extraction.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's Substack harvest or process stage. Never from conversation — to follow a newsletter, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

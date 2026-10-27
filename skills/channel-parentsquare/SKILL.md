@@ -1,6 +1,6 @@
 ---
 name: channel-parentsquare
-description: ParentSquare school feeds as a daily ledger — posts and notices pulled through the parentsquare-mcp server, one watch per account.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's ParentSquare harvest or process stage. Never from conversation — to follow an account, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 

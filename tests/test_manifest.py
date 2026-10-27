@@ -3,6 +3,7 @@ the keys the package rail needs."""
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -17,6 +18,51 @@ _FLOOR = re.compile(r"^>=\d+\.\d+(\.\d+)?$")
 def test_check_manifest_passes_on_the_tree():
     cp = subprocess.run([sys.executable, str(ROOT / "scripts" / "check-manifest.py")], capture_output=True, text=True)
     assert cp.returncode == 0, cp.stderr
+
+
+@pytest.mark.parametrize(
+    ("edit", "said"),
+    [
+        (lambda m: m.pop("description"), "`description` must be a non-empty string"),
+        (lambda m: m.update(description=" "), "`description` must be a non-empty string"),
+        (lambda m: m.pop("mode"), "`mode` must be a non-empty list"),
+        (lambda m: m.update(mode=[]), "`mode` must be a non-empty list"),
+        (lambda m: m.update(mode=["pipeline", "pipeline"]), "`mode` must be a non-empty list"),
+        (lambda m: m.update(mode=["cron"]), "`mode` must be a non-empty list"),
+        (lambda m: m.update(mode=["session"]), "`mode` lacks pipeline but `stages` declares a stage"),
+        (lambda m: m.update(stages={}), "`mode` holds pipeline but `stages` declares no stage"),
+        (lambda m: m.pop("argument_hint"), "`argument_hint` must be a string"),
+    ],
+)
+def test_check_manifest_refuses_a_unit_that_does_not_author_the_listing_keys(tmp_path, edit, said):
+    """The catalog authors all three, so `skills install` never fills one from
+    the frontmatter, and holds them to the ops CLI's own rules."""
+    (tmp_path / "llm-wiki-package.json").write_text((ROOT / "llm-wiki-package.json").read_text())
+    for name in SKILLS:
+        unit = tmp_path / "skills" / name
+        unit.mkdir(parents=True)
+        (unit / "SKILL.md").write_text("")
+        manifest = unit_manifest(name)
+        if name == "channel-youtube":
+            edit(manifest)
+        (unit / "manifest.json").write_text(json.dumps(manifest))
+    cp = subprocess.run([sys.executable, str(ROOT / "scripts" / "check-manifest.py"), str(tmp_path)], capture_output=True, text=True)
+    assert cp.returncode == 1 and f"skill channel-youtube: {said}" in cp.stderr, cp.stderr
+    assert cp.stderr.count("\n") == 1, cp.stderr
+
+
+def test_check_manifest_refuses_a_skill_with_no_manifest(tmp_path):
+    """A skill with a SKILL.md and no `manifest.json` authors none of the
+    three keys; it is refused, not skipped."""
+    (tmp_path / "llm-wiki-package.json").write_text((ROOT / "llm-wiki-package.json").read_text())
+    for name in SKILLS:
+        unit = tmp_path / "skills" / name
+        unit.mkdir(parents=True)
+        (unit / "SKILL.md").write_text("")
+        if name != "channel-youtube":
+            (unit / "manifest.json").write_text(json.dumps(unit_manifest(name)))
+    cp = subprocess.run([sys.executable, str(ROOT / "scripts" / "check-manifest.py"), str(tmp_path)], capture_output=True, text=True)
+    assert cp.returncode == 1 and cp.stderr == "skill channel-youtube: no manifest.json\n", cp.stderr
 
 
 # The units a session runs: some stage of each carries no `script`, so an
