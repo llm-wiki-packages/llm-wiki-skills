@@ -15,6 +15,9 @@
     "actionable",
     "digest",
     "ledger",
+    "waiting",
+    "fyi",
+    "cleanup",
     "host:gmail.googleapis.com"
   ],
   "mode": [

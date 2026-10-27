@@ -10,6 +10,9 @@
     "space",
     "captions",
     "video",
+    "hls",
+    "wistia",
+    "outage",
     "host:circle.so",
     "host:*.circle.so"
   ],

@@ -12,6 +12,7 @@
     "album",
     "rss",
     "audio",
+    "drm",
     "host:spotify.com",
     "host:*.spotify.com"
   ],
