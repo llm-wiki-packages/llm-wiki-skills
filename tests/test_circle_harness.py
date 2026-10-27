@@ -151,7 +151,9 @@ step plan "$OPS" run {SCRIPT}/section_plan.py plan "$CAP" --ticket "$TICKET"
         texts.append(page.read_text(encoding="utf-8"))
         assert session.update["status"] == "ok", session.update
     first, second = texts
-    assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first and "status: draft" in first
+    assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first
+    # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
+    assert "\nstatus:" not in first and "\nverified:" not in first
     assert "extracted: 'true'" in first
     assert "marmalade-sandwich rule" in first and "> A frame is a promise about what matters." in first
     assert "Topic 1 of 2" in first and "heliotrope question" in second

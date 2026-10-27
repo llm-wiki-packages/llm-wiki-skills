@@ -76,7 +76,9 @@ def test_a_spotify_capture_becomes_a_staged_page(ops, env, wiki):
     text = page.read_text(encoding="utf-8")
     head, _, body = text.removeprefix("---\n").partition("\n---\n")
     # `page create`'s frontmatter: the host's identity, and this unit's facts as flat keys.
-    assert "title: Fixture Money Models" in head and "status: draft" in head and PLAYLIST_URL in head
+    assert "title: Fixture Money Models" in head and PLAYLIST_URL in head
+    # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
+    assert "\nstatus:" not in f"\n{head}" and "\nverified:" not in f"\n{head}"
     assert "extracted: 'true'" in head and "entity_type: playlist" in head and "venue: spotify" in head
     for line in ("items: '3'", "audio_resolved: '1'", "drm_or_unmatched: '2'", "keyless: 'false'"):
         assert line in head, line

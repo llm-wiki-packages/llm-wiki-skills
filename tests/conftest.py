@@ -20,6 +20,14 @@ def ops() -> list:
     return argv
 
 
+def _cli_bin(ops: list) -> list:
+    """The directory of a CLI named by path, for PATH. A venue route's capture
+    mints its argv from the durable `llm-wiki-cli`, found on PATH when no
+    durable home holds it, and the scratch HOME holds none: `uv run` put its
+    venv's `bin` there, a console script named directly does not."""
+    return [str(Path(ops[-1]).parent)] if os.sep in ops[-1] else []
+
+
 @pytest.fixture(scope="session")
 def env(ops) -> dict:
     home = SCRATCH / "packages-home"
@@ -53,7 +61,7 @@ def env(ops) -> dict:
         # The session the runner names each slice's worker after
         # (`harness-session.<ticket>`), rather than one it would mint.
         LLM_WIKI_SESSION_ID="harness-session",
-        PATH=f"{AGENT_DIR / 'bin'}{os.pathsep}{e.get('PATH', os.defpath)}",
+        PATH=os.pathsep.join([str(AGENT_DIR / "bin"), *_cli_bin(ops), e.get("PATH", os.defpath)]),
     )
     return e
 
