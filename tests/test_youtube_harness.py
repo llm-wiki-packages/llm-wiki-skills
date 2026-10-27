@@ -75,7 +75,9 @@ def test_a_harvested_video_becomes_the_staged_page(ops, env, wiki):
     # ONE frontmatter block — the page verb's — and the body after it is ours, verbatim.
     assert text.startswith("---\n")
     _, front, body = text.split("---\n", 2)
-    assert "status: draft" in front and ITEM in front and "Progressive Overload, Explained" in front
+    assert ITEM in front and "Progressive Overload, Explained" in front
+    # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
+    assert "\nstatus:" not in f"\n{front}" and "\nverified:" not in f"\n{front}"
     # the facts the unit knows are ON THE PAGE, not re-guessed from the body
     assert "type: video" in front and "published: '2026-06-18'" in front and "extracted: 'true'" in front
     assert body.strip() == (cap / "page.md").read_text(encoding="utf-8").strip()
