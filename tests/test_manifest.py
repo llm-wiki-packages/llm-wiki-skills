@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, _ops_python, run, unit_manifest
 
 _FLOOR = re.compile(r"^>=\d+\.\d+(\.\d+)?$")
 
@@ -63,6 +64,58 @@ def test_check_manifest_refuses_a_skill_with_no_manifest(tmp_path):
             (unit / "manifest.json").write_text(json.dumps(unit_manifest(name)))
     cp = subprocess.run([sys.executable, str(ROOT / "scripts" / "check-manifest.py"), str(tmp_path)], capture_output=True, text=True)
     assert cp.returncode == 1 and cp.stderr == "skill channel-youtube: no manifest.json\n", cp.stderr
+
+
+# ops' own judgment of a unit: `units.validate`, what `skills enable` refuses,
+# and `units.warnings`, what `skills install` says, run under the CLI's own
+# interpreter. `check-manifest.py` restates ops' rules for the listing keys so
+# it runs with no ops at all; this holds the catalog to ops' answer, so the
+# two cannot drift apart unseen. `validate` is given no routes: a catalog unit
+# has no wiki sandbox to check its credential routes against.
+_JUDGE = """
+import json, sys
+from pathlib import Path
+from llm_wiki_ops.lib.skills import units
+said = {}
+for arg in sys.argv[1:]:
+    unit = Path(arg)
+    manifest = units.read_manifest(unit / units.MANIFEST_NAME) or {}
+    said[unit.name] = units.validate(unit) + units.warnings(unit.name, unit, manifest)
+print(json.dumps(said))
+"""
+
+
+def _ops_judges(ops: list, env: dict, units: list) -> dict:
+    """Each unit ops has something to say about, with what it says."""
+    r = run(_ops_python(ops), env, "-c", _JUDGE, *map(str, units))
+    assert r.returncode == 0, r.stderr
+    return {name: said for name, said in r.data.items() if said}
+
+
+def test_ops_own_validator_passes_every_unit(ops, env):
+    units = [ROOT / a["path"] for a in MANIFEST["artifacts"] if a["type"] == "skill"]
+    assert len(units) == len(SKILLS)
+    assert _ops_judges(ops, env, units) == {}
+
+
+@pytest.mark.parametrize(
+    ("edit", "said"),
+    [
+        (lambda m: m.update(mode=["cron"]), "`mode` must be a non-empty list"),
+        (lambda m: m.pop("argument_hint"), "manifest declares no argument_hint"),
+    ],
+)
+def test_ops_own_validator_is_heard_on_a_unit_ops_refuses(ops, env, tmp_path, edit, said):
+    """The control: a refusal from `validate`, and a warning from `warnings`,
+    each reach the check above, so its empty answer is ops' and not a probe
+    that reads nothing."""
+    unit = tmp_path / "channel-youtube"
+    shutil.copytree(ROOT / "skills" / "channel-youtube", unit, ignore=shutil.ignore_patterns("__pycache__"))
+    manifest = unit_manifest("channel-youtube")
+    edit(manifest)
+    (unit / "manifest.json").write_text(json.dumps(manifest))
+    judged = _ops_judges(ops, env, [unit])
+    assert list(judged) == ["channel-youtube"] and any(said in line for line in judged["channel-youtube"]), judged
 
 
 # The units a session runs: some stage of each carries no `script`, so an

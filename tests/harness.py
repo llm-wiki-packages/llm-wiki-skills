@@ -102,6 +102,18 @@ def _cli(ops: list) -> list:
     return [*ops[:-1], str(Path(last).with_name("llm-wiki-cli")) if os.sep in last else "llm-wiki-cli"]
 
 
+def _ops_python(ops: list) -> list:
+    """The interpreter the ops CLI runs under, out of the same command line,
+    so a test can import `llm_wiki_ops` itself. A console script sits beside
+    its venv's `python`, and a symlink to one (`uv tool`) resolves there; a
+    command line that names the script bare, after a runner (`uv run
+    --project …`), keeps the runner and swaps the last word."""
+    last = ops[-1]
+    if len(ops) > 1 and os.sep not in last:
+        return [*ops[:-1], "python"]
+    return [str(Path(shutil.which(last) or last).resolve().with_name("python"))]
+
+
 # `run()` starts every call here, never in pytest's cwd: the CLI is root-bound
 # and the cwd's owner must agree with `LLM_WIKI_ROOT`'s, so a checkout that
 # sits INSIDE a wiki would have every `rooted()` call refused at the first
