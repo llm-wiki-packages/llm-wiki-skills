@@ -659,7 +659,7 @@ def test_the_process_step_builds_the_page_as_an_argv_list_with_the_body_on_stdin
     (call,) = page_calls(root)
     assert call["argv"] == ["page", "create", f"title={DAY}", "dest=research/channels/mail", "type=ledger",
                             "channel=mail", f"date={DAY}", "items=2", "needs_reply=0", "actions=0", "extracted=true",
-                            "status=", "--stdin"]
+                            "status=", "template=", "--stdin"]
     assert call["body"].startswith("- Person 1 asks about thing 1 — gmail:m1\n")
     assert call["body"].endswith("discarded: 0 (junk rules)\n")
 

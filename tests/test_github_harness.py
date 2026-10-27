@@ -67,7 +67,7 @@ def _repo_page(ops, env, wiki, full: str, tags: str, stars: int) -> str:
     owner, name = full.split("/")
     r = run(ops, rooted(env, wiki), "--json", "page", "create", f"title={owner}--{name}", f"dest={REPOS}", "type=repo",
             f"tags={tags}", f"resource=https://github.com/{full}", f"gh_stars={stars}", f"gh_seen={TODAY}",
-            f"gh_first_seen={TODAY}", "description=A harness repo.", "--stdin", input="> [!summary]\n> A harness repo.\n")
+            f"gh_first_seen={TODAY}", "description=A harness repo.", "template=", "--stdin", input="> [!summary]\n> A harness repo.\n")
     assert r.returncode == 0, r.stdout + r.stderr
     return r.data["path"]
 

@@ -61,7 +61,7 @@ def paged(ops, env, wiki, job, capture_dir):
     # so every content case is a quoting case too.
     quoted = " ".join(f"'{k}'" for k in keys)
     create = (f"\"$OPS\" run {SCRIPT}/to_markdown.py \"$CAP/page.html\" --out - --selector .available-content "
-              f"--base-url '{record['item']}' | \"$OPS\" page create {quoted} --stdin")
+              f"--base-url '{record['item']}' | \"$OPS\" page create {quoted} template= --stdin")
     process_id = pending(ops, env, wiki, job.slug)[str(capture_dir.relative_to(wiki))]
     session = staged(ops, env, wiki, process_id, f"""\
 step create sh -c {shlex.quote(create)}
@@ -214,7 +214,7 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=article' --stdin"
+            + f" 'extracted=true' 'type=article' 'template=' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr

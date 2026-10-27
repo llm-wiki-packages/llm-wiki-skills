@@ -57,7 +57,7 @@ step ledgers "$OPS" --json page ls filter=under:research/channels
 step digest "$OPS" --json page read {DIGEST}
 step lint "$OPS" --json page lint wiki sources
 step promote sh -c 'printf "An actor.\\n\\n- {TODAY}: in the report.\\n" | "$OPS" --json page edit {PROMOTED} --stdin'
-step report sh -c 'printf "The lead.\\n" | "$OPS" --json page create title={TODAY} dest=wiki/reports type=report --stdin'
+step report sh -c 'printf "The lead.\\n" | "$OPS" --json page create title={TODAY} dest=wiki/reports type=report template= --stdin'
 {_hooked("brief", "Write", BRIEF, f"printf '<html></html>\\n' > {BRIEF}")}\
 {_hooked("log", "Edit", LOG, f"printf '\\n- report: harness {TODAY}\\n' >> {LOG}")}\
 step write-research sh -c 'printf x > research/daily-report.txt'
@@ -90,7 +90,7 @@ def ran(ops, env, wiki) -> dict:
     for rel, body, kind in ((DIGEST, "The digest.\n", "report"), (LEDGER, "- a line\n", "report"), (PROMOTED, "An actor.\n", "entity")):
         where, name = rel.rsplit("/", 1)
         r = run(ops, rooted(env, wiki), "--json", "page", "create", f"title={name.removesuffix('.md')}", f"dest={where}",
-                f"type={kind}", "--stdin", input=body)
+                f"type={kind}", "template=", "--stdin", input=body)
         assert r.returncode == 0, r.stdout + r.stderr
         assert (wiki / rel).is_file(), (rel, r.stdout)
     (wiki / UNDATED).parent.mkdir(parents=True, exist_ok=True)
