@@ -44,8 +44,12 @@ def unit_problems(name: str, unit: dict) -> list:
 
 for (kind, name), path in sorted(named.items()):
     manifest = ROOT / path / "manifest.json"
-    if kind == "skill" and manifest.is_file():
+    if kind != "skill" or not (ROOT / path / "SKILL.md").is_file():
+        continue
+    if manifest.is_file():
         problems += unit_problems(name, json.loads(manifest.read_text()))
+    else:
+        problems.append(f"skill {name}: no manifest.json")
 for p in problems:
     print(p, file=sys.stderr)
 print(f"{len(named)} artifacts, {len(problems)} problems")

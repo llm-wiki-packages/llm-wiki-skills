@@ -51,6 +51,20 @@ def test_check_manifest_refuses_a_unit_that_does_not_author_the_listing_keys(tmp
     assert cp.stderr.count("\n") == 1, cp.stderr
 
 
+def test_check_manifest_refuses_a_skill_with_no_manifest(tmp_path):
+    """A skill with a SKILL.md and no `manifest.json` authors none of the
+    three keys; it is refused, not skipped."""
+    (tmp_path / "llm-wiki-package.json").write_text((ROOT / "llm-wiki-package.json").read_text())
+    for name in SKILLS:
+        unit = tmp_path / "skills" / name
+        unit.mkdir(parents=True)
+        (unit / "SKILL.md").write_text("")
+        if name != "channel-youtube":
+            (unit / "manifest.json").write_text(json.dumps(unit_manifest(name)))
+    cp = subprocess.run([sys.executable, str(ROOT / "scripts" / "check-manifest.py"), str(tmp_path)], capture_output=True, text=True)
+    assert cp.returncode == 1 and cp.stderr == "skill channel-youtube: no manifest.json\n", cp.stderr
+
+
 # The units a session runs: some stage of each carries no `script`, so an
 # agent follows its body, and the body spells ops verbs of the version it pins.
 SESSION_UNITS = [n for n in SKILLS if any("script" not in s for s in unit_manifest(n).get("stages", {}).values())]
