@@ -29,8 +29,10 @@ import subprocess
 import tempfile
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -361,7 +363,12 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
 class Job:
     slug: str
     dest: str
-    record: dict
+    show: Callable[[], dict] = field(repr=False, compare=False)
+
+    @cached_property
+    def record(self) -> dict:
+        """`jobs show`'s record, read the first time a case asks for it: most never do."""
+        return self.show()
 
 
 def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | None = None, value: str = "harness-credential") -> str:
@@ -423,7 +430,8 @@ def unmapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str) -> N
 
 def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extra: str, slug: str | None = None) -> Job:
     """A real job for `unit` in the session wiki, declared the way
-    references/enable.md says to (A-11: `jobs add`/`jobs show`) — the pass
+    references/enable.md says to (A-11: `jobs add`; `jobs show` once a case
+    reads `Job.record`) — the pass
     that lands a capture reads the job it belongs to, so a
     capture with no job behind it is refused. Idempotent for one
     (slug, target) pair; a wiki holds ONE job per target and a slug names one
@@ -448,8 +456,7 @@ def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extr
     # calls `jobs add` itself, without this stdin.
     r = run(ops, rooted(env, wiki), "--json", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"transcribe": null}')
     assert r.returncode == 0, r.stdout + r.stderr
-    record = run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"]
-    return Job(slug, record["dest"], record)
+    return Job(slug, r.data["dest"], lambda: run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"])
 
 
 def claimed(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
@@ -465,7 +472,16 @@ def claimed(ops: list, env: dict, wiki: Path, job: Job) -> tuple[str, Path]:
     mine = [c for c in r.data["claimed"] if c["slug"] == job.slug]
     assert mine and mine[0]["tickets"], f"{job.slug}: claim minted no ticket: {r.stdout}"
     ticket_id = mine[0]["tickets"][0]["id"]
-    return ticket_id, capture_of(ops, env, wiki, ticket_id)
+    capture = capture_of(ops, env, wiki, ticket_id)
+    _PENDING_CAPTURES[(wiki, ticket_id)] = capture
+    return ticket_id, capture
+
+
+# A pending ticket's capture directory, read once by whichever helper found
+# the ticket and spent once by the `staged` that starts it: every CLI call
+# here is a whole interpreter start. Pending only — a landed ticket's
+# directory is its archived one, so nothing read after a landing is kept.
+_PENDING_CAPTURES: dict[tuple[Path, str], Path] = {}
 
 
 def capture_of(ops: list, env: dict, wiki: Path, ticket: str) -> Path:
@@ -573,7 +589,7 @@ def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict
     for name, data in (files or {}).items():
         (fixtures / name).parent.mkdir(parents=True, exist_ok=True)
         (fixtures / name).write_bytes(data)
-    capture = capture_of(ops, env, wiki, ticket).relative_to(wiki)
+    capture = (_PENDING_CAPTURES.pop((wiki, ticket), None) or capture_of(ops, env, wiki, ticket)).relative_to(wiki)
     head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)),
                             step_py=shlex.quote(_STEP_PY))
     (AGENT_DIR / f"plan.{ticket}.sh").write_text(head + plan, encoding="utf-8")
@@ -611,7 +627,9 @@ def pending(ops: list, env: dict, wiki: Path, slug: str, stage: str = "process")
     r = run(ops, rooted(env, wiki), "--json", "tickets", "ls")
     assert r.returncode == 0, r.stdout + r.stderr
     ids = [t["id"] for t in r.data["tickets"] if t["slug"] == slug and t["stage"] == stage and t["state"] == "pending"]
-    return {shown(ops, env, wiki, one)["capture_dir"]: one for one in ids}
+    found = {shown(ops, env, wiki, one)["capture_dir"]: one for one in ids}
+    _PENDING_CAPTURES.update({(wiki, one): wiki / capture_dir for capture_dir, one in found.items()})
+    return found
 
 
 def unit_tests(unit: str, module: str) -> dict:

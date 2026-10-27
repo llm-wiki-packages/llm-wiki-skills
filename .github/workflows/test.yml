@@ -54,9 +54,10 @@ jobs:
       # the secret the install tests SKIP (and say so); the script tests run
       # regardless, since a unit script is stdlib-only.
       #
-      # `LLM_WIKI_OPS` is the command the harness runs (`tests/harness.py`); a `uv run
-      # --project` against the checkout, the same shape a developer's proof
-      # run uses. `LLM_WIKI_OPS_PLUGIN` is the plugin's root: the
+      # `LLM_WIKI_OPS` is the command the harness runs (`tests/harness.py`): the
+      # checkout's own console script, by absolute path, once `uv run --project`
+      # has synced its venv. Not `uv run` per call: the harness makes hundreds of
+      # calls, and uv's resolve check is paid on each. `LLM_WIKI_OPS_PLUGIN` is the plugin's root: the
       # youtube-note cases look under it for `format_transcript.py`, at the
       # address the unit itself runs, and FAIL if it is not there.
       - name: Check out llm-wiki-plugins and resolve the ops CLI
@@ -79,7 +80,8 @@ jobs:
           # `wiki --here`, so it refuses every argv outside a wiki, `--version`
           # among them. Both are console scripts of this one project.
           uv run --project "$project" llm-wiki-cli --version
-          echo "LLM_WIKI_OPS=uv run --project $project llm-wiki-ops" >> "$GITHUB_ENV"
+          test -x "$project/.venv/bin/llm-wiki-ops"
+          echo "LLM_WIKI_OPS=$project/.venv/bin/llm-wiki-ops" >> "$GITHUB_ENV"
           echo "LLM_WIKI_OPS_PLUGIN=$plugins/llm-wiki-ops/v1/plugin" >> "$GITHUB_ENV"
       # Some cases run a unit script the way production does — `uv run --script`, OFFLINE, so a
       # test can never reach a venue — and skip, saying so, when its PEP 723 dependencies are
