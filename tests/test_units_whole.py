@@ -133,11 +133,15 @@ def test_every_copy_of_the_converter_is_the_same_file():
 def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_ticket(name):
     """A channel unit renders its own venue's page, so it holds the pen at
     process too: the manifest declares both stages, the body documents both,
-    and the one invocation for either is `/<unit> ticket=<id>`."""
+    and the one invocation for either is `/<unit> ticket=<id>`. A unit a
+    person also runs by hand leads its frontmatter hint with that form, the
+    manifest's own, so the hint is the manifest's less the runner's `stage=`."""
     assert list(unit_manifest(name)["stages"]) == ["harvest", "process"], unit_manifest(name)["stages"]
     skill = doc(ROOT / "skills" / name / "SKILL.md")
     front = skill.split("---", 2)[1]
-    assert re.search(r'^argument-hint:\s*"ticket=<id>"\s*$', front, re.M), front
+    typed = re.sub(r" stage=\S+", "", unit_manifest(name)["argument_hint"])
+    assert typed.endswith("ticket=<id>"), typed
+    assert re.search(r'^argument-hint:\s*"' + re.escape(typed) + r'"\s*$', front, re.M), (typed, front)
     assert unit_manifest(name)["usage"] == f"/{name} ticket=<id>"
     assert "allowed-tools" not in front and "disable-model-invocation" not in front
     assert re.search(r"^## Stages", skill, re.M) and "tickets open" in skill and "tickets update" in skill
