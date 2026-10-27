@@ -1,7 +1,7 @@
 ---
 name: web-page
-description: Use when a pipeline ticket's harvest runs it (`ticket=<id>`), the wiki's plain-url fetch script. Never from conversation — to follow a page, use /{{@brain-plugin}}:add.
-argument-hint: "ticket=<id>"
+description: Use when a pipeline ticket's harvest fetches a plain url: the runner starts this unit's script itself, with no session or slash form. Never from conversation — to follow a page, use /{{@brain-plugin}}:add.
+argument-hint: ""
 ---
 
 # web-page

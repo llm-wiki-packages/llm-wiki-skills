@@ -183,7 +183,8 @@ def test_the_argument_hints_name_what_the_runner_passes_and_only_the_manifest_do
     """A stage with no `script` is a session the runner starts as
     `/<unit> … ticket=<id> stage=<stage>`; a script stage has no slash form.
     The manifest's `argument_hint` is the whole shape, those runner tokens
-    included; the frontmatter's is what a person types, so never `stage=`."""
+    included; the frontmatter's is what a person types, so never `stage=`,
+    and empty for a pipeline-only unit with no slashed stage."""
     manifest = unit_manifest(name)
     hint = manifest["argument_hint"]
     slashed = [s for s, spec in manifest["stages"].items() if "script" not in spec]
@@ -194,7 +195,10 @@ def test_the_argument_hints_name_what_the_runner_passes_and_only_the_manifest_do
     else:
         assert "ticket=" not in hint and "stage=" not in hint, hint
     front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
-    assert "stage=" not in (re.search(r"^argument-hint:(.*)$", front, re.M) or ["", ""])[1], front
+    typed = (re.search(r"^argument-hint:(.*)$", front, re.M) or ["", ""])[1]
+    assert "stage=" not in typed, front
+    if not slashed and manifest["mode"] == ["pipeline"]:
+        assert typed.strip() == '""', f"{name}: the runner starts its script, so nothing is typed: {typed!r}"
 
 
 @pytest.mark.parametrize("name", CHANNELS)
