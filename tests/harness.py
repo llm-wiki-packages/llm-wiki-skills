@@ -26,6 +26,7 @@ import shlex
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -233,14 +234,19 @@ def machine_layer(ops: list, home: Path, uv_cache: str) -> None:
     write it for this box: read grants to exec the ops CLI (its venv,
     interpreter and import roots, read off the CLI's own interpreter) and the
     plugin root, to read the fake agent's `AGENT_DIR`, `uv`, `bins.jsonc` and
-    `uv.toml`; and, in the slice layer, a uv cache a jail may write. `run`
+    `uv.toml`, and this suite's own interpreter; and, in the slice layer, a uv
+    cache a jail may write. A jail inherits `VIRTUAL_ENV`, this suite's venv,
+    and its uv runs a PEP 723 script on that venv's interpreter only if the
+    jail may exec it; otherwise it falls back to the first Python on PATH,
+    whose per-version wheels the CI warm step never fetched. `run`
     executes a PEP 723 script under `uv run --script`, which cannot start on a
     read-only cache, and the floor write-denies the default one
     (llm-wiki-plugins #1630, finding 8): a cache the slice layer names is the
     operator's way through, and the one this box takes."""
     done = subprocess.run([*_cli_python(ops), "-c", _TOOLCHAIN], cwd=NEUTRAL_CWD, capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stderr
-    reads = [*json.loads(done.stdout.strip().splitlines()[-1]), str(AGENT_DIR)]
+    reads = [*json.loads(done.stdout.strip().splitlines()[-1]), str(AGENT_DIR),
+             sys.base_prefix, os.path.realpath(sys.base_prefix)]
     uv = shutil.which("uv")
     if uv:
         reads += [str(home / ".config" / "llm-wiki" / "bins.jsonc"), str(home / ".config" / "uv" / "uv.toml"),
