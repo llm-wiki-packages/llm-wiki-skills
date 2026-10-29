@@ -212,6 +212,16 @@ def _cli_python(ops: list) -> list:
     return [*ops[:-1], "python"]
 
 
+def _plan_python(ops: list) -> str | None:
+    """The interpreter a plan's `step` runs under, for a console script named by
+    path: its real directory, symlinks followed (`uv tool` links the script
+    into `~/.local/bin`, where no `python` sits). None for a runner command
+    line, which the plan derives from the jail's own `LLM_WIKI_OPS`."""
+    if len(ops) == 1 and os.sep in ops[0]:
+        return str(Path(ops[0]).resolve().with_name("python"))
+    return None
+
+
 _TOOLCHAIN = """
 import json, os, sys, llm_wiki_ops
 roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
@@ -552,7 +562,7 @@ sys.stdout.write(%r + json.dumps(line) + "\\n")
 """ % STEP_MARK
 PLAN_HEAD = """\
 OPS="$LLM_WIKI_OPS"
-PY="$(dirname "$LLM_WIKI_OPS")/python"
+PY={py}
 TICKET={ticket}
 CAP={capture}
 FIX={fixtures}
@@ -609,7 +619,8 @@ def staged(ops: list, env: dict, wiki: Path, ticket: str, plan: str, files: dict
         (fixtures / name).write_bytes(data)
     capture = (_PENDING_CAPTURES.pop((wiki, ticket), None) or capture_of(ops, env, wiki, ticket)).relative_to(wiki)
     head = PLAN_HEAD.format(ticket=shlex.quote(ticket), capture=shlex.quote(str(capture)), fixtures=shlex.quote(str(fixtures)),
-                            step_py=shlex.quote(_STEP_PY))
+                            step_py=shlex.quote(_STEP_PY),
+                            py=shlex.quote(py) if (py := _plan_python(ops)) else '"$(dirname "$LLM_WIKI_OPS")/python"')
     (AGENT_DIR / f"plan.{ticket}.sh").write_text(head + plan, encoding="utf-8")
     r = run(ops, rooted(env, wiki), "--json", "tickets", "run", ticket, f"wait={wait}")
     no_jail_here(r)

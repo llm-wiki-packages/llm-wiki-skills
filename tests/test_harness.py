@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from harness import NEUTRAL_CWD, ROOT, STEP_MARK, Result, Session, _cli, _cli_python, claimed, declared_job, shown, staged
+from harness import NEUTRAL_CWD, ROOT, STEP_MARK, Result, Session, _cli, _cli_python, _plan_python, claimed, declared_job, shown, staged
 
 
 def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
@@ -56,6 +56,18 @@ def test_the_cli_interpreter_is_found_beside_its_console_script(tmp_path):
     (tmp_path / "bin" / "llm-wiki-ops").touch()
     assert _cli_python([str(tmp_path / "bin" / "llm-wiki-ops")]) == [str(tmp_path.resolve() / "bin" / "python")]
     assert _cli_python(["uv", "run", "--project", "/p", "llm-wiki-ops"]) == ["uv", "run", "--project", "/p", "python"]
+
+
+def test_the_plan_interpreter_is_the_real_one_through_a_symlinked_console_script(tmp_path):
+    (tmp_path / "real" / "bin").mkdir(parents=True)
+    (tmp_path / "link").mkdir()
+    (tmp_path / "real" / "bin" / "llm-wiki-ops").touch()
+    (tmp_path / "real" / "bin" / "python").touch()
+    (tmp_path / "link" / "llm-wiki-ops").symlink_to("../real/bin/llm-wiki-ops")
+    want = str((tmp_path / "real" / "bin" / "python").resolve())
+    assert _plan_python([str(tmp_path / "real" / "bin" / "llm-wiki-ops")]) == want
+    assert _plan_python([str(tmp_path / "link" / "llm-wiki-ops")]) == want
+    assert _plan_python(["uv", "run", "--project", "/p", "llm-wiki-ops"]) is None
 
 
 def test_the_machine_cli_is_found_beside_a_path_spelled_ops():
