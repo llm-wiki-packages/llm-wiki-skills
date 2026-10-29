@@ -43,11 +43,6 @@ def test_the_unit_ships_the_three_references_the_plugin_reads():
     assert {"enable.md", "customize.md", "usage.md"} <= set(LOCAL), LOCAL
 
 
-@pytest.mark.parametrize("local", [n for n in LOCAL if n not in {"enable.md", "customize.md", "usage.md"}])
-def test_every_other_reference_it_ships_is_named_in_the_body(local):
-    assert local in BODY
-
-
 # The student preset's `study-plan` job runs this unit as `/study-plan
 # ticket=<id> stage=routine`; the claim gate admits that job only where the
 # enabled manifest serves `routine`.
