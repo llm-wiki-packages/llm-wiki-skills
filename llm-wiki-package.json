@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "llm-wiki-skills",
   "repository": "llm-wiki-packages/llm-wiki-skills",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Skills for llm-wiki wikis: the channel skills the ops CLI installs.",
   "license": "MIT",
   "min_ops_version": "0.10.0",
@@ -18,6 +18,11 @@
       "type": "skill",
       "name": "daily-report",
       "path": "skills/daily-report"
+    },
+    {
+      "type": "skill",
+      "name": "study-plan",
+      "path": "skills/study-plan"
     },
     {
       "type": "skill",

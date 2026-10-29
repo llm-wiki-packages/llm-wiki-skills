@@ -50,7 +50,7 @@ def test_every_template_is_one_a_unit_names():
     shipped = {p.stem for p in TEMPLATES.iterdir()}
     assert shipped == named, shipped ^ named
     assert {p.suffix for p in TEMPLATES.iterdir()} == {".jsonc", ".md"}
-    assert len(named) == len(SKILLS) == 13, (len(named), len(SKILLS))
+    assert len(named) == len(SKILLS) == 14, (len(named), len(SKILLS))
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -83,6 +83,7 @@ HOSTS = {
     "notion": ["api.notion.com"],
     "parentsquare": ["www.parentsquare.com"],
     "spotify": ["spotify.com", "*.spotify.com", "*.scdn.co", "*.spotifycdn.com", "itunes.apple.com"],
+    "study-plan": [],
     "substack": ["substack.com", "*.substack.com", "substackcdn.com"],
     "web-page": [],
     "youtube": ["youtube.com", "*.youtube.com", "youtu.be", "*.googlevideo.com", "*.ytimg.com"],
@@ -104,6 +105,10 @@ FILESYSTEM = {
         "allow": ["$WORKDIR/wiki"],
     },
     ("github", "routine"): {"read": ["$WORKDIR/sources"]},
+    ("study-plan", "routine"): {
+        "read": ["$WORKDIR/research", "$WORKDIR/sources"],
+        "allow": ["$WORKDIR/wiki"],
+    },
 }
 
 
