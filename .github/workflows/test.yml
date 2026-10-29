@@ -20,6 +20,12 @@ concurrency:
 # itself against a CLI that has not landed, and sets it back before it lands.
 env:
   PLUGINS_REF: main
+  # The interpreter the harness runs on, and so the one a jailed `run` resolves
+  # a unit script's dependencies for: the jail inherits the harness venv's
+  # VIRTUAL_ENV but not UV_PYTHON_INSTALL_DIR, so its uv picks this Python.
+  # A dependency with per-version wheels (`requests` pulls charset-normalizer)
+  # is cached only for the interpreter the warm step ran on.
+  HARNESS_PYTHON: "3.14"
 
 jobs:
   harness:
@@ -87,11 +93,12 @@ jobs:
       # test can never reach a venue — and skip, saying so, when its PEP 723 dependencies are
       # not in uv's cache. A fresh runner's cache is empty: resolve them once here, online, so
       # those cases RUN in CI rather than skip. `-h` imports nothing heavy and touches no venue.
+      # On HARNESS_PYTHON, not uv's default pick: the plugins step left a newer managed Python.
       - name: Warm the unit scripts' dependencies
         run: |
           for script in skills/*/scripts/*.py; do
             grep -q '^# /// script' "$script" || continue
-            uv run --quiet --script "$script" -h > /dev/null 2>&1 || echo "::warning::could not warm $script"
+            uv run --quiet --python "$HARNESS_PYTHON" --script "$script" -h > /dev/null 2>&1 || echo "::warning::could not warm $script"
           done
       # `skills enable` refuses a skill whose `requires.bins` are not on PATH
       # and installs nothing itself, so the runner supplies what the manifests
@@ -115,4 +122,4 @@ jobs:
       # `-rs`: every skip prints its reason, so a harness that skipped its
       # install tier is visible in the log, never a quiet green.
       - name: Run the harness
-        run: uv run --with pytest --with pytest-xdist --python 3.14 pytest -q -rs -n auto
+        run: uv run --with pytest --with pytest-xdist --python "$HARNESS_PYTHON" pytest -q -rs -n auto
