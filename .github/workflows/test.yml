@@ -22,7 +22,7 @@ env:
   PLUGINS_REF: main
   # The interpreter the harness runs on, and so the one a jailed `run` resolves
   # a unit script's dependencies for: the jail inherits the harness venv's
-  # VIRTUAL_ENV but not UV_PYTHON_INSTALL_DIR, so its uv picks this Python.
+  # VIRTUAL_ENV, and `tests/harness.py` grants the jail that interpreter.
   # A dependency with per-version wheels (`requests` pulls charset-normalizer)
   # is cached only for the interpreter the warm step ran on.
   HARNESS_PYTHON: "3.14"
