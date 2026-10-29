@@ -74,9 +74,26 @@ def test_the_overlay_read_takes_the_quiz_weak_spot_rule_too():
 def test_the_log_entry_it_reads_is_the_one_the_quiz_writes():
     entry = re.search(r"^- <date> unit=<document_id> \[\[<title>\]\] answer=\"<[^>]+>\" grade=<[a-z|]+>$", BODY, re.M)
     assert entry, "the body names no quiz log entry in the quiz's shape"
-    assert "llm-wiki-ops page ls filter=under:research/logs" in BODY
-    assert "llm-wiki-ops page read id=<document_id> fields=tests" in BODY
-    assert 'fields=prereqs' in BODY
+
+
+# A relation field reads back as `[[Title]]` link text, which no verb takes
+# as a page; `page links` answers each target's `path=` and `document_id=`,
+# so the walk chains only through it.
+def test_the_walk_chains_through_page_links_never_link_text():
+    assert "llm-wiki-ops page links id=<document_id>\n" in BODY
+    assert 'llm-wiki-ops page links "<concept path>"\n' in BODY
+    assert not re.search(r"fields=[a-z,]*(tests|prereqs|covers)", BODY), "a relation is read as link text"
+
+
+# What is weak is the quiz's: the same overlay, the same stock rule and the
+# same lookup, so the plan cannot call weak what the next quiz does not.
+def test_the_weak_spot_lookup_is_the_quizs_own():
+    for line in ("llm-wiki-ops page types log\n", "llm-wiki-ops page ls filter=type:log filter=under:<the log type's dir>\n",
+                 'llm-wiki-ops page backlinks "<tested concept path>"\n'):
+        assert line in BODY, line
+    assert "newest five sessions whose entries carry `grade=`" in BODY
+    assert "latest graded attempt was a `partial` or a `miss`" in BODY
+    assert not re.search(r"\b\d+ days\b", BODY.split("## 3. ", 1)[1].split("## 5. ", 1)[0]), "a day window decides what is weak"
 
 
 def test_the_plan_is_one_guide_written_through_the_page_verbs():

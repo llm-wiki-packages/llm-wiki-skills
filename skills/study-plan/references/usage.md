@@ -18,8 +18,10 @@ Nothing is asked mid-run, by hand or not.
 
 ## Knobs
 
-- The `study-plan` overlay: horizon, log window, plan size and layout, when
-  an exam gets a guide of its own (SKILL.md § 1).
-- The `quiz` overlay's weak-spot rule, read by the same call.
+- The `study-plan` overlay: horizon, plan size and layout, when an exam
+  gets a guide of its own (SKILL.md § 1).
+- What is weak is the quiz's: the `quiz` overlay's weak-spot rule, read by
+  the same call, else the quiz's stock rule, over the sessions the quiz's
+  own lookup finds (SKILL.md § 3).
 - What it writes: the guide titled `Study plan`, and one
   `<assessment> study guide` per exam due (SKILL.md § 5, § 6).

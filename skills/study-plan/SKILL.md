@@ -41,15 +41,16 @@ Every command below acts on this wiki. Asked to run against a different one?
 ```
 
 The `study-plan` overlay steers the horizon, the plan's size and layout, and
-when an exam earns a guide of its own. The `quiz` overlay's weak-spot rule
-is the one this run applies, so the plan and the quiz agree on what weak
-means. Where both are silent, or `overlays: none`, use the stock rule:
+when an exam earns a guide of its own. What counts as weak is never this
+skill's: it is the quiz's weak-spot rule — the `quiz` overlay's, else the
+quiz's stock rule below — read with the quiz's own lookup (§3), so the plan
+and the quiz cannot disagree. The horizon picks what to schedule, never what
+is weak. Where the overlays are silent, or `overlays: none`:
 
 | | stock rule |
 | :--- | :--- |
-| horizon | the next seven days, from today |
-| logs read | the sessions of the last 30 days |
-| weak | a concept whose latest graded attempt was a `partial` or a `miss` |
+| horizon | the next seven days, from today: what the syllabus has due |
+| weak | the quiz's stock rule: a unit tested whose latest graded attempt was a `partial` or a `miss` |
 | plan size | at most five concepts, weak and due first |
 | exam guide | an exam, test or other graded assessment the syllabus dates inside the horizon |
 
@@ -74,10 +75,11 @@ A date you cannot read for certain is not guessed: the item goes into the
 plan as an open question. No syllabus at all: plan from the logs alone, and
 the plan's lead says so.
 
-## 3. The quiz logs
+## 3. The weak spots, by the quiz's own lookup
 
 ```sh
-{{@brain-cli-ops}} page ls filter=under:research/logs
+{{@brain-cli-ops}} page types log
+{{@brain-cli-ops}} page ls filter=type:log filter=under:<the log type's dir>
 {{@brain-cli-ops}} page read "<log path>"
 ```
 
@@ -87,32 +89,46 @@ The quiz skill writes one `log` page per session. Each entry is one line:
 - <date> unit=<document_id> [[<title>]] answer="<the reply>" grade=<correct|partial|miss>
 ```
 
-Read the sessions inside the window, newest first by the date each entry
-opens with. An entry with no `grade=` is not an attempt. No logs: nothing
-is weak yet, and the plan follows the syllabus alone.
-
-## 4. Join to the concepts, and walk the prereqs
-
-For each `unit=` graded:
+Read the newest five sessions whose entries carry `grade=`, newest by the
+date each entry opens with. Each entry's `unit=` is the `document_id` of the
+unit asked; what it tested comes from its links:
 
 ```sh
-{{@brain-cli-ops}} page read id=<document_id> fields=tests
+{{@brain-cli-ops}} page links id=<document_id>
 ```
 
-`tests` names what a correct answer proves; a unit with none tested itself.
-A `document_id` that no longer resolves is skipped. Apply the weak-spot rule
-per tested concept over its attempts, newest first.
+Each `relation=tests` row names a tested concept by `path=` and
+`document_id=`; a unit with no such row tested itself. A `document_id` that
+no longer resolves is skipped. Frontmatter link text (`[[Title]]`) is never
+fed to a verb: every next step takes a row's `path=` or `document_id=`.
 
-Walk up from each weak concept:
+Five is the stock window. When the rule in force needs more than those five
+hold — an overlay's "last three appearances" — find a tested concept's older
+sessions by what they cover:
 
 ```sh
-{{@brain-cli-ops}} page read "<concept path>" fields=prereqs
+{{@brain-cli-ops}} page backlinks "<tested concept path>"
 ```
 
-A prereq that is itself weak, or never attempted in the window, goes into
-the plan before the concept: the trouble may sit upstream. Stop at a prereq
-whose latest attempt was `correct`, walk at most three levels, and never
-walk one concept twice.
+Its `relation=covers` rows under the log type's directory are every session
+that tested it; read them, newest first, until the rule is settled for that
+concept. No logs: nothing is weak yet, and the plan follows the syllabus
+alone.
+
+## 4. Walk the prereqs, then match the syllabus
+
+Walk up from each weak concept, one hop per call:
+
+```sh
+{{@brain-cli-ops}} page links "<concept path>"
+```
+
+Each `relation=prereqs` row is a prereq; its `path=` is the next call's
+argument. A prereq the rule calls weak, or one never attempted — no
+`relation=covers` row in its `page backlinks` — goes into the plan before
+the concept: the trouble may sit upstream. Stop at a prereq that was
+attempted and is not weak, walk at most three levels, and never walk one
+concept twice.
 
 Then the syllabus side. Match what §2 found due to the wiki's concepts by
 title and `aliases`:
@@ -133,7 +149,7 @@ For each concept the plan will hold, its practice questions:
 ```
 
 The `relation=tests` rows are the questions that test it. Prefer one the
-logs show missed, then one not asked in the window, easiest first.
+logs show missed, then one not asked in the sessions read, easiest first.
 
 ## 5. Write the plan
 
