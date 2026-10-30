@@ -85,6 +85,15 @@ def test_the_walk_chains_through_page_links_never_link_text():
     assert not re.search(r"fields=[a-z,]*(tests|prereqs|covers)", BODY), "a relation is read as link text"
 
 
+# `page links` prints `path=none document_id=none` for a target that has no
+# page yet; no hop (tests, prereqs, backlinks, embeds) may feed it to a verb.
+def test_an_unresolved_link_row_is_never_given_to_a_verb():
+    assert BODY.count("path=none") >= 4, "each hop that consumes path= names the unresolved row"
+    for hop in ("tested concept by `path=`", "relation=prereqs", "relation=tests` rows are the questions", "Embed only a row"):
+        tail = BODY.split(hop, 1)[1][:400]
+        assert "path=none" in tail, hop
+
+
 # What is weak is the quiz's: the same overlay, the same stock rule and the
 # same lookup, so the plan cannot call weak what the next quiz does not.
 def test_the_weak_spot_lookup_is_the_quizs_own():

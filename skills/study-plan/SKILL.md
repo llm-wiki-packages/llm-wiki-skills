@@ -101,6 +101,10 @@ Each `relation=tests` row names a tested concept by `path=` and
 `document_id=`; a unit with no such row tested itself. A `document_id` that
 no longer resolves is skipped. Frontmatter link text (`[[Title]]`) is never
 fed to a verb: every next step takes a row's `path=` or `document_id=`.
+A row with `path=none` names a unit that does not exist yet: it is never
+given to a verb as a page, here or in any later hop (tests, prereqs,
+backlinks, embeds). It may still be named in `covers` or listed as a gap to
+study.
 
 Five is the stock window. When the rule in force needs more than those five
 hold — an overlay's "last three appearances" — find a tested concept's older
@@ -124,7 +128,7 @@ Walk up from each weak concept, one hop per call:
 ```
 
 Each `relation=prereqs` row is a prereq; its `path=` is the next call's
-argument. A prereq the rule calls weak, or one never attempted — no
+argument; a row with `path=none` is a gap to list, never walked. A prereq the rule calls weak, or one never attempted — no
 `relation=covers` row in its `page backlinks` — goes into the plan before
 the concept: the trouble may sit upstream. Stop at a prereq that was
 attempted and is not weak, walk at most three levels, and never walk one
@@ -148,7 +152,8 @@ For each concept the plan will hold, its practice questions:
 {{@brain-cli-ops}} page read "<question path>" fields=difficulty
 ```
 
-The `relation=tests` rows are the questions that test it. Prefer one the
+The `relation=tests` rows are the questions that test it; a row with
+`path=none` is skipped, never read. Prefer one the
 logs show missed, then one not asked in the sessions read, easiest first.
 
 ## 5. Write the plan
@@ -177,7 +182,8 @@ The body arrives on stdin:
 - **Open questions** — the unreadable dates and the due items with no
   concept page, when there are any.
 
-`covers` lists every concept the body embeds. Never restate a unit's text
+Embed only a row whose `path=` resolved; a `path=none` target is plain text
+under open questions. `covers` lists every concept the body embeds. Never restate a unit's text
 or a question's answer: the embed carries it, and stays current when the
 unit changes. `audience` is set to the course the plan is for, when the
 syllabus names one.
