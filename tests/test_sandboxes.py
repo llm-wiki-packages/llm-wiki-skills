@@ -92,6 +92,7 @@ HOSTS = {
 
 # `(template, stage) -> machine_reads tokens`; absent means none.
 MACHINE_READS = {
+    ("blackboard", "harvest"): ["playwright-cache"],
     ("circle", "harvest"): ["playwright-cache"],
     ("frameio", "harvest"): ["playwright-cache"],
     ("hubspot-cms", "harvest"): ["playwright-cache"],

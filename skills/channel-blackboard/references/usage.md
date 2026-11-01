@@ -8,11 +8,11 @@ script runs as `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.
 
 | command | argv |
 | :--- | :--- |
-| `login` | `<base_url> (--profile DIR \| --credential NAME) [--chrome] [--timeout-min 15]` |
-| `whoami` | `(--profile DIR \| --credential NAME) [--chrome] [--headed]` |
-| `courses` | the same |
-| `get` | `<api-path> [--all]` and the same; `v1/...` is under `/learn/api/public`, a leading `/` is a site path |
-| `harvest` | `<course id> --out DIR [--no-files]` and the same |
+| `bb.py login` | `<base_url> (--profile DIR \| --credential NAME) [--chrome] [--timeout-min 15]` |
+| `bb.py whoami` | `(--profile DIR \| --credential NAME) [--chrome] [--headed]` |
+| `bb.py courses` | the same |
+| `bb.py get` | `<api-path> [--all]` and the same; `v1/...` is under `/learn/api/public`, a leading `/` is a site path |
+| `bb.py harvest` | `<course id> --out DIR [--no-files]` and the same |
 
 Every command above also takes `--site <base url>`, over the profile's
 `bb-site.json`; the harvest stage passes the job target's.
@@ -45,9 +45,9 @@ No network and no credential: it reads a harvest directory.
 
 | command | argv | what |
 | :--- | :--- | :--- |
-| `split` | `<harvest dir> --out DIR [--tz ZONE]` | one capture dir per page under `DIR`, each with `capture.json` |
-| `render` | `<capture dir> [--out FILE] [--tz ZONE]` | that capture's page(s) as JSON: `title`, `type`, `published`, `body`, and `problem` where its text could not be had |
-| `notes` | `<harvest dir> --out DIR [--items DIR] [--tz ZONE]` | `split` and `render` together: one Markdown note per page in `DIR` |
+| `bbnotes.py split` | `<harvest dir> --out DIR [--tz ZONE]` | one capture dir per page under `DIR`, each with `capture.json` |
+| `bbnotes.py render` | `<capture dir> [--out FILE] [--tz ZONE]` | that capture's page(s) as JSON: `title`, `type`, `published`, `body`, and `problem` where its text could not be had |
+| `bbnotes.py notes` | `<harvest dir> --out DIR [--items DIR] [--tz ZONE]` | `split` and `render` together: one Markdown note per page in `DIR` |
 
 The captures, by `kind` in `capture.json`:
 

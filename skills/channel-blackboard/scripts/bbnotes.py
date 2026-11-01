@@ -51,7 +51,11 @@ TRANSCRIPT = ".transcript.webvtt"
 WRAPPER = re.compile(r"^UNSAFE_HTML_", re.I)
 # A discussion page past this many bytes continues in a part of its own: a 980-post board is one source no reader finishes.
 PART_BYTES = 60_000
-TITLE_MAX = 150
+_TITLE_SWAPS = {":": " -", "/": "-", "\\": "-", "|": "-", "?": "", "*": "", '"': "\u2019", "'": "\u2019", "<": "(", ">": ")"}
+TITLE_MAX = 120   # characters
+# …and a filename is capped in BYTES by the filesystem (255 on ext4/APFS), with `.md` appended:
+# 120 characters of CJK is 360 bytes, which `filename_for` lets through and the write then fails on.
+TITLE_MAX_BYTES = 200
 CONTAINERS = {"resource/x-bb-folder", "resource/x-bb-lesson"}
 SHORT_HANDLER = {
     "resource/x-bb-document": "document",
@@ -327,10 +331,21 @@ def when(stamp: str | None) -> str:
     return local.strftime("%a %Y-%m-%d %I:%M %p %Z").replace(" 0", " ", 1) if ZONE[0] is not timezone.utc else t.strftime("%a %Y-%m-%d %H:%M UTC")
 
 
-def safe_title(text: str) -> str:
-    text = re.sub(r"[\\/:*?\"<>|#^\[\]]", " ", text).replace("'", "’")
-    text = re.sub(r"\s+", " ", text).strip(" .")
-    return text[:TITLE_MAX].rstrip(" .") or "untitled"
+def safe_title(text, fallback="Untitled"):
+    text = "".join(ch if ch.isprintable() else " " for ch in str(text or ""))  # control chars, newlines, tabs
+    for bad, good in _TITLE_SWAPS.items():
+        text = text.replace(bad, good)
+    text = " ".join(text.split()).lstrip(". ").rstrip(" .")
+    cut = text[:TITLE_MAX]
+    while len(cut.encode("utf-8")) > TITLE_MAX_BYTES:
+        cut = cut[:-1]
+    if cut != text:
+        text = cut.rstrip(" .-") + "…"
+    if text.casefold() == "index":
+        # `index.md` is the host's one RESERVED page name (note.py::RESERVED): its page walker skips
+        # it, so the page never appears in `known[]` and the item is re-pulled forever.
+        text = f"{text} (page)"
+    return text or fallback
 
 
 def course_code(course: dict) -> str:

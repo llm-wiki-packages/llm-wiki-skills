@@ -1,5 +1,5 @@
 {
-  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>> | ticket=<id>",
+  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>",
   "description": "Downloads Blackboard Learn courses through a signed-in browser session and turns each into pages: content items with due dates and grades, pdf, slide and Word text, video transcripts, announcements, discussions and a course overview. Runs as a scheduled job or by hand.",
   "keywords": [
     "announcements",
@@ -8,7 +8,7 @@
     "course",
     "courses",
     "discussions",
-    "due dates",
+    "deadlines",
     "gradebook",
     "grades",
     "host:*.blackboard.com",

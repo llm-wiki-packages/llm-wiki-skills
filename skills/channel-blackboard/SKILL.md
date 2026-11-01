@@ -76,6 +76,35 @@ page a person moved is edited where it now lives, and a held page is left
 alone. A run that ends `failed` with `missing=<host>,…,auth` is an expired
 session: step 1 again, then `{{@brain-cli-ops}} tickets retry <id>`.
 
+## Stages
+
+Both are scripts the runner starts in the stage's jail; no session reads
+these steps. `{{@brain-cli-ops}} tickets run <id> spawn=self` prints the line
+for one ticket and runs it in the foreground.
+
+### harvest
+
+```sh
+{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/harvest.py ticket=<id>
+```
+
+Opens the ticket, runs `bb.py harvest` on the granted `credential_dir` into
+`<capture_dir>/harvest/`, splits it into `<capture_dir>/items/<kind>-<id>/`,
+and posts each new or changed item as `captured=`. `failed` with
+`missing=<host>,<target>,auth` is an expired session; `partial` names
+Blackboard calls that failed, which the next pull fetches.
+
+### process
+
+```sh
+{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/process.py ticket=<id>
+```
+
+Renders the one capture (`bbnotes.render`) and writes its page(s) through
+`page create`, or `page edit` where the page exists or a person moved it;
+a held page is left alone. `partial` names a page that went out without its
+text: a scanned pdf, or a video no transcript reached yet.
+
 ## 4. By hand: harvest, then convert
 
 ```sh
