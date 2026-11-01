@@ -49,7 +49,8 @@
       "every": "1d",
       "transcribe": {
         "options": {
-          "when": "if-no-captions"
+          "when": "if-no-captions",
+          "diarize": false
         }
       }
     },
