@@ -26,6 +26,11 @@
     },
     {
       "type": "skill",
+      "name": "channel-blackboard",
+      "path": "skills/channel-blackboard"
+    },
+    {
+      "type": "skill",
       "name": "channel-circle",
       "path": "skills/channel-circle"
     },

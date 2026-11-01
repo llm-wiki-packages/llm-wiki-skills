@@ -1,0 +1,30 @@
+{
+  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>>",
+  "description": "Downloads Blackboard Learn courses through a signed-in browser session: content, syllabus, files, announcements, discussions, grades and the student's own submissions. Run by hand.",
+  "keywords": [
+    "blackboard",
+    "learn",
+    "lms",
+    "course",
+    "courses",
+    "syllabus",
+    "announcements",
+    "assignments",
+    "discussions",
+    "grades",
+    "host:blackboard.com",
+    "host:*.blackboard.com"
+  ],
+  "mode": [
+    "session"
+  ],
+  "name": "channel-blackboard",
+  "requires": {
+    "ops": ">=0.11.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
+  "stages": {},
+  "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>>",
+  "v": 1,
+  "version": "0.1.0"
+}

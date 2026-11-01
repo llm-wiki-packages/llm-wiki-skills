@@ -1,0 +1,11 @@
+// blackboard: the catalog template for the channel-blackboard unit. `skills
+// install` validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/blackboard.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // The unit declares no stage: it runs by hand, in the operator's session.
+    "routine": {"extends": "routine"}
+  }
+}
