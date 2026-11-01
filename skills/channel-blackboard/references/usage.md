@@ -14,6 +14,9 @@ script runs as `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.
 | `get` | `<api-path> [--all]` and the same; `v1/...` is under `/learn/api/public`, a leading `/` is a site path |
 | `harvest` | `<course id> --out DIR [--no-files]` and the same |
 
+Every command above also takes `--site <base url>`, over the profile's
+`bb-site.json`; the harvest stage passes the job target's.
+
 `--credential NAME` reads the profile directory off `{{@brain-cli-ops}}
 credentials info NAME` (a `kind=dir` credential). Exit 0 ok; 2 not signed in
 or the session expired; 3 usage or an unreadable profile; 4 an API error
@@ -34,3 +37,29 @@ that is not auth.
 | `attempts.json`, `attempts/<id>.json` | the student's attempts; the detail carries rubric scores and file references |
 | `external.json` | every off-site link, `video: true` for a video host; not fetched |
 | `files.json`, `errors.json`, `summary.json` | what landed, what failed, the totals |
+
+## `bbnotes.py`
+
+`{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bbnotes.py <command> …`.
+No network and no credential: it reads a harvest directory.
+
+| command | argv | what |
+| :--- | :--- | :--- |
+| `split` | `<harvest dir> --out DIR [--tz ZONE]` | one capture dir per page under `DIR`, each with `capture.json` |
+| `render` | `<capture dir> [--out FILE] [--tz ZONE]` | that capture's page(s) as JSON: `title`, `type`, `published`, `body`, and `problem` where its text could not be had |
+| `notes` | `<harvest dir> --out DIR [--items DIR] [--tz ZONE]` | `split` and `render` together: one Markdown note per page in `DIR` |
+
+The captures, by `kind` in `capture.json`:
+
+| kind | page type | renders from |
+| :--- | :--- | :--- |
+| `course` | `document` | the outline, the gradebook (due dates, points, the student's grades and feedback), the calendar, off-site links |
+| `item` | `document` | one content item with a body, instructions or a grade column; a bare link or folder is a line of the outline instead |
+| `file` | `document` | a pdf (pypdf, layout mode), slide deck (slide text and speaker notes), Word file or html page an item carries |
+| `video` | `video` | the transcript beside the media: the transcribe stage's `.transcript.webvtt`, else an English caption track |
+| `announcement` | `note` | one announcement |
+| `discussion` | `note` | one board's prompt and every published post, threaded by reply; parts past 60 KB |
+
+`published` is the day the item was last modified, an announcement's last
+edit, or a board's latest post. Titles are settled across the course: two
+items called "Introduction" are two pages.

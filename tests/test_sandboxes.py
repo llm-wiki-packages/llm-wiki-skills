@@ -73,7 +73,7 @@ def test_no_template_names_a_model_endpoint(name):
 # dropped or added shows here. Hosts are the harvest stage's `allow_domain`;
 # no other stage names a host.
 HOSTS = {
-    "blackboard": [],
+    "blackboard": ["blackboard.com", "*.blackboard.com", "*.blackboardcdn.com"],
     "circle": ["circle.so", "*.circle.so"],
     "daily-report": [],
     "frameio": ["frame.io", "*.frame.io"],

@@ -5,7 +5,22 @@
   "v": 2,
   "kind": "skill",
   "stages": {
-    // The unit declares no stage: it runs by hand, in the operator's session.
+    "harvest": {
+      "extends": "harvest",
+      // Playwright's browser build, which bb.py launches.
+      "machine_reads": ["playwright-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other. The
+        // institution's own host is the job's target, minted per ticket.
+        "allow_domain": [
+          // Blackboard-hosted sites, and the CDN every /bbcswebdav/ file redirects to.
+          "blackboard.com",
+          "*.blackboard.com",
+          "*.blackboardcdn.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
     "routine": {"extends": "routine"}
   }
 }

@@ -1,30 +1,68 @@
 {
-  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>>",
-  "description": "Downloads Blackboard Learn courses through a signed-in browser session: content, syllabus, files, announcements, discussions, grades and the student's own submissions. Run by hand.",
+  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>> | ticket=<id>",
+  "description": "Downloads Blackboard Learn courses through a signed-in browser session and turns each into pages: content items with due dates and grades, pdf, slide and Word text, video transcripts, announcements, discussions and a course overview. Runs as a scheduled job or by hand.",
   "keywords": [
-    "blackboard",
-    "learn",
-    "lms",
-    "course",
-    "courses",
-    "syllabus",
     "announcements",
     "assignments",
+    "blackboard",
+    "course",
+    "courses",
     "discussions",
+    "due dates",
+    "gradebook",
     "grades",
+    "host:*.blackboard.com",
     "host:blackboard.com",
-    "host:*.blackboard.com"
+    "learn",
+    "lms",
+    "pdf",
+    "syllabus",
+    "transcript",
+    "video"
   ],
   "mode": [
+    "pipeline",
     "session"
   ],
   "name": "channel-blackboard",
   "requires": {
+    "credentials": {
+      "dir": "required"
+    },
     "ops": ">=0.11.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
-  "stages": {},
-  "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>>",
+  "stages": {
+    "harvest": {
+      "script": "scripts/harvest.py"
+    },
+    "process": {
+      "script": "scripts/process.py"
+    }
+  },
+  "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
-  "version": "0.1.0"
+  "version": "0.2.0",
+  "watch": {
+    "dest": "sources/courses/{slug}",
+    "defaults": {
+      "every": "1d",
+      "transcribe": {
+        "options": {
+          "when": "if-no-captions"
+        }
+      }
+    },
+    "inputs": {
+      "timezone": {
+        "prompt": "The time zone due dates read in, an IANA name (America/Chicago); blank keeps UTC",
+        "required": false
+      },
+      "files": {
+        "prompt": "Fetch attachments, pdfs and videos (download), or only the course's own text (skip)",
+        "default": "download"
+      }
+    },
+    "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine."
+  }
 }

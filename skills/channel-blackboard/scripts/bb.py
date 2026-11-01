@@ -569,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
         g.add_argument("--credential", help="a kind=dir credential whose directory is the profile")
         p.add_argument("--chrome", action="store_true", help="real Chrome instead of bundled Chromium")
         p.add_argument("--headed", action="store_true")
+        p.add_argument("--site", help="the site's base url, over the profile's bb-site.json (a job's target names it)")
         return p
 
     p = common(sub.add_parser("login", help="headed sign-in; saves the session"))
@@ -591,7 +592,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "login":
             return cmd_login(pw, args)
         profile = resolve_profile(args)
-        s = Session(pw, profile, read_site(profile, getattr(args, "credential_host", None)), headed=args.headed, chrome=args.chrome)
+        site = args.site.rstrip("/") if args.site else read_site(profile, getattr(args, "credential_host", None))
+        s = Session(pw, profile, site, headed=args.headed, chrome=args.chrome)
         try:
             return {"whoami": cmd_whoami, "courses": cmd_courses, "get": cmd_get, "harvest": cmd_harvest}[args.cmd](s, args)
         except AuthError as e:
