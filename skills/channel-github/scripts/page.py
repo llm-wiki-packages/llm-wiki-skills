@@ -14,7 +14,7 @@ the ticket):
 
     page.py write <capture_dir> --ticket <id> --from <judgment.json> [--readme full|excerpt|none]
         Renders the page from the capture plus the session's judgment, writes
-        it through `page create` (or `page edit id=` of the page already held;
+        it through `page create` (or `page edit` of the page already held;
         one a person moved out of `dest` or holds is left alone),
         merges with that page — its tags and its `## Notes` section survive —
         and posts `tickets update` with `written_from`.
@@ -377,16 +377,16 @@ def load_judgment(path: Path) -> dict:
     return data
 
 
-def write_page(dest: str, title: str, held: Path | None, keys: dict, body: str, document_id: str | None = None) -> str:
-    """The held page edited — by `document_id` where it has one — else `page create`, which refuses a title already a
-    page: another repo's, or no repo's, and never written over."""
+def write_page(dest: str, title: str, held: Path | None, keys: dict, body: str) -> str:
+    """The held page edited at the path `find_held` found, else `page create`, which refuses a title already a page:
+    another repo's, or no repo's, and never written over."""
     pairs = [f"{k}={v}" for k, v in keys.items()]
     if held is None:
         rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", stdin=body)
         if rc != 0 or not answer.get("path"):
             die(f"`page create` refused ({rc}): {answer.get('error') or answer}")
         return answer["path"]
-    rc, answer = ops_json("page", "edit", f"id={document_id}" if document_id else held.as_posix(), *pairs, "--stdin", stdin=body)
+    rc, answer = ops_json("page", "edit", held.as_posix(), *pairs, "--stdin", stdin=body)
     if rc != 0:
         die(f"`page edit {held}` refused ({rc}): {answer.get('error') or answer}")
     return answer.get("path") or held.as_posix()
@@ -447,7 +447,7 @@ def cmd_write(a) -> int:
     # directory its slice writes besides `dest`.
     judgment = load_judgment(capture_dir / source if len(source.parts) == 1 else source)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held, document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
     if left:
         return 0 if post_update(a.ticket, "process", "ok", reason=f"{repo['full_name']}: {left}") == 0 else 2
     held_fm = held_frontmatter(held) if held else {}
@@ -466,7 +466,7 @@ def cmd_write(a) -> int:
         notes = section(held_body, NOTES_HEADING)
     body = render_body(repo, judgment, readme, notes, clipped, a.readme)
     keys = page_keys(repo, judgment, held_fm, clipped)
-    path = write_page(dest, title, held, keys, body, document_id)
+    path = write_page(dest, title, held, keys, body)
 
     (capture_dir / WRITTEN_NAME).write_text(json.dumps([path]) + "\n", encoding="utf-8")
     reason = f"{repo['full_name']} ({repo.get('change')}) → {path}" + (" — merged with the clip" if clipped else "")

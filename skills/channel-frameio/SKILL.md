@@ -247,7 +247,7 @@ to one):
 {{@brain-cli-ops}} page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" --stdin
 ```
 
-with the body on stdin — or `{{@brain-cli-ops}} page edit id=<document_id> … --stdin`
+with the body on stdin — or `{{@brain-cli-ops}} page edit '<its path>' … --stdin`
 where `page ls resource=<view url>` finds the job's page for the leaf, wherever
 a person renamed it. A page a person moved out of `dest` or holds (Draft,
 Archive) is left alone: `ok`, nothing written. A video leaf gets `extracted=queued` and `media=<capture_dir>/video.mp4` with an

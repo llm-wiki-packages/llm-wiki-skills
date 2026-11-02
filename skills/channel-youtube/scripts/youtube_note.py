@@ -42,7 +42,7 @@ The process arm writes:
 - `page.md` in the capture dir — the body, kept beside the bytes it was built
   from so a retried process ticket can see what the run produced.
 - the page under `dest`, through the front door: `page create` with the
-  video's facts as frontmatter keys and the body on stdin, or `page edit id=`
+  video's facts as frontmatter keys and the body on stdin, or `page edit`
   of the job's page `page ls resource=<item>` finds, wherever in `dest` a
   person renamed it. A page a person moved out of `dest` or holds (Draft,
   Archive) is left alone: `written` is empty and `left` says why. The body is the video's TRUE
@@ -492,7 +492,7 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=()):
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
     The page is found by identity first — `page ls resource=<item>`, the job's rows of it (`identity_match`) — so a
-    page a person renamed inside `dest` is edited by its `document_id`, never duplicated under the title. No row:
+    page a person renamed inside `dest` is edited at the path the lookup found, never duplicated under the title. No row:
     `page create`. A page at the title's path that is not this item's is never written over. With no `resource`
     there is no identity, and the title's page is the one edited. The arguments are an argv LIST and never a shell
     line: every value on them is venue text — a title, a channel name, a url — and a venue that can type onto a Bash
@@ -530,7 +530,8 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=()):
             why = left_alone(row)
             if why:
                 return None, why
-            target = ["id=" + row["document_id"]] if row.get("document_id") else [row["path"]]
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+            target = [row["path"]]
             rel = row["path"]
     if target is None:
         created = subprocess.run(

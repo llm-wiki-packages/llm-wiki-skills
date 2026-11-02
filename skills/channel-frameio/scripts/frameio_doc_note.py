@@ -33,7 +33,7 @@ command:
         "resource=<view url>" "type=doc" "extracted=true" --stdin
 
 with the body on stdin — or, where `page ls resource=<view url>` finds the
-job's page for the leaf, `page edit id=<document_id>` with the same keys,
+job's page for the leaf, `page edit <its path>` with the same keys,
 wherever in `dest` a person renamed it. A page a person moved out of `dest` or
 holds (Draft, Archive) is left alone: `ok`, nothing written, the reason
 naming it. Two pages for one leaf, or a page at the title's path that is
@@ -301,7 +301,7 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, kn
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
     The page is found by identity first — `page ls resource=<view url>`, the job's rows of it (`identity_match`) —
-    so a page a person renamed inside `dest` is edited by its `document_id`, never duplicated under the title. No
+    so a page a person renamed inside `dest` is edited at the path the lookup found, never duplicated under the title. No
     row: `page create`; a page at the title's path then is another item's, and is never written over. The arguments
     are an argv LIST and `shell=False`: every value on them is venue text — a title, a filename, a folder name —
     and a venue that can type onto a Bash line can run a command.
@@ -335,7 +335,8 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, kn
             why = left_alone(row)
             if why:
                 return None, why
-            target, rel = (["id=" + row["document_id"]] if row.get("document_id") else [row["path"]]), row["path"]
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+            target, rel = [row["path"]], row["path"]
     if target is None:
         created = subprocess.run(
             [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],

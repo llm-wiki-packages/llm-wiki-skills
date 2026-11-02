@@ -288,7 +288,7 @@ def test_a_second_pull_edits_the_page_dest_already_holds(tmp_path):
     _build(tmp_path, cap, "--format-transcript", fmt)
     verbs = [[a for a in call if not a.startswith("--")][:3] for call in _page_calls(tmp_path)]
     assert [v[:2] for v in verbs] == [["page", "ls"], ["page", "create"], ["page", "ls"], ["page", "edit"]], verbs
-    assert verbs[3][2] == "id=id-0", verbs
+    assert verbs[3][2] == f"{DEST}/{META['title']}.md", verbs
 
 
 def _seed(root, *rows):
@@ -299,7 +299,7 @@ def _seed(root, *rows):
     (root / "pages.json").write_text(json.dumps([{"resource": ITEM, "job": "yt-job", **row} for row in rows]))
 
 
-def test_a_page_a_person_renamed_is_edited_by_its_id_not_written_again(tmp_path):
+def test_a_page_a_person_renamed_is_edited_where_it_now_sits_not_written_again(tmp_path):
     cap = _ticketed(tmp_path)
     renamed = f"{DEST}/My own name for it.md"
     _seed(tmp_path, {"path": renamed, "document_id": "doc-1"})
@@ -308,7 +308,7 @@ def test_a_page_a_person_renamed_is_edited_by_its_id_not_written_again(tmp_path)
     assert not (tmp_path / DEST / f"{META['title']}.md").exists()
     assert "stubbed words" in (tmp_path / renamed).read_text()
     edit = _page_calls(tmp_path)[-1]
-    assert edit[:4] == ["--json", "page", "edit", "id=doc-1"] and not [a for a in edit if a.startswith("title=")]
+    assert edit[:4] == ["--json", "page", "edit", renamed] and not [a for a in edit if a.startswith("title=")]
     assert json.loads((cap / "written.json").read_text()) == [renamed]
 
 

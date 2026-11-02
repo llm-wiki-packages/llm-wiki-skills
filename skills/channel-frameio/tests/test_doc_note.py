@@ -176,7 +176,7 @@ def test_the_update_is_posted_last_and_names_the_page_in_written_from(tmp_path, 
     assert written == [PAGE]
 
 
-def test_the_jobs_page_for_the_leaf_is_edited_by_id_wherever_it_was_renamed(tmp_path, monkeypatch, capsys):
+def test_the_jobs_page_for_the_leaf_is_edited_wherever_it_was_renamed(tmp_path, monkeypatch, capsys):
     root = tmp_path / "wiki"
     _capture(root)
     renamed = f"{DEST}/Our deck.md"
@@ -188,7 +188,7 @@ def test_the_jobs_page_for_the_leaf_is_edited_by_id_wherever_it_was_renamed(tmp_
     (lookup,) = _lookups(seen)
     assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={URL}"]
     (edit,) = _page_calls(seen)
-    assert edit["argv"][:4] == ["--json", "page", "edit", "id=doc-1"]
+    assert edit["argv"][:4] == ["--json", "page", "edit", renamed]
     assert f"resource={URL}" in edit["argv"] and edit["argv"][-1] == "--stdin"
     assert not [a for a in edit["argv"] if a.startswith("title=")]
     assert json.loads((root / CAP_REL / "written.json").read_text()) == [renamed]

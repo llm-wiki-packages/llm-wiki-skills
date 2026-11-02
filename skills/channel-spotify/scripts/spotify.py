@@ -25,7 +25,7 @@ Subcommands:
                 object. Reads the URL, slug, min_date and asset policy off
                 `tickets open`: --ticket is required.
   process       PROCESS: meta.json -> the page, written under the ticket's dest through
-                `llm-wiki-ops page edit id=` of the job's page for the entity
+                `llm-wiki-ops page edit` of the job's page for the entity
                 (`page ls resource=`), else `page create`, as a subprocess with
                 an argv list. Prints the pages it
                 wrote; the caller passes them to `report --written-from`.
@@ -1112,7 +1112,7 @@ def write_page(root, *, title, dest, body, keys, slug=None, known=()):
     Never a shell line: every value here is venue text — the entity's name, its
     creator, its description — and a description on a Bash line is a command.
     The job's page for the entity is found by `resource` first
-    (`identity_match`) and edited by its `document_id`, wherever in `dest` a
+    (`identity_match`) and edited at the path it found, wherever in `dest` a
     person renamed it. No page: `page create`, which refuses a title it already
     holds — another item's page, never written over.
     """
@@ -1130,7 +1130,8 @@ def write_page(root, *, title, dest, body, keys, slug=None, known=()):
         why = left_alone(row)
         if why:
             return None, why
-        target = f"id={row['document_id']}" if row.get("document_id") else row["path"]
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        target = row["path"]
         rc, answer = _ops(root, "page", "edit", target, *pairs, "--stdin", input=body.encode())
     else:
         rc, answer = _ops(root, "page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", input=body.encode())

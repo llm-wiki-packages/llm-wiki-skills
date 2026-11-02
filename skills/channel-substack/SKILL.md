@@ -145,7 +145,7 @@ content root and pipe it in as the page's body, then mark it done:
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
     'published=<leaf.json published>' 'audience=<leaf.json audience>' --stdin
-{{@brain-cli-ops}} page edit id=<document_id> extracted=true
+{{@brain-cli-ops}} page edit '<the page's path>' extracted=true
 ```
 
 **Every `<…>` on those lines is venue text: paste it VERBATIM inside single
@@ -153,15 +153,15 @@ quotes, never retyped or "cleaned", and refuse a value still carrying a single
 quote rather than running the line** (`safe_title` maps `'` and `"` to `’`, so
 a title never does). `page ls` rows that are this job's (`job` the ticket's
 `slug`, or none and under `dest`): one is the page — `page edit
-id=<document_id> … --stdin` rewrites it wherever a person renamed it, and one
+'<its path>' … --stdin` rewrites it wherever a person renamed it, and one
 with `draft`/`archive` true — or a `known[]` row for the item with `reason:
 moved` — is left alone (`ok`, reason naming it);
-none means `page create` (its answer names the `document_id`; exit 2 is
+none means `page create` (its answer names the `path`; exit 2 is
 another item's page at the title: `failed`); two or more is `failed`, naming them.
 
 Read the page against Content extraction below BEFORE reporting. Chrome left in the
 body — a subscribe CTA, a footer — means re-converting with `--drop-selector
-'<css>'` added and piping that into `page edit id=<document_id> --stdin`, before
+'<css>'` added and piping that into `page edit '<the page's path>' --stdin`, before
 the report. The per-post illustration stays.
 
 ```

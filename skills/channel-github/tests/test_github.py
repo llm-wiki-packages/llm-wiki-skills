@@ -373,7 +373,7 @@ def test_junk_on_an_unheld_repo_writes_no_page(tmp_path, monkeypatch):
     assert args[2] == "ok" and "template clone" in kw["reason"] and "written_from" not in kw
 
 
-def test_write_edits_the_renamed_page_by_its_id(tmp_path, monkeypatch):
+def test_write_edits_the_renamed_page_where_it_now_sits(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     leaf = capture(tmp_path)
     (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
@@ -393,7 +393,7 @@ def test_write_edits_the_renamed_page_by_its_id(tmp_path, monkeypatch):
     monkeypatch.setattr(page, "post_update", lambda *a, **k: 0)
     assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
     (edit, body), = [c for c in calls if c[0][:2] == ("page", "edit")]
-    assert edit[2] == "id=doc-1" and "mine" in body
+    assert edit[2] == "sources/github/My one.md" and "mine" in body
     assert not [c for c in calls if c[0][:2] == ("page", "create")]
     assert json.loads((leaf / "written.json").read_text()) == ["sources/github/My one.md"]
 

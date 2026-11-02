@@ -604,7 +604,7 @@ def test_the_builder_hands_the_front_door_an_argv_list_never_a_shell_line(spotif
 RENAMED = "sources/podcasts/money-models/Our money show.md"
 
 
-def test_the_jobs_page_for_the_entity_is_edited_by_id_wherever_it_was_renamed(spotify, tmp_path, monkeypatch, capsys):
+def test_the_jobs_page_for_the_entity_is_edited_wherever_it_was_renamed(spotify, tmp_path, monkeypatch, capsys):
     cap = tmp_path / "cap"
     process_ticket(cap, "sources/podcasts/money-models")
     captured(spotify, cap)
@@ -614,7 +614,7 @@ def test_the_jobs_page_for_the_entity_is_edited_by_id_wherever_it_was_renamed(sp
 
     assert calls.lookups == [("page", "ls", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
     (args, _body), = calls
-    assert args[:3] == ("page", "edit", "id=doc-1") and args[-1] == "--stdin"
+    assert args[:3] == ("page", "edit", RENAMED) and args[-1] == "--stdin"
     assert not [a for a in args if a.startswith(("dest=", "title="))]
     assert json.loads(capsys.readouterr().out)["written"] == [RENAMED]
 
