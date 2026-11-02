@@ -112,12 +112,12 @@ be null); `due` is a `YYYY-MM-DD` or null. Then:
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
-the page from the whole day — `page create`, or `page edit` over the day's
-standing page — and posts `tickets update` naming it. A day with no items is
+the page from the whole day — `page create`, or `page edit id=` of the day's
+page wherever it was renamed — and posts `tickets update` naming it. A day with no items is
 `ok`, with a reason naming it.
 
 **What it writes** (the contract — do not drift): `<dest>/<YYYY-MM-DD>.md`,
-frontmatter `type: ledger`, `channel: <the job's slug>`, `date`, `items`
+frontmatter `resource: gmail:ledger`, `resource_id: gmail:day:<day>`, `type: ledger`, `channel: <the job's slug>`, `date`, `items`
 (kept), `needs_reply` and `actions` (those two categories' counts),
 `extracted: true`, no `status`; one bullet per kept message,
 `- [<category>] <line> (due <day>) — gmail:<msg-id>`, needs-reply first, then
