@@ -186,7 +186,7 @@ def test_the_jobs_page_for_the_leaf_is_edited_by_id_wherever_it_was_renamed(tmp_
     assert json.loads(capsys.readouterr().out)["written"] == [renamed]
 
     (lookup,) = _lookups(seen)
-    assert lookup["argv"] == ["--json", "page", "ls", f"resource={URL}"]
+    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={URL}"]
     (edit,) = _page_calls(seen)
     assert edit["argv"][:4] == ["--json", "page", "edit", "id=doc-1"]
     assert f"resource={URL}" in edit["argv"] and edit["argv"][-1] == "--stdin"
@@ -217,6 +217,15 @@ def test_a_page_a_person_moved_or_holds_is_left_alone(tmp_path, monkeypatch, cap
     assert not _page_calls(seen)
     _, kv = _read(root, seen)
     assert kv["status"] == "ok" and "left alone" in kv["reason"]
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "wiki"
+    _capture(root)
+    moved = {"resource": URL, "document_id": "doc-1", "path": "wiki/decks/Deck.md", "reason": "moved"}
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io", "known": [moved]})
+    assert _run(monkeypatch, root) == 0
+    assert "wiki/decks/Deck.md: moved" in json.loads(capsys.readouterr().out)["left"] and not _page_calls(seen)
 
 
 def test_a_page_at_the_title_that_is_not_the_leafs_is_never_written_over(tmp_path, monkeypatch):

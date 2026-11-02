@@ -120,9 +120,9 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
    `page`), `venue=hubspot-cms`, `published` (the leaf's `published.txt`, or
    left out), `mux_playback_id`, `video_url`, `player_url`, `external_url` and
    `source_title` where the venue's title and the capture's differ; every
-   value lands as a string. First `--json page ls 'resource=<item>'`: the
-   job's row (`job` the `slug`, or none under `dest`) takes the keys by `page
-   edit id=<document_id> --stdin` (left alone if `moved`, `draft`, `archive`;
+   value lands as a string. First `--json page ls 'filter=under:<dest>'
+   'resource=<item>'`: the job's row (`job` the `slug`, or none) takes the keys by `page
+   edit id=<document_id> --stdin` (left alone if `draft`, `archive`, or `known[]` says `moved`;
    two rows: `--failed`). None: `page create`; its exit 2 is `--failed`.
 5. **The transcript's own page**, where the leaf holds `media.<ext>`, empty
    body: the transcribe stage's queue is exactly the pages under `dest`

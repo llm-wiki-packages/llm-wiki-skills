@@ -283,11 +283,21 @@ def left_alone(row):
     return None
 
 
+def moved_rows(known, resource, slug):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict) and row.get("resource") == resource and row.get("reason") == "moved"
+    ]
+
+
 def _said(cp):
     return ((cp.stderr or "") + (cp.stdout or "")).strip()[-500:]
 
 
-def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None):
+def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, known=()):
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
     The page is found by identity first — `page ls resource=<view url>`, the job's rows of it (`identity_match`) —
@@ -308,14 +318,17 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None):
     resource = next((key.split("=", 1)[1] for key in keys if key.startswith("resource=")), None)
     target = None
     if resource:
-        listed = subprocess.run([*door, "--json", "page", "ls", f"resource={resource}"], capture_output=True, text=True, **where)
+        # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+        listed = subprocess.run(
+            [*door, "--json", "page", "ls", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where
+        )
         try:
             rows = json.loads(listed.stdout).get("pages")
         except (ValueError, AttributeError):
             rows = None
         if listed.returncode != 0 or not isinstance(rows, list):
             sys.exit(f"frameio_doc_note: `page ls resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
-        row, why = identity_match(rows, slug, dest)
+        row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
         if why:
             sys.exit(f"frameio_doc_note: {why}")
         if row is not None:
@@ -426,7 +439,7 @@ def main() -> int:
             media_rel = f"{args.dest.strip('/')}/{ASSETS}/{copy.name}"
         written, left = write_page(
             args.wiki, args.dest, title,
-            [f"resource={item}", f"type={TYPE_VIDEO}", f"{FLAG}={QUEUED}", f"{MEDIA}={media_rel}"], "", slug=ticket.get("slug"),
+            [f"resource={item}", f"type={TYPE_VIDEO}", f"{FLAG}={QUEUED}", f"{MEDIA}={media_rel}"], "", slug=ticket.get("slug"), known=ticket.get("known"),
         )
         written = [written] if written else []
         write_json(cap_dir / WRITTEN_NAME, written)
@@ -472,7 +485,8 @@ def main() -> int:
     # can be retried over the same bytes, and this is what the run produced.
     (cap_dir / BODY_NAME).write_text(body, encoding="utf-8")
     written, left = write_page(
-        args.wiki, args.dest, title, [f"resource={item}", f"type={TYPE_DOC}", f"{FLAG}={EXTRACTED}"], body, slug=ticket.get("slug")
+        args.wiki, args.dest, title, [f"resource={item}", f"type={TYPE_DOC}", f"{FLAG}={EXTRACTED}"], body, slug=ticket.get("slug"),
+        known=ticket.get("known"),
     )
     written = [written] if written else []
     write_json(cap_dir / WRITTEN_NAME, written)

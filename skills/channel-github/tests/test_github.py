@@ -284,6 +284,12 @@ def test_find_held_refuses_two_pages_naming_both(monkeypatch):
         page.find_held("sources/github", "https://github.com/a/one", "s")
 
 
+def test_find_held_reads_a_page_moved_out_of_dest_off_known(monkeypatch):
+    monkeypatch.setattr(page, "ops_json", listing())
+    known = [{"resource": "https://github.com/a/one", "document_id": "doc-1", "path": "wiki/one.md", "reason": "moved"}]
+    assert "wiki/one.md: moved" in page.find_held("sources/github", "https://github.com/a/one", "s", known)[2]
+
+
 @pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
 def test_find_held_says_why_a_page_a_person_moved_or_holds_is_left(monkeypatch, held):
     monkeypatch.setattr(page, "ops_json", listing({"path": "wiki/x.md", "document_id": "doc-1", "job": "s", **held}))
@@ -347,7 +353,7 @@ def test_write_reads_a_bare_judgment_name_beside_the_capture_and_reports_the_pag
     monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": "sources/github/a--one.md", "pages": []}))
     monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
     assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
-    assert calls[0] == ("page", "ls", "resource=https://github.com/a/one")
+    assert calls[0] == ("page", "ls", "filter=under:sources/github", "resource=https://github.com/a/one")
     assert calls[1][:3] == ("page", "create", "title=a--one") and "dest=sources/github" in calls[1]
     (args, kw), = updates
     assert args[1:] == ("process", "ok") and kw["written_from"] == "written.json"

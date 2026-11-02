@@ -266,7 +266,7 @@ def test_the_process_arm_writes_the_page_under_dest_and_the_body_beside_the_byte
     assert res["written"] == [PAGE]
     assert res["page"] == f"{cap.relative_to(tmp_path)}/page.md"
     assert (tmp_path / PAGE).is_file()
-    assert _page_calls(seen)[0]["argv"] == ["--json", "page", "ls", f"resource={ITEM}"]
+    assert _page_calls(seen)[0]["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
     create = _page_calls(seen)[1]["argv"]
     assert create[:3] == ["--json", "page", "create"], create
     assert "title=A Video About Things" in create and f"dest={DEST}" in create

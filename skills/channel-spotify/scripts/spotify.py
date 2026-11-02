@@ -1095,7 +1095,17 @@ def left_alone(row):
     return None
 
 
-def write_page(root, *, title, dest, body, keys, slug=None):
+def moved_rows(known, resource, slug):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict) and row.get("resource") == resource and row.get("reason") == "moved"
+    ]
+
+
+def write_page(root, *, title, dest, body, keys, slug=None, known=()):
     """The page, through the front door as a SUBPROCESS with an argv list: `(<path>, None)` written, `(None, <why>)`
     left alone.
 
@@ -1109,10 +1119,11 @@ def write_page(root, *, title, dest, body, keys, slug=None):
     # `key=value` carries text, so a bool is spelled the way YAML reads it and
     # the host's own `extracted=true` already is — never Python's `False`.
     pairs = [f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in keys.items()]
-    rc, answer = _ops(root, "page", "ls", f"resource={keys['resource']}")
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = _ops(root, "page", "ls", f"filter=under:{dest}", f"resource={keys['resource']}")
     if rc != 0 or not isinstance(answer.get("pages"), list):
         die(f"`page ls resource=` did not answer ({rc}): no page was written: {answer.get('error') or answer}")
-    row, why = identity_match(answer["pages"], slug, dest)
+    row, why = identity_match(answer["pages"] + moved_rows(known, keys["resource"], slug), slug, dest)
     if why:
         die(why)
     if row is not None:
@@ -1167,7 +1178,8 @@ def cmd_process(a):
     keys["resource"] = ticket.get("item") or meta["url"]  # what `known[]` matches on
     keys["extracted"] = "true"  # the string the host's pipeline reads as done
     path, left = write_page(
-        wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys, slug=ticket.get("slug")
+        wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys, slug=ticket.get("slug"),
+        known=ticket.get("known"),
     )
     if left:
         verdict("ok", left, 0, left=True, written=[])

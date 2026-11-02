@@ -612,7 +612,7 @@ def test_the_jobs_page_for_the_entity_is_edited_by_id_wherever_it_was_renamed(sp
     calls = recording_ops(spotify, monkeypatch, (0, {"path": RENAMED}), pages=[row])
     process(spotify, cap, monkeypatch)
 
-    assert calls.lookups == [("page", "ls", f"resource={PLAYLIST_URL}")]
+    assert calls.lookups == [("page", "ls", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
     (args, _body), = calls
     assert args[:3] == ("page", "edit", "id=doc-1") and args[-1] == "--stdin"
     assert not [a for a in args if a.startswith(("dest=", "title="))]
@@ -630,6 +630,17 @@ def test_two_pages_for_one_entity_refuse_naming_both(spotify, tmp_path, monkeypa
     said = capsys.readouterr().err
     assert caught.value.code == 2 and "money-models/A.md" in said and "money-models/B.md" in said
     assert not calls and not (cap / "verdict.json").exists()
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(spotify, tmp_path, monkeypatch):
+    cap = tmp_path / "cap"
+    moved = {"resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "path": "wiki/shows/Money.md", "reason": "moved"}
+    process_ticket(cap, "sources/podcasts/money-models", known=[moved])
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch)
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls and "wiki/shows/Money.md: moved" in read(cap, "verdict.json")["reason"]
 
 
 @pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])

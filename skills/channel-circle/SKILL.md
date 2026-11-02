@@ -143,7 +143,7 @@ nothing written.
    filename, already settled against the run, and not yours to pick:
 
 ```
-{{@brain-cli-ops}} --json page ls resource='<item>'
+{{@brain-cli-ops}} --json page ls filter=under:<dest> resource='<item>'
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit id=<document_id> resource='<item>' type=lesson extracted=true --stdin
 echo '["<the path the verb answered>"]' > <capture_dir>/written.json
@@ -154,8 +154,8 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
    from `capture.json` and SINGLE-QUOTED, never retyped or cleaned; one still
    carrying a single quote is refused, not run (`safe_title` maps `'` and `"`
    to `’`, so a title never does). The job's `page ls` row (`job` the `slug`,
-   or none under `dest`) takes `edit id=`, wherever it was renamed; left alone
-   if `moved`, `draft` or `archive`. No row: `create` (exit 2 is `failed`); two
+   or none) takes `edit id=`, wherever it was renamed; left alone if `draft`,
+   `archive`, or `known[]` says `moved`. No row: `create` (exit 2 is `failed`); two
    rows: `failed`. Report LAST, `written.json` the wiki-relative path(s).
 
 ## Auth (one-time, per domain)

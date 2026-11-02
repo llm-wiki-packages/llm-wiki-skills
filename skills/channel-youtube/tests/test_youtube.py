@@ -273,7 +273,7 @@ def test_process_writes_the_page_under_dest_through_the_page_verbs(tmp_path):
     assert "stubbed words" in (tmp_path / out["written"][0]).read_text()
     assert "stubbed words" in (cap / "page.md").read_text()
     (lookup, create) = _page_calls(tmp_path)
-    assert lookup == ["--json", "page", "ls", f"resource={ITEM}"]
+    assert lookup == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
     assert create[:3] == ["--json", "page", "create"] and "--stdin" in create
     assert f"title={META['title']}" in create and f"dest={DEST}" in create
     assert "extracted=true" in create and f"resource={ITEM}" in create
@@ -327,6 +327,15 @@ def test_a_page_a_person_moved_or_holds_is_left_alone(tmp_path, held):
     out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path))).stdout)
     assert out["written"] == [] and "left alone" in out["left"]
     assert json.loads((cap / "written.json").read_text()) == []
+    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path):
+    cap = _ticketed(tmp_path)
+    moved = {"resource": ITEM, "resource_id": None, "document_id": "doc-1", "path": "wiki/Kept.md", "reason": "moved"}
+    stub = _stub_ops(tmp_path, ticket=_default_ticket(cap, tmp_path, "process", known=[moved]))
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), ops=stub).stdout)
+    assert out["written"] == [] and "wiki/Kept.md: moved" in out["left"]
     assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
 
 

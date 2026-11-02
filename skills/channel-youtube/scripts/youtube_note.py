@@ -474,11 +474,21 @@ def left_alone(row):
     return None
 
 
+def moved_rows(known, resource, slug):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict) and row.get("resource") == resource and row.get("reason") == "moved"
+    ]
+
+
 def _said(cp):
     return ((cp.stderr or "") + (cp.stdout or "")).strip()[-500:]
 
 
-def write_page(wiki, dest, title, front, body, ops=None, slug=None):
+def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=()):
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
     The page is found by identity first — `page ls resource=<item>`, the job's rows of it (`identity_match`) — so a
@@ -503,8 +513,9 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None):
     resource = front.get("resource")
     target = None
     if resource:
+        # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
         listed = subprocess.run(
-            [*door, "--json", "page", "ls", f"resource={resource}"], capture_output=True, text=True, **where,
+            [*door, "--json", "page", "ls", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where,
         )
         try:
             rows = json.loads(listed.stdout).get("pages")
@@ -512,7 +523,7 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None):
             rows = None
         if listed.returncode != 0 or not isinstance(rows, list):
             sys.exit(f"youtube_note: `page ls resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
-        row, why = identity_match(rows, slug, dest)
+        row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
         if why:
             sys.exit(f"youtube_note: {why}")
         if row is not None:
@@ -910,7 +921,8 @@ def main():
     if item:
         front["resource"] = item
     written, left = write_page(
-        args.wiki, args.dest, page_title(meta), front, body, ops=shlex.split(args.ops) if args.ops else None, slug=slug
+        args.wiki, args.dest, page_title(meta), front, body, ops=shlex.split(args.ops) if args.ops else None, slug=slug,
+        known=ticket.get("known"),
     )
     written = [written] if written else []
     (cap_dir / WRITTEN_NAME).write_text(json.dumps(written) + "\n", encoding="utf-8")

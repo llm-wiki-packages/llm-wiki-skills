@@ -140,7 +140,7 @@ Find the job's page for the post first, then convert the post scoped to the
 content root and pipe it in as the page's body, then mark it done:
 
 ```
-{{@brain-cli-ops}} --json page ls 'resource=<item>'
+{{@brain-cli-ops}} --json page ls 'filter=under:<dest>' 'resource=<item>'
 {{@brain-cli-ops}} run ops/skills/channel-substack/scripts/to_markdown.py <capture_dir>/page.html \
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
@@ -154,10 +154,10 @@ quote rather than running the line** (`safe_title` maps `'` and `"` to `’`, so
 a title never does). `page ls` rows that are this job's (`job` the ticket's
 `slug`, or none and under `dest`): one is the page — `page edit
 id=<document_id> … --stdin` rewrites it wherever a person renamed it, and one
-`moved` or with `draft`/`archive` true is left alone (`ok`, reason naming it);
-none means `page create`, whose answer names the `document_id`; two or more is
-`failed` naming the paths. A `page create` refusal (exit 2, `already exists`)
-is another item's page at the title: `failed`, never written over.
+with `draft`/`archive` true — or a `known[]` row for the item with `reason:
+moved` — is left alone (`ok`, reason naming it);
+none means `page create` (its answer names the `document_id`; exit 2 is
+another item's page at the title: `failed`); two or more is `failed`, naming them.
 
 Read the page against Content extraction below BEFORE reporting. Chrome left in the
 body — a subscribe CTA, a footer — means re-converting with `--drop-selector

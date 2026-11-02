@@ -114,6 +114,16 @@ def left_alone(row):
     return None
 
 
+def moved_rows(known, resource, slug):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict) and row.get("resource") == resource and row.get("reason") == "moved"
+    ]
+
+
 def find_clip(dest: Path, url: str) -> Path | None:
     """The first page under `dest` whose `resource` is this repo's URL however
     it is spelled — a clip under the clipper's own name, with the URL as the
@@ -135,17 +145,18 @@ def find_clip(dest: Path, url: str) -> Path | None:
     return None
 
 
-def find_held(dest: str, url: str, slug: str | None) -> tuple[Path | None, str | None, str | None]:
+def find_held(dest: str, url: str, slug: str | None, known=()) -> tuple[Path | None, str | None, str | None]:
     """`(path, document_id, left)`: the page the wiki already holds for this repo.
 
     The job's page of the repo's `resource` first (`page ls resource=`,
     `identity_match`), wherever in `dest` a person renamed it; else a clip
     (`find_clip`). `left` says why a page a person moved or holds is not this
     run's to write. Two pages for the repo refuse, naming both."""
-    rc, answer = ops_json("page", "ls", f"resource={url}")
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = ops_json("page", "ls", f"filter=under:{dest}", f"resource={url}")
     if rc != 0 or not isinstance(answer.get("pages"), list):
         die(f"`page ls resource=` did not answer ({rc}): {answer.get('error') or answer}")
-    row, why = identity_match(answer["pages"], slug, dest)
+    row, why = identity_match(answer["pages"] + moved_rows(known, url, slug), slug, dest)
     if why:
         die(why)
     if row is not None:
@@ -390,7 +401,7 @@ def cmd_prepare(a) -> int:
     dest = ticket.get("dest") or die("the ticket names no dest")
     capture, repo, readme = load_capture(capture_dir)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"))
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
     held_fm = held_frontmatter(held) if held else {}
     held_tags = as_list(held_fm.get("tags"))
     print(
@@ -436,7 +447,7 @@ def cmd_write(a) -> int:
     # directory its slice writes besides `dest`.
     judgment = load_judgment(capture_dir / source if len(source.parts) == 1 else source)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held, document_id, left = find_held(dest, repo["url"], ticket.get("slug"))
+    held, document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
     if left:
         return 0 if post_update(a.ticket, "process", "ok", reason=f"{repo['full_name']}: {left}") == 0 else 2
     held_fm = held_frontmatter(held) if held else {}
