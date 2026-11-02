@@ -71,7 +71,8 @@ def write_list_page(dest: str, title: str, description: str, body: str, slug: st
     is never written over."""
     pairs = ["type=list", f"tags={LIST_TAGS}", f"description={description[:DESCRIPTION_MAX]}"]
     ident = [f"resource={LISTS}", f"resource_id={LIST}{title}"]
-    rc, answer = ops_json("page", "ls", *ident)
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = ops_json("page", "ls", f"filter=under:{dest}", *ident)
     if rc != 0 or not isinstance(answer.get("pages"), list):
         return None, f"{title}: `page ls` did not answer: {answer.get('error') or answer}"
     row, why = identity_match(answer["pages"], slug, dest)

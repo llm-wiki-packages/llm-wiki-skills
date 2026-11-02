@@ -712,7 +712,7 @@ def test_a_ledger_a_person_renamed_is_edited_by_its_id_not_made_twice(tmp_path):
     r = ledger(directory, ticket, [line_for(1)])
     assert r.returncode == 0, r.stderr
     assert json.loads((root / "lookup-calls.jsonl").read_text().splitlines()[0]) == [
-        "page", "ls", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
+        "page", "ls", "filter=under:research/channels/mail", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
     (edit,) = page_calls(root)
     assert edit["argv"][:3] == ["page", "edit", "id=doc-1"] and "status=" not in edit["argv"]
     assert report(directory)["written"] == [renamed]

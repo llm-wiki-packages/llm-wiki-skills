@@ -361,9 +361,10 @@ def test_the_routine_opens_its_op_writes_each_list_into_dest_and_closes(tmp_path
     monkeypatch.setattr(lists, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": f"x/{len(calls)}.md", "pages": []}))
     assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
     assert calls[0] == ("op", "open", "channel-github")
-    assert calls[1][:3] == ("page", "ls", "resource=github:lists") and calls[1][3].startswith("resource_id=github:list:")
+    assert calls[1][:4] == ("page", "ls", "filter=under:research/github/lists", "resource=github:lists")
+    assert calls[1][4].startswith("resource_id=github:list:")
     assert calls[2][:2] == ("page", "create") and "dest=research/github/lists" in calls[2] and "type=list" in calls[2]
-    assert "resource=github:lists" in calls[2] and calls[1][3] in calls[2]
+    assert "resource=github:lists" in calls[2] and calls[1][4] in calls[2]
     assert calls[-1][:4] == ("op", "close", "channel-github", "outcome=ok") and len(calls) == 4
 
 

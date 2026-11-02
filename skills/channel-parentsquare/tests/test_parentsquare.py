@@ -214,7 +214,7 @@ def test_the_ledger_is_built_from_the_items_with_rows_only_where_judged(tmp_path
     assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "extracted=true", "status=",
             "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(create["argv"])
     (lookup,) = [c for c in calls if c["argv"][1:3] == ["page", "ls"]]
-    assert lookup["argv"] == ["--json", "page", "ls", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
+    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
     assert create["stdin"] == (
         "- Lincoln: Early dismissal Friday — parentsquare:ps-post-1\n"
         "- Lincoln: picture day forms due 10/10 — parentsquare:ps-notice-4-0a1b2c3d4e5f\n"

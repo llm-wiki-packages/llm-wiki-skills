@@ -821,7 +821,8 @@ def write_page(dest, day, keys, body, slug=None):
     it — `status=` is `page curate`'s, `revise`'s and `retire`'s — and does
     not need to: the page it edits was created without one."""
     ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{day}"]
-    listed = _ops(["--json", "page", "ls", *ident], "")
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    listed = _ops(["--json", "page", "ls", f"filter=under:{dest}", *ident], "")
     rows = _answer(listed).get("pages")
     if listed.returncode != 0 or not isinstance(rows, list):
         return None, f"`page ls` said {_said(listed)!r}", False

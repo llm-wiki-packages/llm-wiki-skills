@@ -830,7 +830,8 @@ def write_page(dest, title, front, body, slug=None):
 
     keys = [f"{key}={value}" for key, value in front.items()]
     ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{title}"]
-    listed, answer, said = ops("page", "ls", *ident)
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    listed, answer, said = ops("page", "ls", f"filter=under:{dest}", *ident)
     if listed.returncode != 0 or not isinstance(answer.get("pages"), list):
         raise PageRefused(f"`page ls` did not answer (exit {listed.returncode}): {said}")
     row, why = identity_match(answer["pages"], slug, dest)

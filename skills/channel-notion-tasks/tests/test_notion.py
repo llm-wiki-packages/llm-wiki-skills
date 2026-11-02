@@ -729,7 +729,7 @@ def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on
                             "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "extracted=true",
                             "resource=notion:ledger", f"resource_id=notion:day:{DAY}", "status=", "--stdin"]
     (lookup,) = door.lookups()
-    assert lookup["argv"] == ["--json", "page", "ls", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
+    assert lookup["argv"] == ["--json", "page", "ls", "filter=under:research/channels/tasks", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
     assert call["stdin"].startswith("- checklist moved to Doing — notion:0000aaaa-0001")
     assert call["inherited"] == []  # CLAUDE_PROJECT_DIR dropped: the harness's project dir, never a wiki root; the cwd picks the wiki
     assert call["cwd"] == str(directory.parents[2])
