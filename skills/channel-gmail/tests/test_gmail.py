@@ -251,7 +251,13 @@ def test_attachments_are_names_and_types_never_bytes():
 
 def test_a_long_body_is_capped_and_says_so():
     doc = W.item_doc(msg(1, body="x" * (W.BODY_MAX + 5)), "m1")
-    assert len(doc["body"]) == W.BODY_MAX and doc["body_truncated"] is True
+    assert len(doc["body"]) == W.BODY_MAX == 2_000 and doc["body_truncated"] is True
+
+
+def test_a_body_the_worker_cut_says_so():
+    assert W.item_doc(msg(1, body="x" * 10, body_truncated=True), "m1")["body_truncated"] is True
+    assert W.item_doc(msg(1, body="x" * 10, body_truncated="yes"), "m1")["body_truncated"] is False
+    assert W.item_doc(msg(1, body="x" * 10), "m1")["body_truncated"] is False
 
 
 def test_the_filenames_sort_by_time_not_by_digits():

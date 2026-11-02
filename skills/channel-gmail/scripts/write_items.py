@@ -34,7 +34,11 @@ stdin or in `--from` — and writes them down as they arrived, judging nothing:
 
     [{"id": "<msg-id>", "internal_date": <epoch-ms>, "thread": "…", "from": "…",
       "to": "…", "date": "…", "subject": "<the sender's>", "labels": ["…"],
-      "attachments": [{"name": "…", "mime": "…"}], "body": "<plain text>"}]
+      "attachments": [{"name": "…", "mime": "…"}], "body": "<plain text>",
+      "body_truncated": true | false}
+
+`body` is the plain-text part's first `BODY_MAX` characters; a longer one is
+cut here, and `body_truncated` says so, as it does when the worker cut it.
 
 Oldest `--cap` first, so the cursor it leaves is a clean resume point; then
 the mechanical filters (labels, senders, `min_date`, already behind the
@@ -102,7 +106,8 @@ CAPTURE_NAME = "capture.json"
 CURSOR_NAME = ".cursor.json"
 ITEMS_DIRNAME = "items"  # the host's own name for it: `pipeline/extract.py::ITEMS_DIRNAME`
 WHYS = ("denied", "timeout", "auth", "error")
-BODY_MAX = 50_000
+# The harvest session relays every byte of a body it reads off the connector: a cap on what is kept is a cap on its output.
+BODY_MAX = 2_000
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _UNSAFE = re.compile(r"[^A-Za-z0-9_-]+")
 # What `host_line` swaps: look-alikes for the characters the host's own folding leaves live.
@@ -356,7 +361,7 @@ def item_doc(item, sid, *, trusted=True):
         doc["time_untrusted"] = True  # filed under the PULL's clock; the venue's own value is in `stored_of`'s keys
     body = _text(item.get("body")) or ""
     doc["body"] = body[:BODY_MAX]
-    doc["body_truncated"] = len(body) > BODY_MAX
+    doc["body_truncated"] = len(body) > BODY_MAX or item.get("body_truncated") is True
     return doc
 
 
