@@ -62,7 +62,7 @@ session expired and no silent SSO renewal worked: run step 1 again.
 One job per course; the target is the course's url as the browser shows it.
 
 ```sh
-{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill=channel-blackboard description="<course name>" options.timezone=<IANA zone>
+{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill=channel-blackboard description="<course name>" options.timezone=<IANA zone> options.current=<true|false>
 {{@brain-cli-ops}} credentials bind job <course> dir=blackboard
 ```
 
@@ -74,6 +74,12 @@ which is committed and pushed to the wiki's remote;
 `options.discussions=skip` fetches no board at all. The steps after
 `jobs add`, and what each run leaves:
 `{{@brain-cli-ops}} reference channel-blackboard/references/enable.md`.
+
+`options.current` (`true`, `false`, `yes`, `no`; default `true`): is this a
+course you're taking now? The first pull writes it onto the course's root,
+`<dest>/README.md` (`root: true`), whose keys every page below inherits; the
+root is then the person's (`page edit <dest>/README.md current=false` when
+the course ends), and is made once, ever.
 
 Every pull posts only the items that are new or changed since the last; a
 page a person moved or holds is left alone, and a page at an item's title
@@ -105,11 +111,12 @@ Blackboard calls that failed, which the next pull fetches.
 {{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/process.py ticket=<id>
 ```
 
-Renders the one capture (`bbnotes.render`) and writes its page(s): `page
-edit` of the page `known[]` names for the item's `resource`, else `page
-create`. A page a person moved or holds is left alone (`ok`, nothing
-written). `partial` names a page that went out without its
-text: a scanned pdf, or a video no transcript reached yet.
+Renders the one capture (`bbnotes.render`) and writes its page(s), each
+with an `abstract` built from the capture's facts: `page edit` of the page
+`known[]` names for the item's `resource`, else `page create`. A page a
+person moved or holds is left alone (`ok`, nothing written). The course
+overview also makes the course root once. `partial` names a page that went
+out without its text: a scanned pdf, or a video no transcript reached yet.
 
 ## 4. By hand: harvest, then convert
 

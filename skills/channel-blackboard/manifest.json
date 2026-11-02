@@ -66,6 +66,10 @@
       "discussions": {
         "prompt": "Pull discussion boards (include), whose pages carry classmates' names and posts into the committed wiki, or none (skip)",
         "default": "include"
+      },
+      "current": {
+        "prompt": "Is this a course you're taking now? true, or false for a past course; it is written once onto the course's root page (README.md), where a later edit stands",
+        "default": "true"
       }
     },
     "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine."

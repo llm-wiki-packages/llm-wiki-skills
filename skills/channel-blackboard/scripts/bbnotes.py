@@ -2,7 +2,7 @@
 """A course harvest made readable: split into one capture per item, then one page per capture.
 
     bbnotes.py split  <harvest dir> --out <items dir>      one capture dir per item, each with capture.json
-    bbnotes.py render <capture dir> [--out <file>]         that capture's page(s) as JSON: title, type, published, body
+    bbnotes.py render <capture dir> [--out <file>]         that capture's page(s) as JSON: title, type, published, abstract, body
     bbnotes.py notes  <harvest dir> --out <dir>            split and render every capture into <dir>/<title>.md
 
 `harvest.py` runs `split` on what `bb.py harvest` wrote and posts each capture
@@ -697,6 +697,66 @@ def _facts(rows: list[tuple[str, object]]) -> str:
     return "\n".join(f"- {k}: {one_line(v)}" for k, v in rows if v not in (None, "", []))
 
 
+# The note format's bound on `abstract:`: one line of plain text, at most this many characters.
+ABSTRACT_MAX = 600
+SENTENCE = re.compile(r"(.+?[.?!])(?:\s|$)")
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+MARKS = re.compile(r"\*\*|__|`")
+SLIDE = re.compile(r"^Slide \d+$")
+
+
+def opening(text: str | None) -> str:
+    """A text's first heading and first sentence, as plain words: `Reading: Read chapter 2 by Friday.`"""
+    heading = None
+    for raw in (text or "").splitlines():
+        line = MARKS.sub("", raw)
+        line = re.sub(r"^\\?[#>*\-\s]+", "", line).strip()
+        if not line or raw.startswith("|") or SLIDE.match(line):
+            continue
+        if raw.lstrip().startswith("#") and heading is None:
+            heading = line.rstrip(":")
+            continue
+        found = SENTENCE.match(line)
+        sentence = found.group(1) if found else line
+        return f"{heading}: {sentence}" if heading else sentence
+    return heading or ""
+
+
+def abstract(*parts) -> str:
+    """The parts that are not empty, as one line no longer than `ABSTRACT_MAX`."""
+    text = " ".join(" ".join(CONTROL.sub(" ", str(p)).split()) for p in parts if p not in (None, ""))
+    # A link is never made here: the guard `html_text` puts on venue text stands, and a raw title gets it too.
+    text = text.replace("[[", "[\\[").replace("]]", "]\\]")
+    return text if len(text) <= ABSTRACT_MAX else text[: ABSTRACT_MAX - 1].rstrip() + "\u2026"
+
+
+def _course_of(cap: dict) -> str:
+    return course_title({"name": cap.get("course_name")}) if cap.get("course_name") else cap.get("course") or "the course"
+
+
+def _due(g: dict) -> str | None:
+    if not g:
+        return None
+    due = f"Due {when(g['due'])}." if g.get("due") else None
+    pts = f"{g['points']:g} points." if g.get("points") else None
+    return " ".join(x for x in (due, pts) if x) or None
+
+
+def vtt_length(path: Path) -> str | None:
+    """How long a caption track runs, by its last cue's end, as `12 min`; None where no cue says."""
+    end = None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        found = re.search(r"-->\s*(?:(\d+):)?(\d{1,2}):(\d{2})[.,]\d{3}", line)
+        if found:
+            end = int(found.group(1) or 0) * 3600 + int(found.group(2)) * 60 + int(found.group(3))
+    if not end:
+        return None
+    if end < 60:
+        return f"{end} s"
+    h, m = divmod(round(end / 60), 60)
+    return f"{h} h {m} min" if h else f"{m} min"
+
+
 def _grade_rows(g: dict) -> list[tuple[str, object]]:
     if not g:
         return []
@@ -719,14 +779,19 @@ def _render_item(cap: dict, r: dict) -> list[dict]:
             parts.append((f"## {heading}\n\n" if heading else "") + (plain(text) if heading == "Description" else text))
     if r.get("carries"):
         parts.append("## Files and videos\n\n" + "\n".join(f"- [[{t}]]" for t in r["carries"]))
-    return [{"title": cap["title"], "type": "document", "published": cap.get("published"), "body": "\n\n".join(parts) + "\n"}]
+    g = r.get("grade") or {}
+    summary = abstract(f"{(kind or 'item').capitalize()} in {_course_of(cap)}, under {(r.get('path') or '').replace('/', ' › ')}." if r.get("path") else
+                       f"{(kind or 'item').capitalize()} in {_course_of(cap)}.", _due(g),
+                       opening(r.get("description") or r.get("instructions") or r.get("text") or r.get("wrapped")))
+    return [{"title": cap["title"], "type": "document", "published": cap.get("published"), "abstract": summary, "body": "\n\n".join(parts) + "\n"}]
 
 
 def _render_announcement(cap: dict, r: dict) -> list[dict]:
     head = _facts([("Course", cap.get("course_name")), ("Posted", day(r.get("created"))),
                    ("Last edited", day(r.get("modified")) if day(r.get("modified")) != day(r.get("created")) else None),
                    ("Shown from", day(r.get("shown_from")))])
-    return [{"title": cap["title"], "type": "note", "published": cap.get("published"),
+    summary = abstract(f"Announcement in {_course_of(cap)}, posted {day(r.get('created')) or 'undated'}: {r.get('title')}.", opening(r.get("text")))
+    return [{"title": cap["title"], "type": "note", "published": cap.get("published"), "abstract": summary,
              "body": f"# {one_line(r.get('title'))}\n\n{head}\n\n{r.get('text') or ''}\n"}]
 
 
@@ -758,11 +823,14 @@ def _render_discussion(cap: dict, r: dict) -> list[dict]:
     if cur or not chunks:
         chunks.append(cur)
     out = []
+    said = abstract(f"Discussion board in {_course_of(cap)}: {r.get('title')}, {len(posts)} post{'' if len(posts) == 1 else 's'}.",
+                    _due(r.get("grade") or {}), f"Prompt: {opening(r.get('prompt'))}" if r.get("prompt") else None)
     for n, chunk in enumerate(chunks, 1):
         title = cap["title"] if n == 1 else page_title(f"{cap['title']} (part {n})")
         lead = intro if n == 1 else f"# {one_line(r.get('title'))} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', f'[[{cap['title']}]]')])}\n\n"
         tail = f"\n\nContinued in [[{page_title(cap['title'] + f' (part {n + 1})')}]]." if n < len(chunks) else ""
         out.append({"title": title, "type": "note", "published": cap.get("published"),
+                    "abstract": said if n == 1 else abstract(f"Part {n} of {len(chunks)} of {cap['title']}."),
                     "body": lead + ("## Posts\n\n" if chunk else "") + chunk.rstrip() + tail + "\n"})
     return out
 
@@ -797,14 +865,43 @@ def _render_course(cap: dict, r: dict) -> list[dict]:
     if ext:
         parts.append("## Off-site links\n\n" + "\n".join(
             f"- {one_line(e.get('title') or e.get('item') or 'link')}{' (video)' if e.get('video') else ''}: {shown_url(e['url'])}" for e in ext))
-    return [{"title": cap["title"], "type": "document", "published": cap.get("published"), "body": "\n\n".join(parts) + "\n"}]
+    graded = [g for g in rows if g.get("due")]
+    summary = abstract(f"Course overview of {c.get('name') or _course_of(cap)}" + (f" ({c['courseId']})" if c.get("courseId") else "") + ":",
+                       f"term {_term(term)}." if _term(term) else None,
+                       f"{len(rows)} graded item{'' if len(rows) == 1 else 's'}." if rows else None,
+                       f"{len(outline)} outline entr{'y' if len(outline) == 1 else 'ies'}." if outline else None,
+                       f"Due dates run {day(min(g['due'] for g in graded))} to {day(max(g['due'] for g in graded))}." if graded else None)
+    return [{"title": cap["title"], "type": "document", "published": cap.get("published"), "abstract": summary, "body": "\n\n".join(parts) + "\n"}]
+
+
+def _term(term: dict) -> str | None:
+    """A course's term as days, `2026-09-30 to 2026-12-15`; None where the course names no start."""
+    start, end = day((term or {}).get("start")), day((term or {}).get("end"))
+    return f"{start} to {end}" if start and end else f"from {start}" if start else None
+
+
+def root_page(cap: dict, record: dict, current: bool) -> dict:
+    """The course's bundle root (`README.md` in the job's dest): the keys every page below inherits, and a line on what it is."""
+    c = record.get("course") or {}
+    title = course_title(c) if c.get("name") else _course_of(cap)
+    term = _term(record.get("term") or {})
+    fields = {"root": "true", "current": "true" if current else "false", **({"term": term} if term else {})}
+    summary = abstract(f"{c.get('name') or title}" + (f" ({c['courseId']})" if c.get("courseId") else "") + ",",
+                       f"term {term}," if term else None, "taken now" if current else "a past course",
+                       "— the course's pages from Blackboard Learn.")
+    body = (f"# {title}\n\nThis course's pages from Blackboard Learn. The keys above are read by every page in this folder: "
+            f"set `current: false` when the course is over. The outline, gradebook and calendar: [[{cap['title']}]].\n")
+    return {"title": title, "fields": fields, "abstract": summary, "body": body}
 
 
 def _render_file(cap: dict, path: Path) -> list[dict]:
     text, why = file_text(path)
     head = _facts([("Course", cap.get("course_name")), *_where(cap), ("File", path.name), ("Text", why)])
     title = cap["title"]
-    return [{"title": title, "type": "document", "published": cap.get("published"),
+    f = cap.get("facts") or {}
+    summary = abstract(f"{path.suffix.lstrip('.').upper() or 'File'} file {path.name} in {_course_of(cap)}" +
+                       (f", carried by {f['owner']}." if f.get("owner") else "."), opening(text) or why)
+    return [{"title": title, "type": "document", "published": cap.get("published"), "abstract": summary,
              "body": f"# {title.split(' — ', 1)[-1]}\n\n{head}\n\n{text}\n", "problem": why}]
 
 
@@ -819,12 +916,16 @@ def _render_video(cap: dict, path: Path, directory: Path) -> list[dict]:
     why = None if body else "no transcript or captions beside the video yet"
     head = _facts([("Course", cap.get("course_name")), *_where(cap), ("Video", path.name),
                    ("Transcript", {"transcribed": "machine transcript", "captions": "the video's own captions"}.get(how) or why)])
-    return [{"title": cap["title"], "type": "video", "published": cap.get("published"),
+    length = vtt_length(words) if words else None
+    name = cap["title"].split(" — ", 1)[-1].removesuffix(" (video)")
+    summary = abstract(f"Video in {_course_of(cap)}: {name}" + (f", {length}." if length else "."),
+                       opening(body) if body else why)
+    return [{"title": cap["title"], "type": "video", "published": cap.get("published"), "abstract": summary,
              "body": f"# {cap['title'].split(' — ', 1)[-1]}\n\n{head}\n\n" + (f"## Transcript\n\n{body}\n" if body else ""), "problem": why}]
 
 
 def render(directory: Path) -> list[dict]:
-    """The page(s) one capture makes: `title`, `type`, `published`, `body`, and `problem` where text could not be had."""
+    """The page(s) one capture makes: `title`, `type`, `published`, `abstract`, `body`, and `problem` where text could not be had."""
     cap = json.loads((directory / CAPTURE).read_text(encoding="utf-8"))
     body = directory / cap["body"]
     kind = cap.get("kind")
@@ -842,7 +943,7 @@ def render(directory: Path) -> list[dict]:
 
 def _frontmatter(page: dict, cap: dict) -> str:
     # No `resource`: that is a job's page identity, which `process.py` sets; a dropped note belongs to no job.
-    rows = {"type": page["type"], "published": page.get("published"), "course": cap.get("course")}
+    rows = {"type": page["type"], "published": page.get("published"), "course": cap.get("course"), "abstract": page.get("abstract")}
     return "---\n" + "".join(f"{k}: {json.dumps(v, ensure_ascii=False)}\n" for k, v in rows.items() if v) + "---\n"
 
 

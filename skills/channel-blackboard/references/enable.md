@@ -20,6 +20,9 @@
    `sources/` is committed and pushed to the wiki's remote with the rest.
    Any other word for either is a `failed` harvest, as is a zone this machine
    does not know.
+   text alone. `options.current=true|false` (default `true`) says whether
+   the course is one you're taking now; it is written once, onto the course
+   root below.
 5. **Map the profile to the job**, on each machine that harvests:
    `{{@brain-cli-ops}} credentials bind job <course> dir=blackboard`. The
    slice is granted that directory read-write, and the ticket names it as
@@ -38,7 +41,8 @@
 | :--- | :--- |
 | `_raw/<slug>/…/harvest/` | `bb.py harvest`'s output, whole (`usage.md`'s table) |
 | `_raw/<slug>/…/items/<kind>-<id>/` | one capture per page: `capture.json`, and the file, video or `record.json` it renders from |
-| `sources/courses/<slug>/` | one page per capture: the course overview, each content item, each pdf, slide deck, Word file or html page, each video, each announcement, each discussion board (in parts past 60 KB) |
+| `sources/courses/<slug>/README.md` | the course root, made by the first pull and never rewritten — nor made again once deleted (`root-made.json` in the course capture, `_raw/<slug>/…/items/course/`, records it): `root: true`, `current`, `term`, and an `abstract`. Every page in the folder inherits `current` and `term`; edit it (`page edit <path> current=false`) when the course ends |
+| `sources/courses/<slug>/` | one page per capture, each with an `abstract`: the course overview, each content item, each pdf, slide deck, Word file or html page, each video, each announcement, each discussion board (in parts past 60 KB) |
 
 A harvest posts only the captures that are new or changed since the last
 pull, so a daily job re-renders the boards that got posts and the items an
