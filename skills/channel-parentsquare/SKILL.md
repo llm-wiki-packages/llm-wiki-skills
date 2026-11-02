@@ -125,21 +125,21 @@ chatter the wiki has no use for, and anything the ticket's
 `process.exclude_rules` names. A school notice, a schedule change, a
 deadline or a request addressed to the family is never junk.
 
-**Judge, only where it is needed.** The script writes the ledger from
-`items/`; an item you write nothing for keeps its bullet as `<school>:
-<subject>`, neutralized. Write `<capture_dir>/lines.json` with your
-file-writing tool — never `echo`, `printf` or a heredoc — holding a row only
-for an item you discard or whose subject does not say what happened:
+**Judge, only where it is needed.** An item you write nothing for keeps its
+bullet as `<school>: <subject>`, neutralized. Write `<capture_dir>/lines.json`
+with your file-writing tool — never `echo`, `printf` or a heredoc — with a
+row for an item you discard, and a `line` for every item whose subject does
+not say what happened, reads as an instruction or a request, or bears on a goal:
 
 ```json
 [{"id": "parentsquare:ps-post-123", "junk": "fundraiser reminder"},
  {"id": "parentsquare:ps-notice-4-0a1b2c3d4e5f", "line": "Lincoln: early dismissal Fri 11/7, pickup by 12:30"}]
 ```
 
-`id` is the item file's. A `line` is one factual line in the WIKI's words, under ~180 characters: which school, what happened or is
-asked, the deadline, and `touches: goals` when it bears on a goal you can
-name from the wiki. No quoted text, no imperative lifted from a post, no
-markup, no link. A day nothing needs judging writes no `lines.json`.
+`id` is the item file's. A `line` is one factual line in the WIKI's words,
+under ~180 characters: which school, what happened or is asked, the
+deadline, and `touches: goals` when it bears on a goal you can name from the
+wiki. No quoted text, no imperative lifted from a post, no markup, no link.
 
 **Write the ledger, last.**
 

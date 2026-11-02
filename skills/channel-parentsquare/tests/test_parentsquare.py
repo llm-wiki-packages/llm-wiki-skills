@@ -163,10 +163,10 @@ DAY = "_raw/ps/2026-10-03"
 DEST = "research/channels/ps"
 
 
-def _stub(tmp_path, *, page_exists=False):
+def _stub(tmp_path, *, page_exists=False, capture_dir=DAY):
     """A recording front door: `tickets open` answers the process ticket; `page create` refuses where the day's page exists."""
     stub = tmp_path / "ops_stub.py"
-    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": DAY, "dest": DEST}
+    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST}
     stub.write_text(
         "import json, os, sys\n"
         "argv = sys.argv[1:]; verb = [a for a in argv if not a.startswith('--')]\n"
@@ -257,3 +257,20 @@ def test_the_process_step_runs_the_ledger_script_and_writes_no_ledger_by_hand():
     text = _doc(UNIT / "SKILL.md")
     assert "run ops/skills/channel-parentsquare/scripts/ledger.py <capture_dir> --ticket <id>" in text
     assert "ledger.md" not in text and "page create" not in text
+
+
+def test_an_id_no_item_carries_is_counted_and_named(tmp_path):
+    _day(tmp_path)
+    (tmp_path / DAY / "lines.json").write_text(json.dumps([{"id": "parentsquare:ps-post-404", "line": "x"},
+                                                          {"id": "parentsquare:ps-post-2", "junk": "spirit week"}]))
+    done, calls = _ledger(tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["unmatched"] == ["parentsquare:ps-post-404"]
+    update = [c["argv"] for c in calls if c["argv"][1:3] == ["tickets", "update"]][0]
+    assert "status=partial" in update and any("ps-post-404" in a for a in update)
+
+
+def test_a_ticket_capture_dir_that_is_no_day_is_refused(tmp_path):
+    env = {**__import__("os").environ, "LLM_WIKI_OPS": _stub(tmp_path, capture_dir="_raw/ps/latest"), "FAKE_CALLS": str(tmp_path / "calls.log")}
+    done = subprocess.run([sys.executable, str(LEDGER), DAY, "--ticket", "t1"], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
+    assert done.returncode == 2 and "not a day directory" in done.stderr

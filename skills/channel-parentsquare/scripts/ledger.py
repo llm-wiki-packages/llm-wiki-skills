@@ -20,7 +20,8 @@ capture directory; absent, `lines.json` there when it is there, else none):
       "junk": null | "<the rule that discards it>"}]
 
 A row is needed only for an item the step judged: a discard, or a line in
-the wiki's words. An item no row names keeps its bullet, `<school>: <subject>`
+the wiki's words. A row whose `id` names no item of the day is counted
+(`unmatched`) and makes the report `partial`, naming it. An item no row names keeps its bullet, `<school>: <subject>`
 with what a bullet's folding would leave live swapped for look-alikes. The
 page is regenerated WHOLE through `page create`, or `page edit` over the day's
 page a pull of the same day left: one bullet per kept item, `- <line> — <id>`,
@@ -258,6 +259,9 @@ def ledger(directory, args):
     ticket = open_ticket(args.ticket, "process")
     named = ticket.get("capture_dir")
     directory = Path(named) if isinstance(named, str) and named else directory
+    if not DAY_RE.fullmatch(directory.name):
+        print(f"ledger: the ticket's capture_dir {named!r} is not a day directory (`_raw/<slug>/<YYYY-MM-DD>`)", file=sys.stderr)
+        return 2
     day = directory.name
     dest = str(ticket.get("dest") or "").strip().rstrip("/")
 
@@ -281,13 +285,20 @@ def ledger(directory, args):
         rows = lines_from(directory, args.source)
     except (OSError, ValueError) as exc:
         return finish("failed", f"the lines could not be read: {type(exc).__name__}: {exc}")
-    body, kept, discarded, from_subject = ledger_body(items, verdicts_in(rows))
-    counts = {"items": len(items), "kept": kept, "discarded": discarded, "from_subject": from_subject}
+    verdicts = verdicts_in(rows)
+    body, kept, discarded, from_subject = ledger_body(items, verdicts)
+    pointers = {_text(doc.get("id")) or f"parentsquare:{id_in(name)}" for name, doc in items}
+    unmatched = sorted(set(verdicts) - pointers)
+    counts = {"items": len(items), "kept": kept, "discarded": discarded, "from_subject": from_subject, "unmatched": unmatched}
     keys = [f"type={LEDGER_TYPE}", f"channel={ticket.get('slug') or day}", f"date={day}", f"items={kept}", "extracted=true"]
     rel, why = write_page(dest, day, keys, body)
     if rel is None:
         return finish("failed", f"the ledger was not written: {why}", counts=counts)
-    return finish("partial" if args.partial else "ok", args.partial or None, written=[rel], counts=counts)
+    reasons = [args.partial] if args.partial else []
+    if unmatched:
+        # An id the step wrote that no item carries is a judgment that landed nowhere: its item kept its subject.
+        reasons.append(f"{len(unmatched)} lines.json id(s) name no item of the day: {', '.join(bullet_line(u) for u in unmatched)}"[:400])
+    return finish("partial" if reasons else "ok", "; ".join(reasons) or None, written=[rel], counts=counts)
 
 
 def main(argv=None):

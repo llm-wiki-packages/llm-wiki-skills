@@ -14,7 +14,7 @@ The harvest reads through the `parentsquare` MCP server the sandbox declares; `l
 | :--- | :--- | :--- |
 | `keys.py notice` | harvest | `<draft.json>` holding `school_id`, `title`, `date`; prints `ps-notice-<school_id>-<12 hex of sha1(title\|date)>` |
 | `keys.py stamp` | harvest | `<draft.json>` holding `date` and `id`; `[--now MS] [--day-dir DIR]`; prints 13-digit epoch milliseconds from an ISO-8601, epoch or month-name date, else the stamp of the `id`'s file in `DIR/items/`, else the pull's clock |
-| `ledger.py` | process | `<capture_dir> --ticket <id> [--from lines.json] [--partial REASON]`; reads `items/*.json` and the rows in `lines.json` (only for items judged: `junk`, or a `line`), writes `<dest>/<YYYY-MM-DD>.md` whole, `written.json`, and the report; prints the counts as JSON |
+| `ledger.py` | process | `<capture_dir> --ticket <id> [--from lines.json] [--partial REASON]`; reads `items/*.json` and the rows in `lines.json` (only for items judged: `junk`, or a `line`; an `id` no item carries is `unmatched` and makes the report `partial`), writes `<dest>/<YYYY-MM-DD>.md` whole, `written.json`, and the report; prints the counts as JSON |
 
 ## Knobs
 
