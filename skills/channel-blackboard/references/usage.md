@@ -46,7 +46,7 @@ No network and no credential: it reads a harvest directory.
 | command | argv | what |
 | :--- | :--- | :--- |
 | `bbnotes.py split` | `<harvest dir> --out DIR [--tz ZONE]` | one capture dir per page under `DIR`, each with `capture.json` |
-| `bbnotes.py render` | `<capture dir> [--out FILE] [--tz ZONE]` | that capture's page(s) as JSON: `title`, `type`, `published`, `body`, and `problem` where its text could not be had |
+| `bbnotes.py render` | `<capture dir> [--out FILE] [--tz ZONE]` | that capture's page(s) as JSON: `title`, `type`, `published`, `abstract`, `body`, and `problem` where its text could not be had |
 | `bbnotes.py notes` | `<harvest dir> --out DIR [--items DIR] [--tz ZONE]` | `split` and `render` together: one Markdown note per page in `DIR` |
 
 The captures, by `kind` in `capture.json`:
@@ -59,6 +59,11 @@ The captures, by `kind` in `capture.json`:
 | `video` | `video` | the transcript beside the media: the transcribe stage's `.transcript.webvtt`, else an English caption track |
 | `announcement` | `note` | one announcement |
 | `discussion` | `note` | one board's prompt and every published post, threaded by reply; parts past 60 KB |
+
+`abstract` is one line of at most 600 characters, built from the capture's
+facts with no model: the kind and course, a due date in `--tz` and points,
+a video's length by its transcript, and the text's first heading and
+sentence.
 
 `published` is the day the item was last modified, an announcement's last
 edit, or a board's latest post. Titles are settled across the course: two

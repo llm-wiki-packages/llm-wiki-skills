@@ -62,7 +62,7 @@ session expired and no silent SSO renewal worked: run step 1 again.
 One job per course; the target is the course's url as the browser shows it.
 
 ```sh
-{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill=channel-blackboard description="<course name>" options.timezone=<IANA zone>
+{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill=channel-blackboard description="<course name>" options.timezone=<IANA zone> options.current=<true|false>
 {{@brain-cli-ops}} credentials bind job <course> dir=blackboard
 ```
 
@@ -74,6 +74,11 @@ which is committed and pushed to the wiki's remote;
 `options.discussions=skip` fetches no board at all. The steps after
 `jobs add`, and what each run leaves:
 `{{@brain-cli-ops}} reference channel-blackboard/references/enable.md`.
+`options.current` answers "is this a course you're taking now?" (default
+`true`): the first pull writes it onto the course's root page,
+`<dest>/README.md` (`root: true`), whose keys every page of the course
+inherits; after that the root is the person's, and "I've finished the
+course" is `{{@brain-cli-ops}} page edit <dest>/README.md current=false`.
 
 Every pull posts only the items that are new or changed since the last; a
 page a person moved or holds is left alone, and a page at an item's title
@@ -108,7 +113,10 @@ Blackboard calls that failed, which the next pull fetches.
 Renders the one capture (`bbnotes.render`) and writes its page(s): `page
 edit` of the page `known[]` names for the item's `resource`, else `page
 create`. A page a person moved or holds is left alone (`ok`, nothing
-written). `partial` names a page that went out without its
+
+written). Every page carries an `abstract` the script builds from the
+capture's facts. The course overview's capture also creates the course root
+(`README.md`) once. `partial` names a page that went out without its
 text: a scanned pdf, or a video no transcript reached yet.
 
 ## 4. By hand: harvest, then convert

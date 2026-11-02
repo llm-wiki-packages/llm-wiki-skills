@@ -201,7 +201,9 @@ def test_notes_writes_frontmattered_notes(tmp_path, bb):
     h = make_harvest(tmp_path)
     assert bb.main(["notes", str(h), "--out", str(tmp_path / "notes"), "--tz", "America/Chicago"]) == 0
     note = (tmp_path / "notes" / "PSY 2301 announcement — Week 5.md").read_text()
-    assert note.startswith('---\ntype: "note"\npublished: "2026-10-23"\ncourse: "PSY 2301"\n---\n# Week 5\n')
+    assert note.startswith('---\ntype: "note"\npublished: "2026-10-23"\ncourse: "PSY 2301"\n'
+                           'abstract: "Announcement in PSY 2301 Abnormal Psychology, posted 2026-10-23: Week 5. The library session is Wednesday."\n'
+                           '---\n# Week 5\n')
 
 
 def test_notes_refuses_a_directory_that_is_no_harvest(tmp_path, bb, capsys):
@@ -484,3 +486,65 @@ def test_process_fails_naming_a_zone_it_does_not_know(tmp_path):
          "known": [], "held": [], "options": {"timezone": "Mars/Olympus"}}
     _, _, updates = run_stage(tmp_path, "process.py", t)
     assert "status=failed" in updates[0] and any("Mars/Olympus" in a for a in updates[0])
+
+
+def test_every_page_carries_a_one_line_abstract_from_its_facts(pages):
+    for title, page in pages.items():
+        assert page["abstract"] and len(page["abstract"]) <= 600 and "\n" not in page["abstract"], title
+    item = pages["PSY 2301 — Scholarly Activity"]["abstract"]
+    assert "Assignment in PSY 2301 Abnormal Psychology" in item and "Due Tue 2026-10-20 11:59 PM CDT. 100 points." in item
+    assert "Write a 3-page paper." in item and "**" not in item
+    assert pages["PSY 2301 — Welcome — Welcome (video)"]["abstract"].startswith("Video in PSY 2301 Abnormal Psychology: Welcome — Welcome, 6 s.")
+    assert pages["PSY 2301 — Study Guide"]["abstract"].endswith("Reading: Read chapter 2 by Friday.")
+    assert "Due dates run 2026-10-06 to 2026-10-20" in pages["PSY 2301 Abnormal Psychology — course overview"]["abstract"]
+
+
+def test_an_abstract_is_cut_to_the_bound(bb):
+    said = bb.abstract("x" * 700, "\nmore\n")
+    assert len(said) == 600 and said.endswith("…")
+
+
+def _course_ticket(tmp_path, **options):
+    return {"ticket": "t6", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/course", "dest": "sources/courses/psy",
+            "known": [], "held": [], "options": {"timezone": "America/Chicago", **options}}
+
+
+def test_process_carries_the_abstract_on_every_page_it_writes(tmp_path):
+    _captures(tmp_path)
+    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    creates = [c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"]]
+    assert creates and all(any(a.startswith("abstract=") for a in argv) for argv in creates)
+
+
+def test_the_course_overview_makes_the_course_root_once(tmp_path):
+    _captures(tmp_path)
+    _, calls, updates = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    (root,) = [c for c in calls if c["argv"][1:3] == ["page", "create"] and "title=README" in c["argv"]]
+    assert {"dest=sources/courses/psy", "root=true", "current=true", "term=from 2026-09-30"} <= set(root["argv"])
+    abstract = next(a for a in root["argv"] if a.startswith("abstract="))
+    assert len(abstract) - len("abstract=") <= 600 and "\n" not in abstract
+    (edit,) = [c["argv"] for c in calls if c["argv"][1:3] == ["page", "edit"]]
+    assert edit[3:] == ["sources/courses/psy/README.md", "title=PSY 2301 Abnormal Psychology"]
+    assert "status=ok" in updates[0]
+    readme = tmp_path / "sources/courses/psy/README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("---\nroot: true\ncurrent: false\n---\n# Mine\n")
+    (tmp_path / "calls.log").unlink()
+    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    assert not [c for c in calls if "README" in " ".join(c["argv"])]
+
+
+def test_a_root_a_person_made_under_another_name_stands(tmp_path):
+    _captures(tmp_path)
+    mine = tmp_path / "sources/courses/psy/Psych.md"
+    mine.parent.mkdir(parents=True)
+    mine.write_text("---\ntitle: Psych\nroot: 'true'\n---\n# Psych\n")
+    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    assert not [c for c in calls if "title=README" in c["argv"]]
+
+
+def test_a_past_course_root_says_current_false(tmp_path):
+    _captures(tmp_path)
+    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path, current=False))
+    (root,) = [c["argv"] for c in calls if "title=README" in c["argv"]]
+    assert "current=false" in root

@@ -13,6 +13,12 @@ names for it. A page a person moved (`reason: moved`) or holds (`held[]`) is
 left alone: `ok`, nothing written. A page at the title's path that is another
 item's, or no item's, is never written over: `partial`, naming it. A
 discussion's later parts are their own resources, `<item>#part-<n>`.
+Every page carries an `abstract` built from the capture's facts.
+
+The course overview's capture also makes the course's bundle root, once:
+`README.md` in `dest` with `root: true`, `current` (the job's `current`
+option, default true) and `term`, which every page below inherits. A root
+already there, or any page in `dest` a person made the root, is left alone.
 
 `ok` with the pages in `written.json`; `partial` where a page went out
 without its text (a scanned pdf, a video no transcript reached yet: the
@@ -36,6 +42,8 @@ import bbnotes  # noqa: E402
 from door import open_ticket, ops_json, post_update  # noqa: E402
 
 WRITTEN = "written.json"
+# The course's bundle root in the job's dest (the note format's Bundle roots): `root: true`, and the keys its pages inherit.
+ROOT = "README.md"
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*['\"]?(.*?)['\"]?\s*$", re.MULTILINE)
@@ -57,6 +65,8 @@ def resource_of(path: Path) -> str | None:
 def write_page(page: dict, resource: str, dest: str, known_path: str | None) -> tuple[str | None, str | None, bool]:
     """`(path, None, False)` written; `(None, why, True)` a page that is not this item's stood at the path; `(None, why, False)` refused."""
     pairs = [f"type={page['type']}", f"resource={resource}", "extracted=true"]
+    if page.get("abstract"):
+        pairs.append(f"abstract={page['abstract']}")
     if page.get("published"):
         pairs.append(f"published={page['published']}")
     path = known_path or f"{dest.rstrip('/')}/{page['title']}.md"
@@ -73,6 +83,34 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None) -> 
     if rc != 0:
         return None, f"{page['title']}: {answer.get('error') or answer}", False
     return answer.get("path") or path, None, False
+
+
+def has_root(dest: str) -> bool:
+    """Whether `dest` holds its bundle root already: a `README.md`, or any page there a person made the root."""
+    folder = Path(dest)
+    if (folder / ROOT).is_file():
+        return True
+    for page in folder.glob("*.md"):
+        with page.open(encoding="utf-8", errors="replace") as f:
+            head = f.read(8192)
+        if head.startswith("---") and re.search(r"^root:\s*['\"]?true['\"]?\s*$", head.split("\n---", 1)[0], re.MULTILINE):
+            return True
+    return False
+
+
+def write_root(capture: Path, cap: dict, dest: str, options: dict) -> str | None:
+    """Make the course's bundle root once; a root that exists is a person's to edit, never rewritten. The refusal, or None."""
+    if has_root(dest):
+        return None
+    current = str(options.get("current", True)).strip().lower() not in ("false", "no", "0", "off")
+    root = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current)
+    pairs = [f"{k}={v}" for k, v in root["fields"].items()] + [f"abstract={root['abstract']}"]
+    rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={dest}", "type=document", *pairs,
+                          "--stdin", stdin=root["body"])
+    if rc == 0:
+        # The filename is the title at create; the root's own title is the course's.
+        rc, answer = ops_json("page", "edit", answer.get("path") or f"{dest.rstrip('/')}/{ROOT}", f"title={root['title']}")
+    return None if rc == 0 else f"{ROOT}: {answer.get('error') or answer}"
 
 
 def main(argv: list[str]) -> int:
@@ -102,6 +140,8 @@ def main(argv: list[str]) -> int:
         return 0
     known = {k["resource"]: k for k in t.get("known") or [] if k.get("resource") and k.get("path")}
     written, refused, thin, left, clashed = [], [], [], [], []
+    if cap.get("kind") == "course" and (why := write_root(capture, cap, dest, t.get("options") or {})):
+        refused.append(why)
     for n, page in enumerate(pages, 1):
         resource = cap["item"] if n == 1 else f"{cap['item']}#part-{n}"
         row = known.get(resource) or {}
