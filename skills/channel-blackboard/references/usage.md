@@ -12,7 +12,7 @@ script runs as `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.
 | `bb.py whoami` | `(--profile DIR \| --credential NAME) [--chrome] [--headed]` |
 | `bb.py courses` | the same |
 | `bb.py get` | `<api-path> [--all]` and the same; `v1/...` is under `/learn/api/public`, a leading `/` is a site path |
-| `bb.py harvest` | `<course id> --out DIR [--no-files]` and the same |
+| `bb.py harvest` | `<course id> --out DIR [--no-files] [--no-discussions]` and the same |
 
 Every command above also takes `--site <base url>`, over the profile's
 `bb-site.json`; the harvest stage passes the job target's.
@@ -62,4 +62,7 @@ The captures, by `kind` in `capture.json`:
 
 `published` is the day the item was last modified, an announcement's last
 edit, or a board's latest post. Titles are settled across the course: two
-items called "Introduction" are two pages.
+items called "Introduction" are two pages, each qualified by the folder above
+it ("Introduction (Week 2)"), or by its id's tail where they share a folder:
+never by a count, so a new item never renames another. A discussion's later
+parts are their own resources, `<item>#part-<n>`. Dates read in `--tz`.

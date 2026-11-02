@@ -15,7 +15,11 @@
    (`when: if-no-captions`). Without `options.timezone` a due date reads in
    UTC, which puts a midnight deadline on the next day. `options.files=skip`
    fetches no attachment, pdf or video: the pages then carry the course's
-   text alone.
+   text alone. `options.discussions=skip` fetches no discussion board: a
+   board's page names every classmate who posted and holds their posts, and
+   `sources/` is committed and pushed to the wiki's remote with the rest.
+   Any other word for either is a `failed` harvest, as is a zone this machine
+   does not know.
 5. **Map the profile to the job**, on each machine that harvests:
    `{{@brain-cli-ops}} credentials bind job <course> dir=blackboard`. The
    slice is granted that directory read-write, and the ticket names it as

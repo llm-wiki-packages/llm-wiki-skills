@@ -20,7 +20,7 @@ Usage:
   bb.py whoami   --profile DIR
   bb.py courses  --profile DIR
   bb.py get <api-path> --profile DIR [--all]
-  bb.py harvest <courseId> --out DIR --profile DIR [--no-files]
+  bb.py harvest <courseId> --out DIR --profile DIR [--no-files] [--no-discussions]
 
 `--credential NAME` in place of `--profile` reads the directory off
 `llm-wiki-ops credentials info NAME` (a `kind=dir` credential).
@@ -479,7 +479,8 @@ def cmd_harvest(s: Session, args) -> int:
     dump("calendar.json", attempt("calendar", lambda: s.api_all(f"v1/calendars/items?courseId={cid}"), []))
 
     # --- discussions: every board's topic and every post the student can see
-    discussions = attempt("discussions", lambda: s.api_all(f"v1/courses/{cid}/discussions"), [])
+    # `--no-discussions`: classmates' names and posts are never fetched, so nothing downstream can carry them.
+    discussions = [] if args.no_discussions else attempt("discussions", lambda: s.api_all(f"v1/courses/{cid}/discussions"), [])
     dump("discussions.json", discussions)
     posts = 0
     for d in discussions:
@@ -584,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("course", help="the course's primary id (_123_1), from `courses`")
     p.add_argument("--out", required=True)
     p.add_argument("--no-files", action="store_true")
+    p.add_argument("--no-discussions", action="store_true", help="fetch no discussion board, so no classmate's name or post")
     args = ap.parse_args(argv)
 
     from playwright.sync_api import sync_playwright

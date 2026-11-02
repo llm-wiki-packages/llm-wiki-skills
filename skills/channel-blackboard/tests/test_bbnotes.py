@@ -201,7 +201,7 @@ def test_notes_writes_frontmattered_notes(tmp_path, bb):
     h = make_harvest(tmp_path)
     assert bb.main(["notes", str(h), "--out", str(tmp_path / "notes"), "--tz", "America/Chicago"]) == 0
     note = (tmp_path / "notes" / "PSY 2301 announcement — Week 5.md").read_text()
-    assert note.startswith('---\ntype: "note"\npublished: "2026-10-24"\ncourse: "PSY 2301"\n---\n# Week 5\n')
+    assert note.startswith('---\ntype: "note"\npublished: "2026-10-23"\ncourse: "PSY 2301"\n---\n# Week 5\n')
 
 
 def test_notes_refuses_a_directory_that_is_no_harvest(tmp_path, bb, capsys):
@@ -325,15 +325,16 @@ def test_process_writes_the_page_with_its_resource_and_date(tmp_path):
     assert json.loads((items / "item-3_1" / "written.json").read_text()) == ["sources/courses/psy/PSY 2301 — Scholarly Activity.md"]
 
 
-def test_process_edits_a_page_a_person_moved_where_it_lives(tmp_path):
+def test_process_leaves_a_page_a_person_moved_alone(tmp_path):
     _captures(tmp_path)
     moved = tmp_path / "sources/notes/mine.md"
     moved.parent.mkdir(parents=True)
     moved.write_text("x")
     t = {"ticket": "t3", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/item-3_1", "dest": "sources/courses/psy",
          "known": [{"resource": "blackboard:_42_1/item-3_1", "path": "sources/notes/mine.md", "reason": "moved"}], "held": [], "options": {}}
-    _, calls, _ = run_stage(tmp_path, "process.py", t)
-    assert [c["argv"][1:4] for c in calls if c["argv"][1] == "page"] == [["page", "edit", "sources/notes/mine.md"]]
+    _, calls, updates = run_stage(tmp_path, "process.py", t)
+    assert not [c for c in calls if c["argv"][1] == "page"]
+    assert "status=ok" in updates[0] and any("moved by a person" in a for a in updates[0])
 
 
 def test_process_writes_nothing_for_a_held_page(tmp_path):
@@ -352,3 +353,134 @@ def test_process_of_a_video_with_no_words_is_partial(tmp_path):
          "known": [], "held": [], "options": {}}
     _, _, updates = run_stage(tmp_path, "process.py", t)
     assert "status=partial" in updates[0] and any("no transcript" in a for a in updates[0])
+
+
+# ------------------------------------------------------------------ titles, identity, options
+
+
+def _content(h: Path, *rows) -> None:
+    contents = json.loads((h / "contents.json").read_text())
+    for at, row in rows:
+        contents.insert(at, row)
+    _dump(h / "contents.json", contents)
+    for at, row in rows:
+        (h / "bodies" / f"{row['id']}.html").write_text(f"<p>{row['id']} text</p>")
+
+
+def _readings(n: str, week: str) -> dict:
+    return {"id": f"_r{n}_1", "parent": None, "path": f"{week}/Readings", "title": "Readings", "handler": "resource/x-bb-document"}
+
+
+def _titles(bb, h, out):
+    return {d.name: json.loads((d / "capture.json").read_text())["title"] for d in bb.split(h, out)}
+
+
+def test_an_item_inserted_before_two_same_titled_items_changes_no_existing_title(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _content(h, (0, _readings("1", "Week 2")), (1, _readings("2", "Week 3")))
+    first = _titles(bb, h, tmp_path / "items")
+    assert first["item-r1_1"] == "PSY 2301 — Readings (Week 2)" and first["item-r2_1"] == "PSY 2301 — Readings (Week 3)"
+    _content(h, (0, _readings("0", "Week 1")))
+    second = _titles(bb, h, tmp_path / "items")
+    assert {k: second[k] for k in first} == first
+    assert second["item-r0_1"] == "PSY 2301 — Readings (Week 1)"
+
+
+def test_same_titles_in_one_folder_fall_back_to_the_id(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _content(h, (0, _readings("1", "Week 2")), (1, _readings("2", "Week 2")))
+    titles = _titles(bb, h, tmp_path / "items")
+    assert titles["item-r1_1"] == "PSY 2301 — Readings (r1_1)" and titles["item-r2_1"] == "PSY 2301 — Readings (r2_1)"
+
+
+def test_a_course_json_with_no_id_takes_the_targets_or_is_refused(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _dump(h / "course.json", None)
+    caps = [json.loads((d / "capture.json").read_text()) for d in bb.split(h, tmp_path / "items", course_id="_9_1")]
+    assert caps and all(c["item"].startswith("blackboard:_9_1/") for c in caps)
+    with pytest.raises(ValueError):
+        bb.split(h, tmp_path / "other")
+
+
+def test_a_title_holds_no_link_marker_and_venue_text_stays_on_its_line(tmp_path, bb):
+    assert bb.page_title("Week #2 ^ [draft]") == "Week ＃2 ˆ (draft)"
+    h = make_harvest(tmp_path)
+    contents = json.loads((h / "contents.json").read_text())
+    contents[2]["title"] = "Scholarly\n---\n# Activity"
+    _dump(h / "contents.json", contents)
+    cols = json.loads((h / "gradebook-columns.json").read_text())
+    cols[0]["name"] = "Paper | one\n## two"
+    _dump(h / "gradebook-columns.json", cols)
+    for d in bb.split(h, tmp_path / "items"):
+        for page in bb.render(d):
+            lines = page["body"].splitlines()
+            assert "---" not in lines and not [ln for ln in lines if ln.startswith("## two") or ln == "# Activity"], page["title"]
+    overview = next(p for d in (tmp_path / "items").iterdir() if d.name == "course" for p in bb.render(d))["body"]
+    assert "| Paper ¦ one ## two |" in overview
+
+
+def test_a_meeting_link_loses_its_passcode(bb):
+    assert bb.shown_url("https://x.zoom.us/j/123?pwd=SECRET") == "https://x.zoom.us/j/123"
+    assert bb.shown_url("https://example.edu/a?b=c") == "https://example.edu/a?b=c"
+
+
+def test_discussions_skip_fetches_no_board_and_makes_no_page(tmp_path):
+    cp, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"discussions": "skip"}))
+    assert cp.returncode == 0, cp.stderr
+    (bb_call,) = [json.loads(line) for line in (tmp_path / "bb.log").read_text().splitlines()]
+    assert "--no-discussions" in bb_call
+    assert not [a for a in updates[0] if a.startswith("captured=") and "discussion-" in a]
+
+
+def test_an_unknown_option_word_or_zone_fails_the_harvest(tmp_path):
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"discussions": "maybe"}))
+    assert "status=failed" in updates[0] and any("options.discussions" in a for a in updates[0])
+    (tmp_path / "calls.log").unlink()
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"timezone": "Mars/Olympus"}))
+    assert "status=failed" in updates[0] and any("Mars/Olympus" in a for a in updates[0])
+
+
+def test_a_harvest_whose_course_json_names_no_id_fails(tmp_path):
+    t = harvest_ticket(tmp_path)
+    _dump(tmp_path / "fixture/harvest/course.json", {"name": "x"})
+    _, _, updates = run_stage(tmp_path, "harvest.py", t)
+    assert "status=failed" in updates[0] and f"missing=learn.example.edu,{TARGET},error" in updates[0]
+
+
+def test_an_item_known_cannot_list_is_held_back_on_its_written_page(tmp_path):
+    items = _captures(tmp_path)
+    deck = next(d for d in items.iterdir() if d.name.startswith("file-") and any(d.glob("*.pptx")))
+    (deck / "written.json").write_text(json.dumps(["sources/courses/psy/PSY 2301 — Slides.md"]))
+    (items / "item-2_1" / "written.json").write_text("[]")
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path))
+    captured = {a.rsplit("/", 1)[-1] for a in updates[0] if a.startswith("captured=")}
+    assert deck.name not in captured and "item-2_1" in captured and len(captured) == 7
+
+
+def test_process_never_writes_over_another_items_page(tmp_path):
+    _captures(tmp_path)
+    page = tmp_path / "sources/courses/psy/PSY 2301 — Scholarly Activity.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("---\nresource: blackboard:_42_1/item-9_1\n---\n# other\n")
+    t = {"ticket": "t7", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/item-3_1", "dest": "sources/courses/psy",
+         "known": [], "held": [], "options": {}}
+    _, calls, updates = run_stage(tmp_path, "process.py", t)
+    assert not [c for c in calls if c["argv"][1] == "page"]
+    assert "status=partial" in updates[0] and any("item-9_1" in a and "not written over" in a for a in updates[0])
+
+
+def test_process_edits_the_page_known_names_for_the_resource(tmp_path):
+    _captures(tmp_path)
+    t = {"ticket": "t8", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/item-3_1", "dest": "sources/courses/psy",
+         "known": [{"resource": "blackboard:_42_1/item-9_1", "path": "sources/courses/psy/PSY 2301 — Scholarly Activity.md"},
+                   {"resource": "blackboard:_42_1/item-3_1", "path": "sources/courses/psy/Renamed.md"}], "held": [], "options": {}}
+    _, calls, _ = run_stage(tmp_path, "process.py", t)
+    assert [c["argv"][1:4] for c in calls if c["argv"][1] == "page"] == [["page", "edit", "sources/courses/psy/Renamed.md"]]
+
+
+def test_process_fails_naming_a_zone_it_does_not_know(tmp_path):
+    _captures(tmp_path)
+    t = {"ticket": "t9", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/item-3_1", "dest": "sources/courses/psy",
+         "known": [], "held": [], "options": {"timezone": "Mars/Olympus"}}
+    _, _, updates = run_stage(tmp_path, "process.py", t)
+    assert "status=failed" in updates[0] and any("Mars/Olympus" in a for a in updates[0])

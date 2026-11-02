@@ -62,6 +62,10 @@
       "files": {
         "prompt": "Fetch attachments, pdfs and videos (download), or only the course's own text (skip)",
         "default": "download"
+      },
+      "discussions": {
+        "prompt": "Pull discussion boards (include), whose pages carry classmates' names and posts into the committed wiki, or none (skip)",
+        "default": "include"
       }
     },
     "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine."

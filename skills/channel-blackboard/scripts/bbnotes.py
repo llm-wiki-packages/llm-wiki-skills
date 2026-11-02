@@ -38,9 +38,11 @@ import re
 import shutil
 import sys
 import zipfile
+from collections import Counter
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 CAPTURE = "capture.json"
@@ -304,8 +306,17 @@ def glob_escape(text: str) -> str:
 
 
 def day(stamp: str | None) -> str | None:
+    """A stamp's date as a reader in `ZONE` sees it; a bare date, or one that does not parse, as written."""
     found = re.match(r"\d{4}-\d{2}-\d{2}", stamp or "")
-    return found.group(0) if found else None
+    if not found:
+        return None
+    try:
+        t = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return found.group(0)
+    if len(stamp) <= 10:
+        return found.group(0)
+    return (t if t.tzinfo else t.replace(tzinfo=timezone.utc)).astimezone(ZONE[0]).date().isoformat()
 
 
 # The zone due dates read in (`--tz`, a job's `timezone` option). Blackboard stores UTC: a 11:59 PM Central due date is 04:59 or 05:59 UTC the next day.
@@ -346,6 +357,38 @@ def safe_title(text, fallback="Untitled"):
         # it, so the page never appears in `known[]` and the item is re-pulled forever.
         text = f"{text} (page)"
     return text or fallback
+
+
+# What a built `[[link]]` needs beyond the shared title rule: Obsidian reads `#` and `^` inside one
+# as a heading or block reference, and a bracket ends it. Look-alikes, so the title still reads.
+_LINK_SWAPS = {"#": "\uff03", "^": "\u02c6", "[": "(", "]": ")"}
+
+
+def page_title(text, fallback="Untitled"):
+    """`safe_title` for a page this unit links to: `_LINK_SWAPS` first."""
+    text = str(text or "")
+    for bad, good in _LINK_SWAPS.items():
+        text = text.replace(bad, good)
+    return safe_title(text, fallback)
+
+
+def one_line(text, *, cell: bool = False) -> str:
+    """Venue text set in a heading, a list item or a table cell: one line, guarded; in a cell `|` is a look-alike."""
+    line = guard(" ".join(str(text if text is not None else "").split()))
+    return line.replace("|", "\u00a6") if cell else line
+
+
+# Meeting hosts whose link carries its passcode in the query string: the overview keeps the room, not the key.
+MEETING_HOSTS = re.compile(r"(^|\.)(zoom\.us|zoomgov\.com|teams\.microsoft\.com|teams\.live\.com|meet\.google\.com)$", re.IGNORECASE)
+
+
+def shown_url(url: str | None) -> str | None:
+    if not url:
+        return url
+    parts = urlsplit(url)
+    if parts.hostname and MEETING_HOSTS.search(parts.hostname):
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    return url
 
 
 def course_code(course: dict) -> str:
@@ -416,53 +459,78 @@ def _place(src: Path, dest: Path) -> None:
 
 
 class _Split:
-    def __init__(self, harvest: Path, out: Path, fetched_at: str):
-        self.h, self.out, self.fetched_at = harvest, out, fetched_at
-        self.course = _load(harvest, "course.json", {}) or {}
+    def __init__(self, harvest: Path, out: Path, fetched_at: str, course_id: str | None = None, discussions: bool = True):
+        self.h, self.out, self.fetched_at, self.discussions = harvest, out, fetched_at, discussions
+        loaded = _load(harvest, "course.json", {})
+        self.course = loaded if isinstance(loaded, dict) else {}
         self.code = course_code(self.course)
-        self.cid = self.course.get("id") or harvest.name
-        self.titles: set[str] = set()
+        # Every capture's `resource` is built on it: a directory's name would make a second identity for the same course.
+        self.cid = self.course.get("id") or course_id
+        if not self.cid:
+            raise ValueError(f"{harvest / 'course.json'} names no course id, and none was given")
+        self.pending: list[dict] = []
         self.dirs: list[Path] = []
 
-    def title(self, text: str) -> str:
-        base = safe_title(text)
-        name, n = base, 2
-        while name.lower() in self.titles:
-            name = f"{base[: TITLE_MAX - 6]} ({n})"
-            n += 1
-        self.titles.add(name.lower())
-        return name
-
-    def write(self, key: str, kind: str, title: str, published: str | None, *, record=None, body_file: Path | None = None, extra=None, facts=None) -> Path:
+    def write(self, key: str, kind: str, title: str, published: str | None, *, record=None, body_file: Path | None = None, extra=None,
+              facts=None, under: str | None = None) -> Path:
+        """Stage one capture; `settle` writes it once every title in the course is known. `under` qualifies a shared title."""
         d = self.out / key
         d.mkdir(parents=True, exist_ok=True)
-        if record is not None:
-            text = json.dumps(record, indent=1, ensure_ascii=False, default=str)
-            (d / RECORD).write_text(text + "\n", encoding="utf-8")
-            body, printed = RECORD, fingerprint(text)
-        else:
+        printed = None
+        if record is None:
             _place(body_file, d / body_file.name)
-            body, printed = body_file.name, file_print(body_file)
+            printed = file_print(body_file)
             for words in extra or ():
                 _place(words, d / words.name)
                 printed = fingerprint(printed, file_print(words))
-        cap = {
-            "v": 1,
-            "slug": None,
-            "item": f"blackboard:{self.cid}/{key}",
-            "title": self.title(title),
-            "body": body,
-            "fetched_at": self.fetched_at,
-            "kind": kind,
-            "course": self.code,
-            "course_name": self.course.get("name"),
-            "published": published,
-            "fingerprint": printed,
-            **({"facts": facts} if facts else {}),
-        }
-        (d / CAPTURE).write_text(json.dumps(cap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.pending.append({"dir": d, "key": key, "kind": kind, "base": page_title(title), "under": under, "published": published,
+                             "record": record, "body": RECORD if record is not None else body_file.name, "printed": printed, "facts": facts})
         self.dirs.append(d)
         return d
+
+    def titles(self) -> dict[str, str]:
+        """Each capture's title, the same whatever else the course holds and in whatever order it lists: a title two
+        captures share is qualified by the folder above each, and where that is shared too, by the id's tail. Never a count."""
+        groups: dict[str, list[dict]] = {}
+        for p in self.pending:
+            groups.setdefault(p["base"].lower(), []).append(p)
+        out = {}
+        for group in groups.values():
+            if len(group) == 1:
+                out[group[0]["key"]] = group[0]["base"]
+                continue
+            first = {p["key"]: _qualified(p["base"], p["under"]) if p["under"] else None for p in group}
+            shared = Counter(t.lower() for t in first.values() if t)
+            for p in group:
+                t = first[p["key"]]
+                out[p["key"]] = t if t and shared[t.lower()] == 1 else _qualified(p["base"], p["key"].rsplit("-", 1)[-1][-8:])
+        return out
+
+    def settle(self) -> None:
+        titles = self.titles()
+        for p in self.pending:
+            record, printed = p["record"], p["printed"]
+            if record is not None:
+                if isinstance(record.get("carries"), list):
+                    record["carries"] = [titles[k] for k in record["carries"] if k in titles]
+                text = json.dumps(record, indent=1, ensure_ascii=False, default=str)
+                (p["dir"] / RECORD).write_text(text + "\n", encoding="utf-8")
+                printed = fingerprint(text)
+            cap = {
+                "v": 1,
+                "slug": None,
+                "item": f"blackboard:{self.cid}/{p['key']}",
+                "title": titles[p["key"]],
+                "body": p["body"],
+                "fetched_at": self.fetched_at,
+                "kind": p["kind"],
+                "course": self.code,
+                "course_name": self.course.get("name"),
+                "published": p["published"],
+                "fingerprint": printed,
+                **({"facts": p["facts"]} if p["facts"] else {}),
+            }
+            (p["dir"] / CAPTURE).write_text(json.dumps(cap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
     def run(self) -> list[Path]:
         h = self.h
@@ -509,13 +577,14 @@ class _Split:
                 if suffix in MEDIA:
                     words, _how = transcript_of(src)
                     title = f"{self.code} — {item_title(owner)} — {src.stem} (video)"
-                    self.write(key, "video", title, day(owner.get("modified")), body_file=src, extra=[words] if words else None, facts=where)
+                    self.write(key, "video", title, day(owner.get("modified")), body_file=src, extra=[words] if words else None, facts=where,
+                               under=_folder(owner.get("path")))
                 else:
                     if suffix in (".html", ".htm") and not html_text(src.read_text(encoding="utf-8", errors="replace")):
                         continue
                     alone = owner.get("handler") == "resource/x-bb-file"
                     title = f"{self.code} — {item_title(owner)}" + ("" if alone else f" — {src.name}")
-                    self.write(key, "file", title, day(owner.get("modified")), body_file=src, facts=where)
+                    self.write(key, "file", title, day(owner.get("modified")), body_file=src, facts=where, under=_folder(owner.get("path")))
                 carried.setdefault(item_id, []).append(self.dirs[-1].name)
 
         # Media a person fetched beside the harvest (`external/`, yt-dlp): a video capture each.
@@ -558,19 +627,19 @@ class _Split:
                 "instructions": instructions,
                 "description": description,
                 "grade": grade_facts(col),
-                "carries": [self.out / k for k in carried.get(item["id"], [])],
+                "carries": carried.get(item["id"], []),  # capture keys; `settle` makes them titles
             }
-            record["carries"] = [json.loads((p / CAPTURE).read_text())["title"] for p in record["carries"]]
             record["title"] = item_title(item)
-            self.write(f"item-{item['id'].strip('_')}", "item", f"{self.code} — {item_title(item)}", day(item.get("modified")), record=record)
+            self.write(f"item-{item['id'].strip('_')}", "item", f"{self.code} — {item_title(item)}", day(item.get("modified")), record=record,
+                       under=_folder(item.get("path")))
 
         for a in _load(h, "announcements.json", []):
             record = {"id": a.get("id"), "title": a.get("title"), "created": a.get("created"), "modified": a.get("modified"),
                       "shown_from": ((a.get("availability") or {}).get("duration") or {}).get("start"), "text": html_text(a.get("body"))}
             self.write(f"announcement-{str(a.get('id')).strip('_')}", "announcement", f"{self.code} announcement — {a.get('title')}",
-                       day(a.get("modified") or a.get("created")), record=record)
+                       day(a.get("modified") or a.get("created")), record=record, under=day(a.get("created")))
 
-        for d in _load(h, "discussions.json", []):
+        for d in _load(h, "discussions.json", []) if self.discussions else []:
             posts = _load(h, f"discussions/{d.get('id')}.json", [])
             topic = d.get("topic") if isinstance(d.get("topic"), dict) else {}
             if not posts and not html_text(topic.get("body")):
@@ -598,20 +667,34 @@ class _Split:
                           "item": (items.get(e.get("item")) or {}).get("title")} for e in _load(h, "external.json", [])],
         }
         self.write("course", "course", f"{course_title(self.course)} — course overview", day(self.fetched_at), record=record)
+        self.settle()
         return self.dirs
 
 
-def split(harvest: Path, out: Path, fetched_at: str | None = None) -> list[Path]:
-    """One capture dir per item under `out`, titles settled across the course; returns them in the order written."""
+def _folder(path: str | None) -> str | None:
+    """The folder above an item, by its path: what tells two same-titled items apart."""
+    parts = [p for p in (path or "").split("/") if p and p.lower() != "ultradocumentbody"]
+    return parts[-2] if len(parts) >= 2 else None
+
+
+def _qualified(base: str, by: str) -> str:
+    suffix = f" ({page_title(by)})"
+    return safe_title(base[: max(1, TITLE_MAX - len(suffix))].rstrip() + suffix)
+
+
+def split(harvest: Path, out: Path, fetched_at: str | None = None, *, course_id: str | None = None, discussions: bool = True) -> list[Path]:
+    """One capture dir per item under `out`, titles settled across the course; returns them in the order written.
+
+    `course_id` stands in where `course.json` names none; with neither it raises `ValueError`. `discussions=False` makes no board's page."""
     stamp = fetched_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return _Split(harvest, out, stamp).run()
+    return _Split(harvest, out, stamp, course_id, discussions).run()
 
 
 # ---------------------------------------------------------------- render
 
 
 def _facts(rows: list[tuple[str, object]]) -> str:
-    return "\n".join(f"- {k}: {v}" for k, v in rows if v not in (None, "", []))
+    return "\n".join(f"- {k}: {one_line(v)}" for k, v in rows if v not in (None, "", []))
 
 
 def _grade_rows(g: dict) -> list[tuple[str, object]]:
@@ -630,7 +713,7 @@ def _render_item(cap: dict, r: dict) -> list[dict]:
     head = _facts([("Course", cap.get("course_name")), ("Where", (r.get("path") or "").replace("/", " › ")), ("Kind", kind),
                    ("Syllabus", "yes" if r.get("syllabus") else None), ("Link", r.get("url")),
                    ("Posted", day(r.get("created"))), ("Last updated", day(r.get("modified"))), *_grade_rows(r.get("grade") or {})])
-    parts = [f"# {r.get('title')}", head]
+    parts = [f"# {one_line(r.get('title'))}", head]
     for heading, text in (("Description", r.get("description")), ("Instructions", r.get("instructions")), (None, r.get("text")), (None, r.get("wrapped"))):
         if text:
             parts.append((f"## {heading}\n\n" if heading else "") + (plain(text) if heading == "Description" else text))
@@ -644,7 +727,7 @@ def _render_announcement(cap: dict, r: dict) -> list[dict]:
                    ("Last edited", day(r.get("modified")) if day(r.get("modified")) != day(r.get("created")) else None),
                    ("Shown from", day(r.get("shown_from")))])
     return [{"title": cap["title"], "type": "note", "published": cap.get("published"),
-             "body": f"# {r.get('title')}\n\n{head}\n\n{r.get('text') or ''}\n"}]
+             "body": f"# {one_line(r.get('title'))}\n\n{head}\n\n{r.get('text') or ''}\n"}]
 
 
 def _render_discussion(cap: dict, r: dict) -> list[dict]:
@@ -660,11 +743,11 @@ def _render_discussion(cap: dict, r: dict) -> list[dict]:
 
     def thread(p: dict, depth: int) -> str:
         label = "Reply from" if depth else "Post from"
-        block = f"{'#' * min(6, 3 + depth)} {label} {p['author']}, {when(p.get('posted'))}\n\n{p.get('text') or ''}"
+        block = f"{'#' * min(6, 3 + depth)} {label} {one_line(p['author'])}, {when(p.get('posted'))}\n\n{p.get('text') or ''}"
         return "\n\n".join([block] + [thread(c, depth + 1) for c in kids.get(p["id"], [])])
 
     head = _facts([("Course", cap.get("course_name")), ("Posts", len(posts)), *_grade_rows(r.get("grade") or {})])
-    intro = f"# {r.get('title')}\n\n{head}\n\n" + (f"## Prompt\n\n{r['prompt']}\n\n" if r.get("prompt") else "")
+    intro = f"# {one_line(r.get('title'))}\n\n{head}\n\n" + (f"## Prompt\n\n{r['prompt']}\n\n" if r.get("prompt") else "")
     chunks, cur = [], ""
     for p in roots:
         block = thread(p, 0) + "\n\n"
@@ -676,9 +759,9 @@ def _render_discussion(cap: dict, r: dict) -> list[dict]:
         chunks.append(cur)
     out = []
     for n, chunk in enumerate(chunks, 1):
-        title = cap["title"] if n == 1 else safe_title(f"{cap['title']} (part {n})")
-        lead = intro if n == 1 else f"# {r.get('title')} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', f'[[{cap['title']}]]')])}\n\n"
-        tail = f"\n\nContinued in [[{safe_title(cap['title'] + f' (part {n + 1})')}]]." if n < len(chunks) else ""
+        title = cap["title"] if n == 1 else page_title(f"{cap['title']} (part {n})")
+        lead = intro if n == 1 else f"# {one_line(r.get('title'))} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', f'[[{cap['title']}]]')])}\n\n"
+        tail = f"\n\nContinued in [[{page_title(cap['title'] + f' (part {n + 1})')}]]." if n < len(chunks) else ""
         out.append({"title": title, "type": "note", "published": cap.get("published"),
                     "body": lead + ("## Posts\n\n" if chunk else "") + chunk.rstrip() + tail + "\n"})
     return out
@@ -695,25 +778,25 @@ def _render_course(cap: dict, r: dict) -> list[dict]:
         lines = ["| Graded item | Due | Points | My grade | Feedback |", "| --- | --- | --- | --- | --- |"]
         for g in sorted(rows, key=lambda g: g.get("due") or "9999"):
             score = f"{g['score']:g}" if g.get("score") is not None else (g.get("status") or "")
-            fb = html_text(g.get("feedback")).replace("\n", " ").replace("|", "/") if g.get("feedback") else ""
+            fb = html_text(g.get("feedback")) if g.get("feedback") else ""
             pts = f"{g['points']:g}" if g.get("points") else ""
-            lines.append(f"| {g['name']} | {when(g.get('due'))} | {pts} | {score} | {fb} |")
+            lines.append(f"| {one_line(g['name'], cell=True)} | {when(g.get('due'))} | {pts} | {one_line(score, cell=True)} | {one_line(fb, cell=True)} |")
         parts.append("## Gradebook\n\n" + "\n".join(lines))
     if r.get("calendar"):
-        parts.append("## Calendar\n\n" + "\n".join(f"- {when(e.get('start'))}: {e.get('title')} ({e.get('type')})" for e in r["calendar"]))
+        parts.append("## Calendar\n\n" + "\n".join(f"- {when(e.get('start'))}: {one_line(e.get('title'))} ({one_line(e.get('type'))})" for e in r["calendar"]))
     outline = [o for o in r.get("outline") or [] if o.get("path")]
     if outline:
         lines = []
         for o in outline:
             depth = o["path"].count("/")
             kind = SHORT_HANDLER.get(o.get("handler"), o.get("handler"))
-            hidden = "" if o.get("available") in (None, "Yes", True) else f", {o['available']}"
-            lines.append(f"{'  ' * depth}- {o.get('title')} ({kind}{hidden})" + (f" — {o['url']}" if o.get("url") else ""))
+            hidden = "" if o.get("available") in (None, "Yes", True) else f", {one_line(o['available'])}"
+            lines.append(f"{'  ' * depth}- {one_line(o.get('title'))} ({kind}{hidden})" + (f" — {shown_url(o['url'])}" if o.get("url") else ""))
         parts.append("## Outline\n\n" + "\n".join(lines))
     ext = [e for e in r.get("external") or [] if e.get("url")]
     if ext:
         parts.append("## Off-site links\n\n" + "\n".join(
-            f"- {e.get('title') or e.get('item') or 'link'}{' (video)' if e.get('video') else ''}: {e['url']}" for e in ext))
+            f"- {one_line(e.get('title') or e.get('item') or 'link')}{' (video)' if e.get('video') else ''}: {shown_url(e['url'])}" for e in ext))
     return [{"title": cap["title"], "type": "document", "published": cap.get("published"), "body": "\n\n".join(parts) + "\n"}]
 
 
@@ -784,7 +867,11 @@ def main(argv: list[str] | None = None) -> int:
         if not (args.harvest / "course.json").is_file():
             print(f"refused: {args.harvest} holds no course.json — not a `bb.py harvest` output", file=sys.stderr)
             return 2
-        dirs = split(args.harvest, args.out)
+        try:
+            dirs = split(args.harvest, args.out)
+        except ValueError as exc:
+            print(f"refused: {exc}", file=sys.stderr)
+            return 2
         print(json.dumps([str(d) for d in dirs], indent=1))
         return 0
     if args.cmd == "render":
@@ -798,7 +885,12 @@ def main(argv: list[str] | None = None) -> int:
     items = args.items or args.out / ".captures"
     args.out.mkdir(parents=True, exist_ok=True)
     written, problems = 0, []
-    for d in split(args.harvest, items):
+    try:
+        dirs = split(args.harvest, items)
+    except ValueError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 2
+    for d in dirs:
         cap = json.loads((d / CAPTURE).read_text(encoding="utf-8"))
         for page in render(d):
             (args.out / f"{page['title']}.md").write_text(_frontmatter(page, cap) + page["body"], encoding="utf-8")
