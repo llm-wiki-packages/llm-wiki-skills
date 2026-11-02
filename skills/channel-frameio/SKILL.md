@@ -247,9 +247,10 @@ to one):
 {{@brain-cli-ops}} page create "title=<title>" "dest=<dest>" "resource=<view url>" "extracted=true" --stdin
 ```
 
-with the body on stdin, and `{{@brain-cli-ops}} page edit "<dest>/<title>.md" …
---stdin` on the one refusal that means this job landed the page before. A
-video leaf gets `extracted=queued` and `media=<capture_dir>/video.mp4` with an
+with the body on stdin — or `{{@brain-cli-ops}} page edit id=<document_id> … --stdin`
+where `page ls resource=<view url>` finds the job's page for the leaf, wherever
+a person renamed it. A page a person moved out of `dest` or holds (Draft,
+Archive) is left alone: `ok`, nothing written. A video leaf gets `extracted=queued` and `media=<capture_dir>/video.mp4` with an
 EMPTY body instead: that is the transcribe stage's item queue, and a page
 ABOUT the video would be a finished page the recording is never transcribed
 behind.
@@ -259,7 +260,7 @@ FILE from the title and refuses one carrying any of `/ \ : * ? " < > |`, a
 control character or a leading dot; the filesystem refuses one over 255 bytes.
 Display names with a `/` or a `:` are ordinary here. So `capture.json`'s
 `title` is the safe form, settled at harvest against its namesakes, and
-`<dest>/<title>.md` IS the page's path. The H1 and the `File:` fact keep the
+`<dest>/<title>.md` is a new page's path. The H1 and the `File:` fact keep the
 venue's own text off `meta.json`.
 
 **A document's body**: the venue's title as the H1, the folder breadcrumb, a

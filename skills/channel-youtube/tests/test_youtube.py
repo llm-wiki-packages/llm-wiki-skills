@@ -193,14 +193,27 @@ def _stub_ops(tmp_path, ticket=None):
         "    pathlib.Path(os.getcwd(), 'update-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "pairs = dict(a.split('=', 1) for a in verb if '=' in a)\n"
-        "rel = pairs['dest'].rstrip('/') + '/' + pairs['title'] + '.md' if verb[1] == 'create' else verb[2]\n"
+        "pathlib.Path(os.getcwd(), 'page-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
+        "index = pathlib.Path(os.getcwd(), 'pages.json')\n"
+        "pages = json.loads(index.read_text()) if index.exists() else []\n"
+        "if verb[1] == 'ls':\n"
+        "    print(json.dumps({'pages': [row for row in pages if row.get('resource') == pairs.get('resource')]}))\n"
+        "    sys.exit(0)\n"
+        "if verb[1] == 'create':\n"
+        "    rel = pairs['dest'].rstrip('/') + '/' + pairs['title'] + '.md'\n"
+        "elif 'id' in pairs:\n"
+        "    rel = next(row['path'] for row in pages if row['document_id'] == pairs['id'])\n"
+        "else:\n"
+        "    rel = next(a for a in verb[2:] if '=' not in a)\n"
         "out = pathlib.Path(os.getcwd()) / rel\n"
         "if verb[1] == 'create' and out.exists():\n"
         "    print(json.dumps({'error': rel + ' already exists \\u2014 the filename is the title'}))\n"
         "    sys.exit(2)\n"
         "out.parent.mkdir(parents=True, exist_ok=True)\n"
         "out.write_text(sys.stdin.read())\n"
-        "pathlib.Path(os.getcwd(), 'page-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
+        "if verb[1] == 'create':\n"
+        "    pages.append({'path': rel, 'document_id': 'id-%d' % len(pages), 'resource': pairs.get('resource'), 'job': None})\n"
+        "    index.write_text(json.dumps(pages))\n"
         "print(json.dumps({'path': rel, 'status': 'draft'}))\n"
     )
     return shlex.join([sys.executable, str(stub)])
@@ -259,7 +272,8 @@ def test_process_writes_the_page_under_dest_through_the_page_verbs(tmp_path):
     assert out["written"] == [f"{DEST}/{META['title']}.md"]
     assert "stubbed words" in (tmp_path / out["written"][0]).read_text()
     assert "stubbed words" in (cap / "page.md").read_text()
-    (create,) = _page_calls(tmp_path)
+    (lookup, create) = _page_calls(tmp_path)
+    assert lookup == ["--json", "page", "ls", f"resource={ITEM}"]
     assert create[:3] == ["--json", "page", "create"] and "--stdin" in create
     assert f"title={META['title']}" in create and f"dest={DEST}" in create
     assert "extracted=true" in create and f"resource={ITEM}" in create
@@ -268,15 +282,70 @@ def test_process_writes_the_page_under_dest_through_the_page_verbs(tmp_path):
 
 
 def test_a_second_pull_edits_the_page_dest_already_holds(tmp_path):
-    """`page create` refuses a title that is already a page, and that refusal
-    is the signal to replace it — not to fail the ticket."""
     cap = _ticketed(tmp_path)
     fmt = str(_stub_formatter(tmp_path))
     _build(tmp_path, cap, "--format-transcript", fmt)
     _build(tmp_path, cap, "--format-transcript", fmt)
     verbs = [[a for a in call if not a.startswith("--")][:3] for call in _page_calls(tmp_path)]
-    assert verbs[0][:2] == ["page", "create"], verbs
-    assert verbs[1][:2] == ["page", "edit"] and verbs[1][2] == f"{DEST}/{META['title']}.md", verbs
+    assert [v[:2] for v in verbs] == [["page", "ls"], ["page", "create"], ["page", "ls"], ["page", "edit"]], verbs
+    assert verbs[3][2] == "id=id-0", verbs
+
+
+def _seed(root, *rows):
+    """Pages already in the wiki, as the stub's `page ls` lists them; each file is written too."""
+    for row in rows:
+        (root / row["path"]).parent.mkdir(parents=True, exist_ok=True)
+        (root / row["path"]).write_text("a person's text\n")
+    (root / "pages.json").write_text(json.dumps([{"resource": ITEM, "job": "yt-job", **row} for row in rows]))
+
+
+def test_a_page_a_person_renamed_is_edited_by_its_id_not_written_again(tmp_path):
+    cap = _ticketed(tmp_path)
+    renamed = f"{DEST}/My own name for it.md"
+    _seed(tmp_path, {"path": renamed, "document_id": "doc-1"})
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path))).stdout)
+    assert out["written"] == [renamed]
+    assert not (tmp_path / DEST / f"{META['title']}.md").exists()
+    assert "stubbed words" in (tmp_path / renamed).read_text()
+    edit = _page_calls(tmp_path)[-1]
+    assert edit[:4] == ["--json", "page", "edit", "id=doc-1"] and not [a for a in edit if a.startswith("title=")]
+    assert json.loads((cap / "written.json").read_text()) == [renamed]
+
+
+def test_two_pages_for_one_video_fail_naming_both_and_write_neither(tmp_path):
+    cap = _ticketed(tmp_path)
+    _seed(tmp_path, {"path": f"{DEST}/One.md", "document_id": "doc-1"}, {"path": f"{DEST}/Two.md", "document_id": "doc-2"})
+    cp = _build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), check=False)
+    assert cp.returncode != 0 and f"{DEST}/One.md" in cp.stderr and f"{DEST}/Two.md" in cp.stderr
+    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_a_page_a_person_moved_or_holds_is_left_alone(tmp_path, held):
+    cap = _ticketed(tmp_path)
+    _seed(tmp_path, {"path": "wiki/elsewhere/Kept.md", "document_id": "doc-1", **held})
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path))).stdout)
+    assert out["written"] == [] and "left alone" in out["left"]
+    assert json.loads((cap / "written.json").read_text()) == []
+    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+
+
+def test_another_jobs_page_of_the_video_is_not_this_jobs(tmp_path):
+    cap = _ticketed(tmp_path)
+    _seed(tmp_path, {"path": "sources/youtube/other/Theirs.md", "document_id": "doc-1", "job": "other-job"})
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path))).stdout)
+    assert out["written"] == [f"{DEST}/{META['title']}.md"]
+    assert (tmp_path / "sources/youtube/other/Theirs.md").read_text() == "a person's text\n"
+
+
+def test_a_page_at_the_title_that_is_not_this_videos_is_not_written_over(tmp_path):
+    cap = _ticketed(tmp_path)
+    taken = tmp_path / DEST / f"{META['title']}.md"
+    taken.parent.mkdir(parents=True)
+    taken.write_text("someone else's page\n")
+    cp = _build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), check=False)
+    assert cp.returncode != 0 and "`page create` refused" in cp.stderr
+    assert taken.read_text() == "someone else's page\n"
 
 
 def test_a_rerun_over_the_same_capture_is_byte_identical(tmp_path):
@@ -486,7 +555,7 @@ def test_a_hostile_video_builds_a_page_whose_structure_is_all_ours(tmp_path):
     assert not (cap / "chapters.safe.json").exists(), "the formatter's scratch file is not part of a capture"
     record = json.loads((cap / "capture.json").read_text())
     assert record["title"] == "Real title --- # Forged (script)alert(1)(-script) ’quoted’ [[Secret]]"
-    (create,) = _page_calls(tmp_path)
+    (_lookup, create) = _page_calls(tmp_path)
     assert all("\n" not in arg for arg in create), "no fact value carries a newline onto the command line"
 
 
@@ -516,7 +585,7 @@ def test_both_scripts_run_from_the_wiki_root_with_the_tickets_relative_capture_d
     # `update-calls.jsonl`/`ops_stub.py` are the stub front door's own files.
     new = {p for p in tmp_path.rglob("*") if p.is_file()} - before - {tmp_path / "update-calls.jsonl", tmp_path / "ops_stub.py"}
     assert new == {cap / "page.md", cap / "capture.json", cap / "written.json",
-                   tmp_path / "fmt.py", tmp_path / "page-calls.jsonl",
+                   tmp_path / "fmt.py", tmp_path / "page-calls.jsonl", tmp_path / "pages.json",
                    tmp_path / DEST / f"{META['title']}.md"}, new
 
 

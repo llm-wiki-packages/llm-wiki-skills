@@ -457,6 +457,8 @@ def _holders(name: str) -> list:
         # open_ticket/post_update: every unit whose scripts talk to the
         # ticket, at the final tip (step 11).
         ("open_ticket", 11), ("post_update", 9),
+        # A unit's page found by identity before it writes: every unit script that writes an item's page.
+        ("identity_match", 4), ("left_alone", 4),
     ],
 )
 def test_code_the_units_share_by_copying_is_one_piece_of_code(name, at_least):

@@ -254,16 +254,40 @@ def test_readme_modes():
     assert page.readme_part("```\nopen", "excerpt").endswith("```")
 
 
-def test_find_held_by_title_then_resource(tmp_path):
+def listing(*rows):
+    """`ops_json` answering `page ls` with `rows`; every other call is refused."""
+    return lambda *a, stdin=None: (0, {"pages": list(rows)}) if a[:2] == ("page", "ls") else pytest.fail(f"called {a}")
+
+
+def test_find_held_takes_the_jobs_page_of_the_resource_wherever_it_was_renamed(monkeypatch):
+    row = {"path": "sources/github/Renamed.md", "document_id": "doc-1", "job": "s"}
+    monkeypatch.setattr(page, "ops_json", listing(row, {**row, "path": "sources/other/x.md", "job": "other"}))
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (Path("sources/github/Renamed.md"), "doc-1", None)
+
+
+def test_find_held_falls_back_to_a_clip_and_never_to_the_title(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(page, "ops_json", listing())
     dest = tmp_path / "sources/github"
     dest.mkdir(parents=True)
-    assert page.find_held(dest, "a--one", "https://github.com/a/one") is None
-    clip = dest / "Some Clipped Name.md"
+    (dest / "a--one.md").write_text("---\ntype: repo\n---\n")
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
+    clip = Path("sources/github/Some Clipped Name.md")
     clip.write_text('---\ntype: repo\nresource: "https://github.com/A/One/"\n---\nbody\n')
-    assert page.find_held(dest, "a--one", "https://github.com/a/one") == clip
-    direct = dest / "a--one.md"
-    direct.write_text("---\ntype: repo\n---\n")
-    assert page.find_held(dest, "a--one", "https://github.com/a/one") == direct
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (clip, None, None)
+
+
+def test_find_held_refuses_two_pages_naming_both(monkeypatch):
+    rows = [{"path": f"sources/github/{n}.md", "document_id": n, "job": "s"} for n in ("A", "B")]
+    monkeypatch.setattr(page, "ops_json", listing(*rows))
+    with pytest.raises(SystemExit):
+        page.find_held("sources/github", "https://github.com/a/one", "s")
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_find_held_says_why_a_page_a_person_moved_or_holds_is_left(monkeypatch, held):
+    monkeypatch.setattr(page, "ops_json", listing({"path": "wiki/x.md", "document_id": "doc-1", "job": "s", **held}))
+    assert "left alone" in page.find_held("sources/github", "https://github.com/a/one", "s")[2]
 
 
 # ------------------------------------------------------------------ credential
@@ -320,10 +344,11 @@ def test_write_reads_a_bare_judgment_name_beside_the_capture_and_reports_the_pag
     (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
     calls, updates = [], []
     monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github"})
-    monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": "sources/github/a--one.md"}))
+    monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": "sources/github/a--one.md", "pages": []}))
     monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
     assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
-    assert calls[0][:3] == ("page", "create", "title=a--one") and "dest=sources/github" in calls[0]
+    assert calls[0] == ("page", "ls", "resource=https://github.com/a/one")
+    assert calls[1][:3] == ("page", "create", "title=a--one") and "dest=sources/github" in calls[1]
     (args, kw), = updates
     assert args[1:] == ("process", "ok") and kw["written_from"] == "written.json"
     assert json.loads((leaf / "written.json").read_text()) == ["sources/github/a--one.md"]
@@ -335,11 +360,49 @@ def test_junk_on_an_unheld_repo_writes_no_page(tmp_path, monkeypatch):
     (leaf / "judgment.json").write_text(json.dumps({**JUDGMENT, "keep": False, "junk": "template clone"}))
     updates = []
     monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github"})
-    monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: pytest.fail(f"wrote {a}"))
+    monkeypatch.setattr(page, "ops_json", listing())
     monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
     assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
     (args, kw), = updates
     assert args[2] == "ok" and "template clone" in kw["reason"] and "written_from" not in kw
+
+
+def test_write_edits_the_renamed_page_by_its_id(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
+    renamed = tmp_path / "sources/github/My one.md"
+    renamed.parent.mkdir(parents=True)
+    renamed.write_text("---\ntype: repo\n---\n## Notes\n\nmine\n")
+    calls = []
+
+    def ops(*a, stdin=None):
+        calls.append((a, stdin))
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": [{"path": "sources/github/My one.md", "document_id": "doc-1", "job": "s"}]}
+        return 0, {"path": "sources/github/My one.md", "frontmatter": {}}
+
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github", "slug": "s"})
+    monkeypatch.setattr(page, "ops_json", ops)
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    (edit, body), = [c for c in calls if c[0][:2] == ("page", "edit")]
+    assert edit[2] == "id=doc-1" and "mine" in body
+    assert not [c for c in calls if c[0][:2] == ("page", "create")]
+    assert json.loads((leaf / "written.json").read_text()) == ["sources/github/My one.md"]
+
+
+def test_write_leaves_a_page_a_person_holds_alone(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
+    updates = []
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github", "slug": "s"})
+    monkeypatch.setattr(page, "ops_json", listing({"path": "wiki/kept.md", "document_id": "doc-1", "job": "s", "moved": True}))
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    (args, kw), = updates
+    assert args[2] == "ok" and "left alone" in kw["reason"] and "written_from" not in kw
 
 
 # ------------------------------------------------------------------ the routine
