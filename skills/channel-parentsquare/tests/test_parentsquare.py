@@ -246,13 +246,13 @@ def test_a_second_pull_of_the_day_edits_the_page_whole(tmp_path):
     assert {"resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(edit["argv"])
 
 
-def test_a_ledger_a_person_renamed_is_edited_by_its_id(tmp_path):
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits(tmp_path):
     _day(tmp_path)
     renamed = f"{DEST}/School week.md"
     done, calls = _ledger(tmp_path, pages=[{"path": renamed, "document_id": "doc-1", "job": "ps"}])
     assert done.returncode == 0, done.stderr
     (edit,) = [c for c in calls if c["argv"][:2] == ["page", "edit"]]
-    assert edit["argv"][2] == "id=doc-1" and not [c for c in calls if c["argv"][:2] == ["page", "create"]]
+    assert edit["argv"][2] == renamed and not [c for c in calls if c["argv"][:2] == ["page", "create"]]
     assert json.loads((tmp_path / DAY / "written.json").read_text()) == [renamed]
 
 

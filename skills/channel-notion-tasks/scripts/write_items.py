@@ -68,7 +68,7 @@ clock is ignored, out loud, and the lookback stands in.
 `ledger` is the PROCESS arm. It reads the day's `items/` and the process step's
 own words — `[{"id": "<task-id>", "line": "<one factual line>", "junk": null |
 "<rule>"}]`, one row per item, on stdin or in `--from` — and writes the day's
-ledger under `dest` through the front door: `page edit id=` of the day's
+ledger under `dest` through the front door: `page edit` of the day's
 ledger (`page ls resource=notion:ledger resource_id=notion:day:<day>`), wherever
 a person renamed it, else `page create`. The page is regenerated WHOLE every run, because
 the day directory is the source of truth. An item no row names keeps its own
@@ -805,7 +805,7 @@ def write_page(dest, title, front, body, slug=None):
     The day directory is the source of truth and the page is regenerated whole
     from it every run, found by its identity — `resource=LEDGER_RESOURCE`,
     `resource_id=<LEDGER_DAY><day>` (`identity_match`) — so a ledger a person
-    renamed is edited by its `document_id`, never made twice. No page: `page
+    renamed is edited at the path that lookup found, never made twice. No page: `page
     create`, with the identity; its refusal of the title is a ledger an earlier
     pull left before ledgers carried one, stamped with it the one time — unless
     the page there names another `resource`, which is never written over. The
@@ -842,7 +842,8 @@ def write_page(dest, title, front, body, slug=None):
         why = left_alone(row)
         if why:
             return None, why
-        target, rel = (f"id={row['document_id']}" if row.get("document_id") else row["path"]), row["path"]
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        target, rel = row["path"], row["path"]
     else:
         # `status=` EMPTY, on create only. A ledger is outside the corpus and the
         # lifecycle by location, and a `draft` here would put every day of every

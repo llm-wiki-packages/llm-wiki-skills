@@ -755,14 +755,14 @@ def test_a_day_whose_ledger_predates_its_identity_is_edited_and_stamped(tmp_path
     assert report(directory)["written"] == [f"research/channels/tasks/{DAY}.md"]
 
 
-def test_a_ledger_a_person_renamed_is_edited_by_its_id(tmp_path, door):
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits(tmp_path, door):
     directory, ticket = day_dir(tmp_path)
     assert write(directory, ticket, [task(1)]).returncode == 0
     renamed = "research/channels/tasks/Thursday.md"
     r = landed(directory, ticket, door, (0, {"path": renamed}), pages=[{"path": renamed, "document_id": "doc-1", "job": "tasks"}])
     assert r.returncode == 0, r.stderr + r.stdout
     (edited,) = door.calls()
-    assert edited["argv"][:4] == ["--json", "page", "edit", "id=doc-1"] and "status=" not in edited["argv"]
+    assert edited["argv"][:4] == ["--json", "page", "edit", renamed] and "status=" not in edited["argv"]
     assert report(directory)["written"] == [renamed]
 
 

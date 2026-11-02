@@ -112,7 +112,7 @@ be null); `due` is a `YYYY-MM-DD` or null. Then:
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
-the page from the whole day — `page create`, or `page edit id=` of the day's
+the page from the whole day — `page create`, or `page edit` of the day's
 page wherever it was renamed — and posts `tickets update` naming it. A day with no items is
 `ok`, with a reason naming it.
 

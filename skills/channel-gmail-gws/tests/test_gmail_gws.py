@@ -698,7 +698,7 @@ def test_a_second_pull_of_the_day_edits_the_page_the_first_one_left(tmp_path):
     assert edit["body"] == create["body"]
 
 
-def test_a_ledger_a_person_renamed_is_edited_by_its_id_not_made_twice(tmp_path):
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits_not_made_twice(tmp_path):
     directory, ticket = pulled(tmp_path, msg(1))
     root = directory.parents[2]
     renamed = "research/channels/mail/Monday mail.md"
@@ -708,7 +708,7 @@ def test_a_ledger_a_person_renamed_is_edited_by_its_id_not_made_twice(tmp_path):
     assert json.loads((root / "lookup-calls.jsonl").read_text().splitlines()[0]) == [
         "page", "ls", "filter=under:research/channels/mail", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
     (edit,) = page_calls(root)
-    assert edit["argv"][:3] == ["page", "edit", "id=doc-1"] and "status=" not in edit["argv"]
+    assert edit["argv"][:3] == ["page", "edit", renamed] and "status=" not in edit["argv"]
     assert report(directory)["written"] == [renamed]
 
 

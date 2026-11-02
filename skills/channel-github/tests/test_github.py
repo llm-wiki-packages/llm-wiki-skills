@@ -387,11 +387,11 @@ def _lists_with(monkeypatch, tmp_path, rows=(), held=None):
     return calls
 
 
-def test_a_list_page_a_person_renamed_is_regenerated_by_its_id(tmp_path, monkeypatch):
+def test_a_list_page_a_person_renamed_is_regenerated_where_it_now_sits(tmp_path, monkeypatch):
     calls = _lists_with(monkeypatch, tmp_path, [{"path": "research/github/lists/My stars.md", "document_id": "doc-1", "job": "gh-lists"}])
     assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
     (edit,) = [c for c in calls if c[:2] == ("page", "edit")]
-    assert edit[2] == "id=doc-1" and not [c for c in calls if c[:2] == ("page", "create")]
+    assert edit[2] == "research/github/lists/My stars.md" and not [c for c in calls if c[:2] == ("page", "create")]
 
 
 def test_two_pages_for_one_list_refuse_and_write_neither(tmp_path, monkeypatch):

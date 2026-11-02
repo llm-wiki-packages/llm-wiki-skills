@@ -151,7 +151,7 @@ hand run of the same verbs would:
 ```
 
 — one `type: list` page per list `references/lists.json` declares, each
-regenerated whole (`page edit id=` of the one `resource_id: github:list:<title>` finds), into the job's `dest`.
+regenerated whole (`page edit` of the one `resource_id: github:list:<title>` finds), into the job's `dest`.
 `outcome` is `partial` when a page was refused, `failed` when none landed
 or the job names no `dest`. The close is the report; the host commits the
 pages at the landing. A list page is never hand-edited: change `lists.json`.

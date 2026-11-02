@@ -23,7 +23,7 @@ A row is needed only for an item the step judged: a discard, or a line in
 the wiki's words. A row whose `id` names no item of the day is counted
 (`unmatched`) and makes the report `partial`, naming it. An item no row names keeps its bullet, `<school>: <subject>`
 with what a bullet's folding would leave live swapped for look-alikes. The
-page is regenerated WHOLE through `page create`, or `page edit id=` of the day's
+page is regenerated WHOLE through `page create`, or `page edit` of the day's
 page, found by its identity wherever it was renamed (`write_page`): one bullet per kept item, `- <line> — <id>`,
 then `discarded: N (junk rules)`. Then `written.json` and `tickets update`.
 
@@ -273,8 +273,8 @@ def write_page(dest, day, keys, body, slug=None):
 
     The day's ledger is regenerated whole on every pull of that day, and found
     by its identity — `resource=LEDGER_RESOURCE`, `resource_id=<LEDGER_DAY><day>`
-    (`identity_match`) — so a ledger a person renamed is edited by its
-    `document_id`, never made twice. No page: `page create`, with the identity.
+    (`identity_match`) — so a ledger a person renamed is edited at the
+    path that lookup found, never made twice. No page: `page create`, with the identity.
     A refusal there is a ledger an earlier pull left before ledgers carried an
     identity, at `<dest>/<day>.md`: stamped with it, the one time. A page there
     with another `resource` is not this ledger's, and is never written over.
@@ -297,7 +297,8 @@ def write_page(dest, day, keys, body, slug=None):
         why = left_alone(row)
         if why:
             return None, why, True
-        edited = _ops(["page", "edit", f"id={row['document_id']}" if row.get("document_id") else row["path"], *keys, "--stdin"], body)
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        edited = _ops(["page", "edit", row["path"], *keys, "--stdin"], body)
         return (row["path"], None, False) if edited.returncode == 0 else (None, f"`page edit` said {_said(edited)!r}", False)
     rel = f"{dest.rstrip('/')}/{day}.md"
     made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, *ident, "status=", "--stdin"], body)
