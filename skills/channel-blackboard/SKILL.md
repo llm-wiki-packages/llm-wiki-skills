@@ -74,11 +74,15 @@ which is committed and pushed to the wiki's remote;
 `options.discussions=skip` fetches no board at all. The steps after
 `jobs add`, and what each run leaves:
 `{{@brain-cli-ops}} reference channel-blackboard/references/enable.md`.
-`options.current` answers "is this a course you're taking now?" (default
-`true`): the first pull writes it onto the course's root page,
-`<dest>/README.md` (`root: true`), whose keys every page of the course
-inherits; after that the root is the person's, and "I've finished the
-course" is `{{@brain-cli-ops}} page edit <dest>/README.md current=false`.
+
+`options.current` (`true`, `false`, `yes` or `no`; default `true`) answers
+"is this a course you're taking now?"; it stands in for the spec's
+`jobs add root.current=` until ops takes that. The first pull writes it onto
+the course's root page, `<dest>/README.md` (`root: true`), whose keys every
+page of the course inherits; after that the root is the person's, and "I've
+finished the course" is
+`{{@brain-cli-ops}} page edit <dest>/README.md current=false`. The root is
+made once, ever: one a person deletes is not made again.
 
 Every pull posts only the items that are new or changed since the last; a
 page a person moved or holds is left alone, and a page at an item's title

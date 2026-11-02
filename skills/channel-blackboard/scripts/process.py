@@ -17,8 +17,10 @@ Every page carries an `abstract` built from the capture's facts.
 
 The course overview's capture also makes the course's bundle root, once:
 `README.md` in `dest` with `root: true`, `current` (the job's `current`
-option, default true) and `term`, which every page below inherits. A root
-already there, or any page in `dest` a person made the root, is left alone.
+option: true, false, yes or no; default true) and `term`, which every page
+below inherits. A root already there (`page ls filter=prop:root`) is left
+alone, and `root-made.json` in the course capture records that the question
+was settled, so a root a person deleted is never made again.
 
 `ok` with the pages in `written.json`; `partial` where a page went out
 without its text (a scanned pdf, a video no transcript reached yet: the
@@ -44,6 +46,8 @@ from door import open_ticket, ops_json, post_update  # noqa: E402
 WRITTEN = "written.json"
 # The course's bundle root in the job's dest (the note format's Bundle roots): `root: true`, and the keys its pages inherit.
 ROOT = "README.md"
+# In the course capture's own directory: the root was made (or found) once, so a pull never makes it again.
+ROOT_MADE = "root-made.json"
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*['\"]?(.*?)['\"]?\s*$", re.MULTILINE)
@@ -85,32 +89,43 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None) -> 
     return answer.get("path") or path, None, False
 
 
-def has_root(dest: str) -> bool:
-    """Whether `dest` holds its bundle root already: a `README.md`, or any page there a person made the root."""
-    folder = Path(dest)
-    if (folder / ROOT).is_file():
-        return True
-    for page in folder.glob("*.md"):
-        with page.open(encoding="utf-8", errors="replace") as f:
-            head = f.read(8192)
-        if head.startswith("---") and re.search(r"^root:\s*['\"]?true['\"]?\s*$", head.split("\n---", 1)[0], re.MULTILINE):
-            return True
-    return False
+def has_root(dest: str) -> bool | None:
+    """Whether `dest` holds its bundle root, by the plugin's own root rule (`page ls filter=prop:root`); None where it cannot say."""
+    rc, answer = ops_json("page", "ls", "filter=prop:root", f"filter=under:{dest}")
+    if rc != 0 or not isinstance(answer.get("pages"), list):
+        return None
+    folder = dest.strip("/")
+    return any(str(Path(row.get("path") or "").parent) == folder for row in answer["pages"] if isinstance(row, dict))
+
+
+CURRENT = {"true": "true", "yes": "true", "false": "false", "no": "false"}
 
 
 def write_root(capture: Path, cap: dict, dest: str, options: dict) -> str | None:
-    """Make the course's bundle root once; a root that exists is a person's to edit, never rewritten. The refusal, or None."""
-    if has_root(dest):
+    """Make the course's bundle root once, ever: a root that exists is a person's, and one a person deleted stays deleted.
+    The marker in the course's own capture says it was made. The refusal, or None."""
+    marker = capture / ROOT_MADE
+    if marker.exists():
         return None
-    current = str(options.get("current", True)).strip().lower() not in ("false", "no", "0", "off")
-    root = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current)
-    pairs = [f"{k}={v}" for k, v in root["fields"].items()] + [f"abstract={root['abstract']}"]
-    rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={dest}", "type=document", *pairs,
-                          "--stdin", stdin=root["body"])
-    if rc == 0:
-        # The filename is the title at create; the root's own title is the course's.
-        rc, answer = ops_json("page", "edit", answer.get("path") or f"{dest.rstrip('/')}/{ROOT}", f"title={root['title']}")
-    return None if rc == 0 else f"{ROOT}: {answer.get('error') or answer}"
+    word = options.get("current", True)
+    current = CURRENT.get(str(word).strip().lower())
+    if current is None:
+        return f"{ROOT}: options.current={word!r} is not one of true, false, yes, no: no root made"
+    found = has_root(dest)
+    if found is None:
+        return f"{ROOT}: `page ls filter=prop:root` did not answer, so no root was made"
+    if not found:
+        root = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current == "true")
+        pairs = [f"{k}={v}" for k, v in root["fields"].items()] + [f"abstract={root['abstract']}"]
+        rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={dest}", "type=document", *pairs,
+                              "--stdin", stdin=root["body"])
+        if rc == 0:
+            # The filename is the title at create; the root's own title is the course's.
+            rc, answer = ops_json("page", "edit", answer.get("path") or f"{dest.rstrip('/')}/{ROOT}", f"title={root['title']}")
+        if rc != 0:
+            return f"{ROOT}: {answer.get('error') or answer}"
+    marker.write_text(json.dumps({"dest": dest, "made": not found}) + "\n", encoding="utf-8")
+    return None
 
 
 def main(argv: list[str]) -> int:

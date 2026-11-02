@@ -232,6 +232,10 @@ def front_door(tmp_path, ticket):
         "    print(json.dumps({'path': kv['dest'] + '/' + kv['title'] + '.md'})); sys.exit(0)\n"
         "if verb[:2] == ['page', 'edit']:\n"
         "    print(json.dumps({'path': verb[2]})); sys.exit(0)\n"
+        "if verb[:2] == ['page', 'ls']:\n"
+        "    under = next(a.split(':', 1)[1] for a in verb if a.startswith('filter=under:'))\n"
+        "    roots = [p.as_posix() for p in sorted(pathlib.Path(under).rglob('*.md')) if p.read_text().split('\\n---', 1)[0].count('\\nroot: ') and 'true' in p.read_text().split('\\nroot: ', 1)[1].split('\\n', 1)[0]]\n"
+        "    print(json.dumps({'pages': [{'path': r} for r in roots], 'count': len(roots)})); sys.exit(0)\n"
         "sys.exit(9)\n"
     )
     return shlex.join([sys.executable, str(stub)])
@@ -526,12 +530,33 @@ def test_the_course_overview_makes_the_course_root_once(tmp_path):
     (edit,) = [c["argv"] for c in calls if c["argv"][1:3] == ["page", "edit"]]
     assert edit[3:] == ["sources/courses/psy/README.md", "title=PSY 2301 Abnormal Psychology"]
     assert "status=ok" in updates[0]
+    assert (tmp_path / "_raw/psy/course/items/course/root-made.json").is_file()
+    (tmp_path / "calls.log").unlink()
+    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    assert not [c for c in calls if "title=README" in c["argv"] or c["argv"][1:3] == ["page", "ls"]]
+
+
+def test_a_root_that_exists_is_left_and_the_question_is_settled(tmp_path):
+    _captures(tmp_path)
     readme = tmp_path / "sources/courses/psy/README.md"
     readme.parent.mkdir(parents=True)
     readme.write_text("---\nroot: true\ncurrent: false\n---\n# Mine\n")
-    (tmp_path / "calls.log").unlink()
-    _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
-    assert not [c for c in calls if "README" in " ".join(c["argv"])]
+    _, calls, updates = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
+    assert not [c for c in calls if "title=README" in c["argv"]] and "status=ok" in updates[0]
+    assert json.loads((tmp_path / "_raw/psy/course/items/course/root-made.json").read_text())["made"] is False
+
+
+def test_an_unknown_current_word_makes_no_root_and_says_why(tmp_path):
+    _captures(tmp_path)
+    _, calls, updates = run_stage(tmp_path, "process.py", _course_ticket(tmp_path, current="maybe"))
+    assert not [c for c in calls if "title=README" in c["argv"]]
+    assert "status=partial" in updates[0] and any("options.current='maybe'" in a for a in updates[0])
+    assert not (tmp_path / "_raw/psy/course/items/course/root-made.json").exists()
+
+
+def test_an_abstract_keeps_the_link_guard_and_drops_controls(bb):
+    said = bb.abstract("Week\x07 [[Secret]]", bb.opening("[\\[nor a link]\\]"))
+    assert "[[" not in said and "\x07" not in said and "[\\[Secret]\\]" in said
 
 
 def test_a_root_a_person_made_under_another_name_stands(tmp_path):

@@ -700,6 +700,7 @@ def _facts(rows: list[tuple[str, object]]) -> str:
 # The note format's bound on `abstract:`: one line of plain text, at most this many characters.
 ABSTRACT_MAX = 600
 SENTENCE = re.compile(r"(.+?[.?!])(?:\s|$)")
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 MARKS = re.compile(r"\*\*|__|`")
 SLIDE = re.compile(r"^Slide \d+$")
 
@@ -708,7 +709,7 @@ def opening(text: str | None) -> str:
     """A text's first heading and first sentence, as plain words: `Reading: Read chapter 2 by Friday.`"""
     heading = None
     for raw in (text or "").splitlines():
-        line = MARKS.sub("", raw.replace("[\\[", "[").replace("]\\]", "]"))
+        line = MARKS.sub("", raw)
         line = re.sub(r"^\\?[#>*\-\s]+", "", line).strip()
         if not line or raw.startswith("|") or SLIDE.match(line):
             continue
@@ -723,7 +724,9 @@ def opening(text: str | None) -> str:
 
 def abstract(*parts) -> str:
     """The parts that are not empty, as one line no longer than `ABSTRACT_MAX`."""
-    text = " ".join(" ".join(str(p).split()) for p in parts if p not in (None, ""))
+    text = " ".join(" ".join(CONTROL.sub(" ", str(p)).split()) for p in parts if p not in (None, ""))
+    # A link is never made here: the guard `html_text` puts on venue text stands, and a raw title gets it too.
+    text = text.replace("[[", "[\\[").replace("]]", "]\\]")
     return text if len(text) <= ABSTRACT_MAX else text[: ABSTRACT_MAX - 1].rstrip() + "\u2026"
 
 
