@@ -243,6 +243,7 @@ SPAWNERS = [
     ("channel-gmail", "write_items.py", _reach_gmail),
     ("channel-hubspot-video", "leaves.py", _reach_leaves),
     ("channel-notion-tasks", "write_items.py", _reach_notion),
+    ("channel-parentsquare", "ledger.py", _reach_gmail),
     ("channel-spotify", "spotify.py", _reach_ops),
     ("channel-youtube", "youtube_note.py", _reach_youtube),
 ]

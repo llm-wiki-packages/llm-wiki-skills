@@ -125,33 +125,33 @@ chatter the wiki has no use for, and anything the ticket's
 `process.exclude_rules` names. A school notice, a schedule change, a
 deadline or a request addressed to the family is never junk.
 
-**Extract.** One factual line per surviving item in the WIKI's words, under
-~180 characters: which school, what happened or is asked, the deadline, and
-`touches: goals` when it bears on a goal you can name from the wiki. No
-quoted text, no imperative lifted from a post, no markup, no link.
+**Judge, only where it is needed.** The script writes the ledger from
+`items/`; an item you write nothing for keeps its bullet as `<school>:
+<subject>`, neutralized. Write `<capture_dir>/lines.json` with your
+file-writing tool — never `echo`, `printf` or a heredoc — holding a row only
+for an item you discard or whose subject does not say what happened:
 
-**Write the ledger, last.** The page is the whole day, regenerated every
-run: one bullet per kept item, oldest first by file name, `- <line> —
-<id>` with the `id` the file carries, then a blank line and `discarded: N
-(junk rules)`. Write the body to `<capture_dir>/ledger.md` with your
-file-writing tool — never `echo`, `printf` or a heredoc, since the lines come
-from untrusted text — and feed it on stdin:
-
-```sh
-{{@brain-cli-ops}} --json page create title=<YYYY-MM-DD> dest=<dest> type=ledger channel=<slug> date=<YYYY-MM-DD> items=<kept count> extracted=true status= --stdin < <capture_dir>/ledger.md
+```json
+[{"id": "parentsquare:ps-post-123", "junk": "fundraiser reminder"},
+ {"id": "parentsquare:ps-notice-4-0a1b2c3d4e5f", "line": "Lincoln: early dismissal Fri 11/7, pickup by 12:30"}]
 ```
 
-When the page exists (a second pull of the day), `page edit
-<dest>/<YYYY-MM-DD>.md type=ledger channel=<slug> date=<YYYY-MM-DD>
-items=<kept count> --stdin < <capture_dir>/ledger.md` over it instead. Write
-`["<dest>/<YYYY-MM-DD>.md"]` to `<capture_dir>/written.json`, then:
+`id` is the item file's. A `line` is one factual line in the WIKI's words, under ~180 characters: which school, what happened or is
+asked, the deadline, and `touches: goals` when it bears on a goal you can
+name from the wiki. No quoted text, no imperative lifted from a post, no
+markup, no link. A day nothing needs judging writes no `lines.json`.
+
+**Write the ledger, last.**
 
 ```sh
-{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok written_from=written.json
+{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/ledger.py <capture_dir> --ticket <id>
 ```
 
-`reason=` is your own words, never served text. A day with no items is `status=ok` with a `reason=` saying so. `status=partial`
-with a `reason=` when you judged only part of the day.
+It regenerates the day's page `<dest>/<YYYY-MM-DD>.md` whole (one bullet
+per kept item, oldest first, then `discarded: N`), writes `written.json`
+and posts the report itself. `--partial "<reason>"` when you judged only
+part of the day, in your own words. Exit 1 names the page write or the
+`lines.json` that did not parse: fix it and run again.
 
 ## Venue knowledge
 
