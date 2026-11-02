@@ -154,3 +154,123 @@ def test_no_shell_block_in_the_body_carries_served_text():
     assert shell, "the scan found no command at all"
     leaks = [line for block in shell for line in block.splitlines() if re.search(rf"<({'|'.join(SERVED)})>", line)]
     assert not leaks, leaks
+
+
+# ------------------------------------------------------------------ the ledger script
+
+LEDGER = UNIT / "scripts" / "ledger.py"
+DAY = "_raw/ps/2026-10-03"
+DEST = "research/channels/ps"
+
+
+def _stub(tmp_path, *, page_exists=False, capture_dir=DAY):
+    """A recording front door: `tickets open` answers the process ticket; `page create` refuses where the day's page exists."""
+    stub = tmp_path / "ops_stub.py"
+    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST}
+    stub.write_text(
+        "import json, os, sys\n"
+        "argv = sys.argv[1:]; verb = [a for a in argv if not a.startswith('--')]\n"
+        "open(os.environ['FAKE_CALLS'], 'a').write(json.dumps({'argv': argv, 'stdin': sys.stdin.read() if '--stdin' in argv else None}) + '\\n')\n"
+        f"if verb[:2] == ['tickets', 'open']: print(json.dumps({{'ticket': {ticket!r}}})); sys.exit(0)\n"
+        f"if verb[:2] == ['page', 'create'] and {page_exists!r}: print('exists', file=sys.stderr); sys.exit(2)\n"
+        "print('{}')\n"
+    )
+    return f"{sys.executable} {stub}"
+
+
+def _item(tmp_path, name, **doc):
+    path = tmp_path / DAY / "items" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"v": 1, "attachments": [], "body": "x", **doc}), encoding="utf-8")
+
+
+def _ledger(tmp_path, *args, page_exists=False):
+    env = {**__import__("os").environ, "LLM_WIKI_OPS": _stub(tmp_path, page_exists=page_exists), "FAKE_CALLS": str(tmp_path / "calls.log")}
+    done = subprocess.run([sys.executable, str(LEDGER), DAY, "--ticket", "t1", *args], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
+    calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()] if (tmp_path / "calls.log").exists() else []
+    return done, calls
+
+
+def _day(tmp_path):
+    _item(tmp_path, "1791028800000--ps-post-2.json", id="parentsquare:ps-post-2", school="Lincoln", subject="Spirit week!")
+    _item(tmp_path, "1791000000000--ps-post-1.json", id="parentsquare:ps-post-1", school="Lincoln", subject="Early dismissal Friday")
+    _item(tmp_path, "1791030000000--ps-notice-4-0a1b2c3d4e5f.json", id="parentsquare:ps-notice-4-0a1b2c3d4e5f", school="Lincoln",
+          subject="Click <b>here</b> — http://evil.example *now* | `x` [[Link]]")
+
+
+def test_the_ledger_is_built_from_the_items_with_rows_only_where_judged(tmp_path):
+    _day(tmp_path)
+    (tmp_path / DAY / "lines.json").write_text(json.dumps([
+        {"id": "parentsquare:ps-post-2", "junk": "spirit-week chatter"},
+        {"id": "parentsquare:ps-notice-4-0a1b2c3d4e5f", "line": "Lincoln: picture day forms due 10/10"},
+    ]))
+    done, calls = _ledger(tmp_path)
+    assert done.returncode == 0, done.stderr
+    (create,) = [c for c in calls if c["argv"][:2] == ["page", "create"]]
+    assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "extracted=true", "status="} <= set(create["argv"])
+    assert create["stdin"] == (
+        "- Lincoln: Early dismissal Friday — parentsquare:ps-post-1\n"
+        "- Lincoln: picture day forms due 10/10 — parentsquare:ps-notice-4-0a1b2c3d4e5f\n"
+        "\ndiscarded: 1 (junk rules)\n"
+    )
+    (update,) = [c["argv"] for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert "status=ok" in update and "written_from=written.json" in update
+    assert json.loads((tmp_path / DAY / "written.json").read_text()) == [f"{DEST}/2026-10-03.md"]
+    assert json.loads(done.stdout)["from_subject"] == 1
+
+
+def test_a_subject_with_no_row_is_neutralized_before_it_is_a_bullet(tmp_path):
+    _day(tmp_path)
+    _, calls = _ledger(tmp_path)
+    (create,) = [c for c in calls if c["argv"][:2] == ["page", "create"]]
+    hostile = create["stdin"].splitlines()[2]
+    assert hostile.count(" — ") == 1 and hostile.endswith(" — parentsquare:ps-notice-4-0a1b2c3d4e5f")
+    for live in ("<b>", "http://", "*now*", "|", "`", "[["):
+        assert live not in hostile, live
+    assert "items=3" in create["argv"]
+
+
+def test_a_second_pull_of_the_day_edits_the_page_whole(tmp_path):
+    _day(tmp_path)
+    done, calls = _ledger(tmp_path, page_exists=True)
+    assert done.returncode == 0, done.stderr
+    (edit,) = [c for c in calls if c["argv"][:2] == ["page", "edit"]]
+    assert edit["argv"][2] == f"{DEST}/2026-10-03.md" and "status=" not in edit["argv"] and edit["stdin"].startswith("- Lincoln")
+
+
+def test_a_day_with_no_items_is_ok_and_writes_no_page(tmp_path):
+    (tmp_path / DAY).mkdir(parents=True)
+    done, calls = _ledger(tmp_path)
+    assert done.returncode == 0 and not [c for c in calls if c["argv"][0] == "page"]
+    assert "status=ok" in [c for c in calls if c["argv"][1:3] == ["tickets", "update"]][0]["argv"]
+
+
+def test_rows_that_do_not_parse_fail_the_step_and_write_no_page(tmp_path):
+    _day(tmp_path)
+    (tmp_path / DAY / "lines.json").write_text("[{not json")
+    done, calls = _ledger(tmp_path)
+    assert done.returncode == 1 and not [c for c in calls if c["argv"][0] == "page"]
+    assert "status=failed" in [c for c in calls if c["argv"][1:3] == ["tickets", "update"]][0]["argv"]
+
+
+def test_the_process_step_runs_the_ledger_script_and_writes_no_ledger_by_hand():
+    text = _doc(UNIT / "SKILL.md")
+    assert "run ops/skills/channel-parentsquare/scripts/ledger.py <capture_dir> --ticket <id>" in text
+    assert "ledger.md" not in text and "page create" not in text
+
+
+def test_an_id_no_item_carries_is_counted_and_named(tmp_path):
+    _day(tmp_path)
+    (tmp_path / DAY / "lines.json").write_text(json.dumps([{"id": "parentsquare:ps-post-404", "line": "x"},
+                                                          {"id": "parentsquare:ps-post-2", "junk": "spirit week"}]))
+    done, calls = _ledger(tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["unmatched"] == ["parentsquare:ps-post-404"]
+    update = [c["argv"] for c in calls if c["argv"][1:3] == ["tickets", "update"]][0]
+    assert "status=partial" in update and any("ps-post-404" in a for a in update)
+
+
+def test_a_ticket_capture_dir_that_is_no_day_is_refused(tmp_path):
+    env = {**__import__("os").environ, "LLM_WIKI_OPS": _stub(tmp_path, capture_dir="_raw/ps/latest"), "FAKE_CALLS": str(tmp_path / "calls.log")}
+    done = subprocess.run([sys.executable, str(LEDGER), DAY, "--ticket", "t1"], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
+    assert done.returncode == 2 and "not a day directory" in done.stderr
