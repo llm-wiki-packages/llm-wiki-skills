@@ -129,6 +129,11 @@ def test_every_copy_of_the_converter_is_the_same_file():
     assert len(digests) == 1, [str(p.relative_to(ROOT)) for p in copies]
 
 
+def _scripted(name: str) -> bool:
+    """Every stage of the unit is a `script`: the scripts open and update the ticket, and no session reads the body's steps."""
+    return all("script" in spec for spec in unit_manifest(name)["stages"].values())
+
+
 @pytest.mark.parametrize("name", CHANNELS)
 def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_ticket(name):
     """A channel unit renders its own venue's page, so it holds the pen at
@@ -139,11 +144,17 @@ def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_tick
     assert list(unit_manifest(name)["stages"]) == ["harvest", "process"], unit_manifest(name)["stages"]
     skill = doc(ROOT / "skills" / name / "SKILL.md")
     front = skill.split("---", 2)[1]
+    assert "allowed-tools" not in front and "disable-model-invocation" not in front
+    assert re.search(r"^### harvest\b", skill, re.M) and re.search(r"^### process\b", skill, re.M), skill[:400]
+    if _scripted(name):
+        # No session runs either stage, so `/<unit> ticket=<id>` reaches nothing: each step names its script's run line.
+        for spec in unit_manifest(name)["stages"].values():
+            assert f"run ops/skills/{name}/{spec['script']} ticket=<id>" in skill, spec
+        return
     typed = re.sub(r" stage=\S+", "", unit_manifest(name)["argument_hint"])
     assert typed.endswith("ticket=<id>"), typed
     assert re.search(r'^argument-hint:\s*"' + re.escape(typed) + r'"\s*$', front, re.M), (typed, front)
     assert unit_manifest(name)["usage"] == f"/{name} ticket=<id>"
-    assert "allowed-tools" not in front and "disable-model-invocation" not in front
     assert re.search(r"^## Stages", skill, re.M) and "tickets open" in skill and "tickets update" in skill
     assert re.search(r"^### harvest\b", skill, re.M) and re.search(r"^### process\b", skill, re.M), skill[:400]
 
@@ -209,6 +220,8 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     two-name form is ops 1.95's, and the package's `min_ops_version` is past
     it: a unit's own floor must not fall under the package's, or a unit
     spelling the read would claim to run on a CLI that refuses it."""
+    if _scripted(name):
+        return  # no session reads an overlay; a script stage takes the job's options instead
     skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1].split("\n### harvest", 1)[0]
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
@@ -225,6 +238,8 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
 # quirks log is the one section meant to grow, one line per venue fact, and
 # is not counted.
 BUDGET = {
+    # Authored after the port with both stages as scripts: no pre-port length to scale.
+    "channel-blackboard": 180,
     "channel-circle": 312,
     "channel-frameio": 345,
     "channel-gmail": 183,
@@ -265,6 +280,8 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     with no `stage=`, and the unit follows the section named by the
     answer's own `stage` — never a `stage=` in `$ARGUMENTS`, and never a
     file in the capture directory."""
+    if _scripted(name):
+        return  # the scripts open their own ticket
     skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1]
     opener = stages.split("\n### harvest", 1)[0]

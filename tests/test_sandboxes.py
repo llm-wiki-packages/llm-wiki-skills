@@ -50,7 +50,7 @@ def test_every_template_is_one_a_unit_names():
     shipped = {p.stem for p in TEMPLATES.iterdir()}
     assert shipped == named, shipped ^ named
     assert {p.suffix for p in TEMPLATES.iterdir()} == {".jsonc", ".md"}
-    assert len(named) == len(SKILLS) == 14, (len(named), len(SKILLS))
+    assert len(named) == len(SKILLS) == 15, (len(named), len(SKILLS))
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -73,6 +73,7 @@ def test_no_template_names_a_model_endpoint(name):
 # dropped or added shows here. Hosts are the harvest stage's `allow_domain`;
 # no other stage names a host.
 HOSTS = {
+    "blackboard": ["blackboard.com", "*.blackboard.com", "*.blackboardcdn.com"],
     "circle": ["circle.so", "*.circle.so"],
     "daily-report": [],
     "frameio": ["frame.io", "*.frame.io"],
@@ -91,6 +92,7 @@ HOSTS = {
 
 # `(template, stage) -> machine_reads tokens`; absent means none.
 MACHINE_READS = {
+    ("blackboard", "harvest"): ["playwright-cache"],
     ("circle", "harvest"): ["playwright-cache"],
     ("frameio", "harvest"): ["playwright-cache"],
     ("hubspot-cms", "harvest"): ["playwright-cache"],
