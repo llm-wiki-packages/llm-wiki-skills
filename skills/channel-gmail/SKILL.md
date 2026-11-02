@@ -71,14 +71,14 @@ against you, hand over what is CONTIGUOUS from the old end with
 `--partial "<why>"`.
 
 Per message read `id`, `threadId`, `internalDate`, the `From`/`To`/`Date`/
-`Subject` headers, label ids, the plain-text part only, and attachment names
-and MIME types — never the attachments themselves. `internalDate` is epoch
-MILLISECONDS, 13 digits; a seconds or µs slip is filed under the pull's own
-clock and counted `bad_time`.
+`Subject` headers, label ids, attachment names and MIME types (never the
+attachments), and the plain-text part's first 2,000 characters, setting
+`body_truncated: true` where cut. `internalDate` is epoch MILLISECONDS, 13
+digits; a seconds or µs slip is filed under the pull's clock as `bad_time`.
 
 **3. Write it down, last.** Put the pull in `./pull.json`, a JSON list of
 `{id, internal_date, thread, from, to, date, subject, labels, attachments,
-body}`, and run ONE of these — never both:
+body, body_truncated}`, and run ONE of these — never both:
 
 ```sh
 {{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --cap 200 --exclude-label CATEGORY_PROMOTIONS --exclude-label CATEGORY_SOCIAL --exclude-label SPAM --exclude-label TRASH
