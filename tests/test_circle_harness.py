@@ -71,18 +71,18 @@ def mapped_profile(ops, env, wiki, job, request) -> str:
     job` (enable.md step 3): `requires.credentials.dir` is "required", so `jobs claim`
     refuses the harvest of a job this machine maps no profile to. Dropped and
     removed when the case ends. Returns the directory."""
-    bound = rooted(env, wiki)
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     name = f"{job.slug}.profile"
     # `login=browser` as the docs have it needs a person at a browser, and
     # the host never grants a browser dir nobody logged in to: a dir with no
     # login stands in, granted by the same slot.
-    done = run(ops, bound, "--json", "credentials", "set", name, "kind=dir", "host=example.com")
+    done = run(ops, attended, "--json", "credentials", "set", name, "kind=dir", "host=example.com")
     assert done.returncode == 0, done.stdout + done.stderr
-    request.addfinalizer(lambda: run(ops, bound, "--json", "credentials", "remove", name))
+    request.addfinalizer(lambda: run(ops, attended, "--json", "credentials", "remove", name))
     path = done.data["path"]
-    done = run(ops, bound, "--json", "credentials", "bind", "job", job.slug, f"dir={name}")
+    done = run(ops, attended, "--json", "credentials", "bind", "job", job.slug, f"dir={name}")
     assert done.returncode == 0, done.stdout + done.stderr
-    request.addfinalizer(lambda: run(ops, bound, "--json", "credentials", "unbind", "job", job.slug))
+    request.addfinalizer(lambda: run(ops, attended, "--json", "credentials", "unbind", "job", job.slug))
     return path
 
 

@@ -378,7 +378,7 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
     having run (`-k`, `--lf`, a shuffled or split run)."""
     r = run(ops, rooted(env, wiki), "--json", "skills", "install", name)
     assert r.returncode == 0, r.stdout + r.stderr
-    bound = rooted(env, wiki)
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     argv = ["--json", "skills", "enable", name]
     with contextlib.ExitStack() as stack:
         if name in PROBE_SPENDS:
@@ -386,7 +386,7 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
             stack.enter_context(local_vault(ops, env))
             stack.callback(unmapped_route, ops, env, wiki, name, route)
             mapped_route(ops, env, wiki, name, route, host, value="harness-probe")
-        r = run(ops, bound, *argv)
+        r = run(ops, attended, *argv)
         assert r.returncode == 0, r.stdout + r.stderr
 
 
@@ -409,11 +409,12 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     `bind` refuses a name not set here first. The VALUE is unread by
     everything, so any placeholder does (enable.md). Returns `name`."""
     name = name or f"{slug}-cred"
-    # Both are protected writes, their rows in `conftest.SILENCED`.
-    bound = rooted(env, wiki)
-    r = run(ops, bound, "--json", "credentials", "set", name, input=value)
+    # Both are protected writes, their rows in `conftest.SILENCED`; marked
+    # attended, as the operator walking the enable notes runs them.
+    attended_env = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    r = run(ops, attended_env, "--json", "credentials", "set", name, input=value)
     assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, bound, "--json", "credentials", "bind", "job", slug, f"file={name}")
+    r = run(ops, attended_env, "--json", "credentials", "bind", "job", slug, f"file={name}")
     assert r.returncode == 0, r.stdout + r.stderr
     return name
 
@@ -422,13 +423,13 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
 def local_vault(ops: list, env: dict):
     """The session wiki's vault named `local` for the `with` block, by the
     line the enable notes give, `llm-wiki-cli machine wikis vault harness
-    local`, as the operator runs it. The provider reads a route's
+    local`, attended as the operator runs it. The provider reads a route's
     value through it, at bind, at spawn and on each request, so a case holds
     it across all three. The config is put back as it was found, so no case
     leans on another having named the vault."""
     config = Path(env["LLM_WIKI_TEST_HOME"]) / "config.toml"
     before = config.read_bytes()
-    r = run(_cli(ops), env, "--json", "machine", "wikis", "vault", "harness", "local")
+    r = run(_cli(ops), {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}, "--json", "machine", "wikis", "vault", "harness", "local")
     assert r.returncode == 0, r.stdout + r.stderr
     try:
         yield
@@ -441,10 +442,10 @@ def mapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str, host: 
     references/enable.md says: the value stored under the route's name with
     the one host it may be spent at, then `credentials bind skill`. The caller
     holds `local_vault`, which `bind` reads. Returns the stored value."""
-    bound = rooted(env, wiki)
-    r = run(ops, bound, "--json", "credentials", "set", route, input=json.dumps({"value": value, "host": host}))
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    r = run(ops, attended, "--json", "credentials", "set", route, input=json.dumps({"value": value, "host": host}))
     assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, bound, "--json", "credentials", "bind", "skill", unit, f"{route}={route}")
+    r = run(ops, attended, "--json", "credentials", "bind", "skill", unit, f"{route}={route}")
     assert r.returncode == 0, r.stdout + r.stderr
     return value
 
@@ -453,9 +454,9 @@ def unmapped_route(ops: list, env: dict, wiki: Path, unit: str, route: str) -> N
     """`mapped_route` undone, for a `finally`: the skill's mapping dropped and
     the stored value removed. A case that stopped early may have made
     neither, so neither refusal is an error here."""
-    bound = rooted(env, wiki)
-    run(ops, bound, "--json", "credentials", "unbind", "skill", unit)
-    run(ops, bound, "--json", "credentials", "remove", route)
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    run(ops, attended, "--json", "credentials", "unbind", "skill", unit)
+    run(ops, attended, "--json", "credentials", "remove", route)
 
 
 def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extra: str, slug: str | None = None) -> Job:
