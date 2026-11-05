@@ -39,7 +39,7 @@ def test_skill_installs_with_package_provenance_lists_clean_and_enables(ops, env
     assert not row["customized"] and not row["drifted"], row
     assert row["warnings"] == [], row
 
-    # Enable is the gate: it classifies the sandbox install wrote and asks for the one approval.
+    # Enable classifies the sandbox install wrote; its approval row is in `conftest.SILENCED`.
     enabled(ops, env, wiki, name)
     assert (wiki / ".agents" / "skills" / name / "SKILL.md").is_file()
     # The enabled copy is what an agent reads, so its `*.md` carry the names, not the tokens.

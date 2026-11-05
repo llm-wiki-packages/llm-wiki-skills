@@ -44,11 +44,11 @@ def job(ops, env, wiki, login, request):
     slug = f"harness-gws-{own}"[:60]
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], f"options.mailbox={MAILBOX}", "options.lookback_days=36500",
                      f"dest=research/channels/{slug}", slug=slug)
-    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    bound = rooted(env, wiki)
     name = f"gws-{slug}"[:60]
-    r = run(ops, attended, "--json", "credentials", "set", name, "kind=dir", "login=none", f"path={login}")
+    r = run(ops, bound, "--json", "credentials", "set", name, "kind=dir", "login=none", f"path={login}")
     assert r.returncode == 0, r.stdout + r.stderr
-    r = run(ops, attended, "--json", "credentials", "bind", "job", j.slug, f"dir={name}")
+    r = run(ops, bound, "--json", "credentials", "bind", "job", j.slug, f"dir={name}")
     assert r.returncode == 0, r.stdout + r.stderr
     return j
 

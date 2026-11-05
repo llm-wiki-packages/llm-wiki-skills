@@ -74,6 +74,19 @@ def env(ops) -> dict:
         LLM_WIKI_SESSION_ID="harness-session",
         PATH=os.pathsep.join([str(AGENT_DIR / "bin"), *_cli_bin(ops), e.get("PATH", os.defpath)]),
     )
+    # Before anything writes: even the seeding below logs its gate row under
+    # the home the CLI resolves now.
+    where = run(_cli(ops), e, "--json", "machine", "home")
+    if where.returncode != 0 or where.data["source"] != "checkout":
+        said = where.data if where.returncode == 0 else {"home": where.stdout + where.stderr, "source": "unresolved"}
+        refusal = (
+            f"the ops CLI ({' '.join(ops)}) resolves the machine home {said['home']} "
+            f"({said['source']}), so it would not honor a scratch one: every install case would write this machine's own. "
+            "Set LLM_WIKI_OPS to a plugins checkout's CLI, its `checkout` record written by its `scripts/checkout_home.py`"
+        )
+        if os.environ.get("LLM_WIKI_OPS"):
+            pytest.fail(refusal)
+        pytest.skip(refusal)
     # Where the default layout puts a home, so the profile and sandbox base
     # `machine_harness` and `machine_layer` write land in it; its state, data
     # and cache dirs are its siblings.
@@ -82,16 +95,7 @@ def env(ops) -> dict:
     dirs = seeded.data
     e["LLM_WIKI_TEST_HOME"] = dirs["home"]
     where = run(_cli(ops), e, "--json", "machine", "home")
-    assert where.returncode == 0, where.stdout + where.stderr
-    if where.data["source"] != "LLM_WIKI_TEST_HOME":
-        refusal = (
-            f"the ops CLI ({' '.join(ops)}) resolves the machine home {where.data['home']} "
-            f"({where.data['source']}), not the scratch one: every install case would write this machine's own. "
-            "Set LLM_WIKI_OPS to a plugins checkout's CLI, its `checkout` record written by its `scripts/checkout_home.py`"
-        )
-        if os.environ.get("LLM_WIKI_OPS"):
-            pytest.fail(refusal)
-        pytest.skip(refusal)
+    assert where.returncode == 0 and where.data["source"] == "LLM_WIKI_TEST_HOME", where.stdout + where.stderr
     config = Path(dirs["home"]) / "config.toml"
     config.write_text(
         config.read_text(encoding="utf-8") + "\n[approvals]\n" + "".join(f'"{row}" = "silent"\n' for row in SILENCED),
