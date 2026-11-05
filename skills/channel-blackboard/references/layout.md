@@ -128,7 +128,7 @@ go stale.
   only with neither, its planned folder.
 - A page moved out of `dest` is the person's: no pull writes it again.
 - Renaming or moving `dest` moves every page out of it, and `jobs edit`
-  refuses a new `dest` (simple10/llm-wiki-plugins#4097): the next pull
+  refuses a new `dest` (simple10/llm-wiki-plugins#4098): the next pull
   leaves every page alone and writes new items under the old `dest`, made
   again. Leave a followed course's folder where its job put it.
 
