@@ -1,0 +1,30 @@
+// podcast: the catalog template for the podcast unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/podcast.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // The scheduled weekly run, with nobody at the keyboard. No host: the
+    // harness profile supplies the model hosts, and the audio is made on
+    // the host by `narrate`, never in this jail.
+    "routine": {
+      "extends": "routine",
+      "filesystem": {
+        // Each tree by name: a bare $WORKDIR grants nothing. `.git` for the
+        // window (`op latest`) and what changed in it (`git changed`),
+        // `sources/` and `research/` for the pages an episode covers. The
+        // `podcast` overlay is `_base`'s `$OPS/policy` read.
+        "read": [
+          "$WORKDIR/.git",
+          "$WORKDIR/research",
+          "$WORKDIR/sources"
+        ],
+        // `wiki/` alone: the episode is written under `wiki/podcasts/`,
+        // and a focus may name wiki pages to cover, read through the same
+        // grant.
+        "allow": ["$WORKDIR/wiki"]
+      }
+    }
+  }
+}

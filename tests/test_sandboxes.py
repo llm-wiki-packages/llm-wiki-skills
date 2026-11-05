@@ -50,7 +50,7 @@ def test_every_template_is_one_a_unit_names():
     shipped = {p.stem for p in TEMPLATES.iterdir()}
     assert shipped == named, shipped ^ named
     assert {p.suffix for p in TEMPLATES.iterdir()} == {".jsonc", ".md"}
-    assert len(named) == len(SKILLS) == 15, (len(named), len(SKILLS))
+    assert len(named) == len(SKILLS) == 17, (len(named), len(SKILLS))
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -83,6 +83,8 @@ HOSTS = {
     "hubspot-cms": ["play.hubspotvideo.com", "image.mux.com", "stream.mux.com", "*.mux.com"],
     "notion": ["api.notion.com"],
     "parentsquare": ["www.parentsquare.com"],
+    "podcast": [],
+    "quiz-show": [],
     "spotify": ["spotify.com", "*.spotify.com", "*.scdn.co", "*.spotifycdn.com", "itunes.apple.com"],
     "study-plan": [],
     "substack": ["substack.com", "*.substack.com", "substackcdn.com"],
@@ -107,6 +109,14 @@ FILESYSTEM = {
         "allow": ["$WORKDIR/wiki"],
     },
     ("github", "routine"): {"read": ["$WORKDIR/sources"]},
+    ("podcast", "routine"): {
+        "read": ["$WORKDIR/.git", "$WORKDIR/research", "$WORKDIR/sources"],
+        "allow": ["$WORKDIR/wiki"],
+    },
+    ("quiz-show", "routine"): {
+        "read": ["$WORKDIR/research"],
+        "allow": ["$WORKDIR/wiki"],
+    },
     ("study-plan", "routine"): {
         "read": ["$WORKDIR/research", "$WORKDIR/sources"],
         "allow": ["$WORKDIR/wiki"],
