@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from harness import AGENT_DIR, ROOT, SCRATCH, SOURCE, _cli, _ops_argv, machine_harness, machine_layer, rooted, run
+from harness import AGENT_DIR, NEUTRAL_CWD, ROOT, SCRATCH, SOURCE, _cli, _cli_python, _ops_argv, machine_harness, machine_layer, rooted, run
 
 @pytest.fixture(scope="session")
 def ops() -> list:
@@ -41,6 +41,9 @@ SILENCED = (
     "skills enable",
     "skills install",
 )
+
+
+RECORD_KIND = "from llm_wiki_machine import paths; print(paths.record().kind)"
 
 
 @pytest.fixture(scope="session")
@@ -74,14 +77,14 @@ def env(ops) -> dict:
         LLM_WIKI_SESSION_ID="harness-session",
         PATH=os.pathsep.join([str(AGENT_DIR / "bin"), *_cli_bin(ops), e.get("PATH", os.defpath)]),
     )
-    # Before anything writes: even the seeding below logs its gate row under
-    # the home the CLI resolves now.
-    where = run(_cli(ops), e, "--json", "machine", "home")
-    if where.returncode != 0 or where.data["source"] != "checkout":
-        said = where.data if where.returncode == 0 else {"home": where.stdout + where.stderr, "source": "unresolved"}
+    # Before the CLI runs at all: even the seeding below logs its gate row under
+    # the home it resolves now. The record is read in the CLI's interpreter.
+    record = subprocess.run([*_cli_python(ops), "-I", "-c", RECORD_KIND], env=e, cwd=NEUTRAL_CWD,
+                            capture_output=True, text=True, check=False)
+    if record.stdout.strip() != "checkout":
         refusal = (
-            f"the ops CLI ({' '.join(ops)}) resolves the machine home {said['home']} "
-            f"({said['source']}), so it would not honor a scratch one: every install case would write this machine's own. "
+            f"the ops CLI ({' '.join(ops)}) runs on a record of kind {record.stdout.strip() or record.stderr.strip()!r}, "
+            "not `checkout`, so it would not honor a scratch home: every install case would write this machine's own. "
             "Set LLM_WIKI_OPS to a plugins checkout's CLI, its `checkout` record written by its `scripts/checkout_home.py`"
         )
         if os.environ.get("LLM_WIKI_OPS"):
