@@ -203,7 +203,7 @@ def test_notes_writes_frontmattered_notes(tmp_path, bb):
     note = (tmp_path / "notes" / "PSY 2301 announcement — Week 5.md").read_text()
     assert note.startswith('---\ntype: "note"\npublished: "2026-10-23"\ncourse: "PSY 2301"\n'
                            'abstract: "Announcement in PSY 2301 Abnormal Psychology, posted 2026-10-23: Week 5. The library session is Wednesday."\n'
-                           '---\n# Week 5\n')
+                           'kind: "announcement"\nbb_id: "_a1_1"\n---\n# Week 5\n')
 
 
 def test_notes_refuses_a_directory_that_is_no_harvest(tmp_path, bb, capsys):
@@ -297,7 +297,7 @@ def test_a_harvest_posts_every_capture_and_runs_bb_on_the_granted_profile(tmp_pa
 def test_a_second_pull_posts_only_what_changed(tmp_path):
     run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path))
     items = tmp_path / "_raw/psy/course/items"
-    known = [{"resource": json.loads((d / "capture.json").read_text())["item"], "path": "x"} for d in items.iterdir()]
+    known = [{"resource": json.loads((d / "capture.json").read_text())["item"], "path": "x"} for d in items.iterdir() if d.is_dir()]
     (tmp_path / "fixture/harvest/bodies/_2_1.html").write_text("<p>Read chapter 3.</p>")
     (tmp_path / "calls.log").unlink()
     _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known))
@@ -577,3 +577,232 @@ def test_a_past_course_root_says_current_false(tmp_path):
     _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path, current=False))
     (root,) = [c["argv"] for c in calls if "title=README" in c["argv"]]
     assert "current=false" in root
+
+
+# ------------------------------------------------------------------ layout, fields, index, releases (#105)
+
+
+def _caps(dirs) -> dict:
+    return {d.name: json.loads((d / "capture.json").read_text()) for d in dirs}
+
+
+def _split(bb, h, out, when="2026-11-01T00:00:00Z", **options):
+    return _caps(bb.split(h, out, fetched_at=when, options={"layout": "modules", **options}))
+
+
+def test_modules_layout_files_each_page_under_its_module_in_outline_order(tmp_path, bb):
+    caps = _split(bb, make_harvest(tmp_path), tmp_path / "items")
+    assert caps["item-2_1"]["place"] == "01 Unit I/01 Study Guide"
+    assert caps["item-3_1"]["place"] == "01 Unit I/02 Scholarly Activity"
+    # A file sorts right after the item that carries it, and names it.
+    doc = next(c for c in caps.values() if c["title"].endswith("Guide.docx"))
+    assert doc["place"] == "01 Unit I/01 Study Guide — Guide.docx" and doc["part_of"] == "item-2_1"
+    assert caps["course"]["place"] == "00 Course overview"
+    assert caps["announcement-a1_1"]["place"] == "announcements/2026-10-24 Week 5"  # the post's day, in UTC here
+    assert caps["discussion-d1_1"]["place"] == "discussions/Unit I Discussion Board"
+
+
+def test_flat_and_legacy_layouts(tmp_path, bb):
+    flat = _split(bb, make_harvest(tmp_path), tmp_path / "flat", layout="flat", announcements_dir="alongside")
+    assert flat["item-3_1"]["place"] == "01.02 Unit I — Scholarly Activity"
+    assert flat["announcement-a1_1"]["place"] == "2026-10-24 Week 5"
+    legacy = _caps(bb.split(make_harvest(tmp_path / "l"), tmp_path / "legacy"))
+    assert legacy["item-3_1"]["place"] is None and legacy["item-3_1"]["fields"]["module"] == "Unit I"
+
+
+def test_a_place_is_decided_once_so_an_inserted_item_renumbers_no_page(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    first = _split(bb, h, tmp_path / "items")
+    contents = json.loads((h / "contents.json").read_text())
+    contents.insert(1, {"id": "_9_1", "parent": "_1_1", "path": "Unit I/Intro", "title": "Intro", "handler": "resource/x-bb-document"})
+    _dump(h / "contents.json", contents)
+    (h / "bodies" / "_9_1.html").write_text("<p>Hello.</p>")
+    second = _split(bb, h, tmp_path / "items", when="2026-11-02T00:00:00Z")
+    assert second["item-3_1"]["place"] == first["item-3_1"]["place"] == "01 Unit I/02 Scholarly Activity"
+    # The field says where it sits now; the filename keeps where it first sat.
+    assert first["item-3_1"]["fields"]["position"] == "02" and second["item-3_1"]["fields"]["position"] == "03"
+    assert second["item-9_1"]["place"] == "01 Unit I/01 Intro"
+
+
+def test_page_fields_say_what_and_where_and_keep_grades_out(tmp_path, bb):
+    bb.set_zone("America/Chicago")
+    try:
+        caps = _split(bb, make_harvest(tmp_path), tmp_path / "items")
+    finally:
+        bb.ZONE[0] = bb.timezone.utc
+    f = caps["item-3_1"]["fields"]
+    assert f == {"kind": "assignment", "bb_id": "_3_1", "outline_path": "Unit I / Scholarly Activity", "position": "02",
+                 "due": "2026-10-20T23:59-05:00", "points": "100"}
+    assert caps["item-2_1"]["fields"]["kind"] == "study-guide"
+    assert caps["discussion-d1_1"]["fields"]["due"] == "2026-10-06T23:59-05:00"
+    assert not [k for c in caps.values() for k in c["fields"] if k in ("score", "grade", "feedback", "status")]
+
+
+def test_a_folder_holding_one_document_is_that_documents_place(bb):
+    o = bb._Outline([
+        {"id": "m", "parent": None, "title": "Welcome!", "handler": "resource/x-bb-lesson", "raw": {"position": 0}},
+        {"id": "f1", "parent": "m", "title": "Part 1. Greeting", "handler": "resource/x-bb-folder", "raw": {"position": 0}},
+        {"id": "d1", "parent": "f1", "title": "ultraDocumentBody", "path": "Welcome!/Part 1. Greeting/ultraDocumentBody",
+         "handler": "resource/x-bb-document", "raw": {"position": 0}},
+        {"id": "f2", "parent": "m", "title": "Part 2. More", "handler": "resource/x-bb-folder", "raw": {"position": 1}},
+        {"id": "d2", "parent": "f2", "title": "A", "handler": "resource/x-bb-document", "raw": {"position": 0}},
+        {"id": "d3", "parent": "f2", "title": "B", "handler": "resource/x-bb-document", "raw": {"position": 1}},
+    ])
+    assert o.anchor("d1") == "f1" and o.prefix("d1") == "01" and o.module("d1") == "m"
+    assert o.anchor("d3") == "d3" and o.prefix("d3") == "02.02" and o.path("d3") == "Welcome! / Part 2. More / B"
+
+
+def test_module_order_reads_roman_numerals_and_numbered_titles(bb):
+    assert [bb.module_order(t) for t in ("Unit IV", "Unit IX", "Module 3- Memory", "Part 2. Tour", "Week 12", "Start Here")] == [4, 9, 3, 2, 12, None]
+
+
+def test_the_overview_is_the_course_index_with_links_due_dates_and_added(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    contents = json.loads((h / "contents.json").read_text())
+    contents.append({"id": "_9_1", "parent": "_1_1", "path": "Unit I/Intro", "title": "Intro", "handler": "resource/x-bb-document"})
+    _dump(h / "contents.json", contents)
+    (h / "bodies" / "_9_1.html").write_text("<p>Hello.</p>")
+    _split(bb, h, tmp_path / "items", when="2026-11-03T00:00:00Z")
+    body = bb.render(tmp_path / "items" / "course", {"item-3_1": "sources/courses/psy/01 Unit I/02 Scholarly Activity"})[0]["body"]
+    assert "- [[sources/courses/psy/01 Unit I/02 Scholarly Activity|Scholarly Activity]] (assignment, due Wed 2026-10-21 04:59 UTC, 100 points)" in body
+    assert "  - [[01 Unit I/01 Study Guide — Guide.docx|PSY 2301 — Study Guide — Guide.docx]]" in body
+    # The first pull's pages are no news; what a later pull first saw is.
+    added = body.split("## Added this week\n\n", 1)[1].split("\n\n", 1)[0]
+    assert added == "- 2026-11-03: [[01 Unit I/06 Intro|PSY 2301 — Intro]]"
+    assert body.index("## Added this week") < body.index("## Outline") < body.index("## Gradebook")
+
+
+def test_an_item_gone_two_whole_pulls_is_stamped_removed_and_its_return_clears_it(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    contents = json.loads((h / "contents.json").read_text())
+    _dump(h / "contents.json", [c for c in contents if c["id"] != "_3_1"])
+    once = bb.split(h, tmp_path / "items", options={"layout": "modules"})
+    assert "item-3_1" not in {d.name for d in once}
+    # A listing that failed judges nothing.
+    _dump(h / "errors.json", [{"what": "contents _1_1", "status": 0}])
+    assert "item-3_1" not in {d.name for d in bb.split(h, tmp_path / "items", options={"layout": "modules"})}
+    _dump(h / "errors.json", [])
+    twice = _caps(bb.split(h, tmp_path / "items", fetched_at="2026-11-04T00:00:00Z", options={"layout": "modules"}))
+    assert twice["item-3_1"]["removed"] == "2026-11-04"
+    course = json.loads((tmp_path / "items/course/record.json").read_text())
+    assert "- PSY 2301 — Scholarly Activity: not listed since 2026-11-04" in bb.render(tmp_path / "items/course")[0]["body"]
+    _dump(h / "contents.json", contents)
+    back = _split(bb, h, tmp_path / "items", when="2026-11-05T00:00:00Z")
+    assert "removed" not in back["item-3_1"] and back["item-3_1"]["fields"]["removed"] == ""
+    assert course["removed"] == [{"day": "2026-11-04", "title": "PSY 2301 — Scholarly Activity"}]
+    assert not json.loads((tmp_path / "items/course/record.json").read_text())["removed"]
+
+
+def test_a_layout_word_that_is_not_one_is_refused(bb):
+    for bad in ({"layout": "tree"}, {"backfill": "some"}, {"depth": "0"}, {"announcements_dir": "a/b"}):
+        with pytest.raises(ValueError):
+            bb.layout_of(bad)
+    assert bb.layout_of({})["layout"] == "legacy" and bb.layout_of({"layout": "Modules"})["layout"] == "modules"
+
+
+def test_backfill_none_holds_back_a_module_a_week_past_its_last_due_date(tmp_path):
+    items = _captures(tmp_path)
+    known = [{"resource": json.loads((d / "capture.json").read_text())["item"], "path": "x"} for d in items.iterdir() if d.is_dir()]
+    (tmp_path / "fixture/harvest/bodies/_2_1.html").write_text("<p>Read chapter 3.</p>")
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "none", "layout": "modules"}))
+    assert not [a for a in updates[0] if a.endswith("/item-2_1")]
+    assert any("backfill=none" in a for a in updates[0])
+    (tmp_path / "calls.log").unlink()
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "all", "layout": "modules"}))
+    assert len([a for a in updates[0] if a.startswith("captured=")]) == 8
+
+
+def test_a_harvest_with_a_layout_word_that_is_not_one_fails(tmp_path):
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"layout": "tree"}))
+    assert "status=failed" in updates[0] and any("options.layout" in a for a in updates[0])
+
+
+def _modules_ticket(tmp_path, capture, **over):
+    t = {"ticket": "m1", "stage": "process", "slug": "psy", "capture_dir": f"_raw/psy/course/items/{capture}", "dest": "sources/courses/psy",
+         "known": [], "held": [], "options": {"timezone": "America/Chicago", "layout": "modules"}, "root": {}}
+    t.update(over)
+    return t
+
+
+def _modules_captures(tmp_path):
+    run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"layout": "modules", "timezone": "America/Chicago"}))
+    (tmp_path / "calls.log").unlink()
+    return tmp_path / "_raw/psy/course/items"
+
+
+def test_process_creates_a_new_page_at_its_place_and_titles_it(tmp_path):
+    _modules_captures(tmp_path)
+    _, calls, updates = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1"))
+    create, edit = [c["argv"] for c in calls if c["argv"][1] == "page"]
+    assert create[1:3] == ["page", "create"] and "title=02 Scholarly Activity" in create and "dest=sources/courses/psy/01 Unit I" in create
+    assert {"kind=assignment", "position=02", "points=100", "due=2026-10-20T23:59-05:00", "bb_id=_3_1"} <= set(create)
+    assert edit[1:] == ["page", "edit", "sources/courses/psy/01 Unit I/02 Scholarly Activity.md", "title=PSY 2301 — Scholarly Activity"]
+    assert "status=ok" in updates[0]
+
+
+def test_a_file_page_links_the_item_that_carries_it(tmp_path):
+    items = _modules_captures(tmp_path)
+    doc = next(d.name for d in items.iterdir() if d.is_dir() and any(d.glob("*.docx")))
+    known = [{"resource": "blackboard:_42_1/item-2_1", "path": "sources/courses/psy/01 Unit I/01 Study Guide.md"}]
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, doc, known=known))
+    create = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"])
+    assert "part_of=[[sources/courses/psy/01 Unit I/01 Study Guide|PSY 2301 — Study Guide]]" in create
+
+
+def test_a_module_page_goes_to_the_folder_whose_root_names_the_module(tmp_path):
+    _modules_captures(tmp_path)
+    root = tmp_path / "sources/courses/psy/Unit One (mine)/README.md"
+    root.parent.mkdir(parents=True)
+    root.write_text("---\nroot: true\nmodule_id: _1_1\n---\n# Unit I\n")
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1"))
+    create = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"])
+    assert "dest=sources/courses/psy/Unit One (mine)" in create
+
+
+def test_the_course_capture_makes_each_module_root_once_and_links_by_path(tmp_path):
+    _modules_captures(tmp_path)
+    (tmp_path / "sources/courses/PSY").mkdir(parents=True)
+    _, calls, updates = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course"))
+    roots = [c for c in calls if c["argv"][1:3] == ["page", "create"] and "title=README" in c["argv"]]
+    course, module = (c["argv"] for c in roots)
+    assert {"group=PSY 2301", "group_type=course", "channel=blackboard", "course=PSY 2301", "course_id=PSY2301-21.01",
+            "section=21.01", "term_start=2026-09-30"} <= set(course)
+    assert "[[sources/courses/psy/00 Course overview|" in roots[0]["stdin"]
+    assert {"dest=sources/courses/psy/01 Unit I", "root=true", "module=Unit I", "module_order=1", "module_kind=lesson", "module_id=_1_1"} <= set(module)
+    assert any(a.startswith("released=20") for a in module)
+    overview = next(c for c in calls if c["argv"][1:3] == ["page", "create"] and "title=00 Course overview" in c["argv"])
+    assert "[[sources/courses/psy/01 Unit I/02 Scholarly Activity|Scholarly Activity]]" in overview["stdin"]
+    assert any("sources/courses/PSY differs from sources/courses/psy only by case" in a for a in updates[0])
+    made = json.loads((tmp_path / "_raw/psy/course/items/course/modules-made.json").read_text())
+    assert made == {"_1_1": "01 Unit I"}
+    (tmp_path / "calls.log").unlink()
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course"))
+    assert not [c for c in calls if "title=README" in c["argv"]]
+
+
+def test_the_jobs_root_keys_go_on_the_course_root_over_the_units(tmp_path):
+    _modules_captures(tmp_path)
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"group": "Psych", "extract": "light"}))
+    course = next(c["argv"] for c in calls if "title=README" in c["argv"] and "dest=sources/courses/psy" in c["argv"])
+    assert "group=Psych" in course and "group=PSY 2301" not in course and "extract=light" in course
+
+
+def test_a_removed_capture_dates_its_page_and_writes_nothing_else(tmp_path):
+    items = _modules_captures(tmp_path)
+    cap = json.loads((items / "item-3_1/capture.json").read_text())
+    cap["removed"] = "2026-11-04"
+    (items / "item-3_1/capture.json").write_text(json.dumps(cap))
+    known = [{"resource": cap["item"], "path": "sources/courses/psy/01 Unit I/02 Scholarly Activity.md"}]
+    _, calls, updates = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1", known=known))
+    assert [c["argv"][1:] for c in calls if c["argv"][1] == "page"] == [["page", "edit", known[0]["path"], "removed=2026-11-04"]]
+    assert "status=ok" in updates[0]
+
+
+def test_a_board_no_longer_fetched_is_not_removed_from_the_course(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    for when in ("2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z"):
+        dirs = bb.split(h, tmp_path / "items", fetched_at=when, discussions=False, options={"layout": "modules"})
+    assert not [d for d in dirs if json.loads((d / "capture.json").read_text()).get("removed")]

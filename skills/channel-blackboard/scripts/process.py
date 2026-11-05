@@ -13,14 +13,35 @@ names for it. A page a person moved (`reason: moved`) or holds (`held[]`) is
 left alone: `ok`, nothing written. A page at the title's path that is another
 item's, or no item's, is never written over: `partial`, naming it. A
 discussion's later parts are their own resources, `<item>#part-<n>`.
-Every page carries an `abstract` built from the capture's facts.
+Every page carries an `abstract` built from the capture's facts, and the
+capture's `fields` (`kind`, `outline_path`, `position`, `bb_id`, `due`,
+`points`, and `part_of` linking a file or video to the item that carries
+it).
+
+A new page goes where the capture's `place` says under `dest` (the job's
+`layout` option, `bbnotes.layout_of`): its filename is the place's stem
+(`01 Unit IV Study Guide`), and a second `page edit` gives it the page's
+whole title. A module's pages go to the folder whose `README.md` names the
+module's `module_id`, where one exists, so a renamed folder or a second
+harvesting machine's plan never splits a module. Every link a page makes
+names the target's path: `known[]`'s where it was written, else its place.
 
 The course overview's capture also makes the course's bundle root, once:
 `README.md` in `dest` with `root: true`, `current` (the job's `current`
-option: true, false, yes or no; default true) and `term`, which every page
-below inherits. A root already there (`page ls filter=prop:root`) is left
+option: true, false, yes or no; default true), `term`, `term_start`,
+`term_end`, `course`, `course_title`, `course_id`, `section`, `group`,
+`group_type: course`, `channel: blackboard`, `source_host` and `course_url`,
+and the job record's own `root` keys over them, which every page below
+inherits. A root already there (`page ls filter=prop:root`) is left
 alone, and `root-made.json` in the course capture records that the question
-was settled, so a root a person deleted is never made again.
+was settled, so a root a person deleted is never made again. Each released
+module's folder root (`module`, `module_order`, `module_position`,
+`module_kind`, `released`, `module_id`) is made the same way, once, recorded in
+`modules-made.json`. A folder beside `dest` that differs from it only by
+case is named in the reason.
+
+A capture stamped `removed` (an item the course stopped listing) edits only
+`removed: <day>` onto its page; the item's return clears it.
 
 `ok` with the pages in `written.json`; `partial` where a page went out
 without its text (a scanned pdf, a video no transcript reached yet: the
@@ -48,6 +69,8 @@ WRITTEN = "written.json"
 ROOT = "README.md"
 # In the course capture's own directory: the root was made (or found) once, so a pull never makes it again.
 ROOT_MADE = "root-made.json"
+# Beside it: the modules whose folder root was made (or found), by module id.
+MODULES_MADE = "modules-made.json"
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*['\"]?(.*?)['\"]?\s*$", re.MULTILINE)
@@ -66,24 +89,70 @@ def resource_of(path: Path) -> str | None:
     return found.group(1) if found and found.group(1) else None
 
 
-def write_page(page: dict, resource: str, dest: str, known_path: str | None) -> tuple[str | None, str | None, bool]:
-    """`(path, None, False)` written; `(None, why, True)` a page that is not this item's stood at the path; `(None, why, False)` refused."""
+MODULE_ID = re.compile(r"^module_id:\s*['\"]?(_\d+_\d+)['\"]?\s*$", re.MULTILINE)
+
+
+def module_folders(dest: str) -> dict[str, str]:
+    """Each module folder under `dest` by the module id its root's `module_id` names: where a module's pages go, whatever this
+    machine's ledger planned, so a second machine, or a folder a person renamed, keeps one folder per module."""
+    out = {}
+    for readme in sorted(Path(dest).glob("*/README.md")) if Path(dest).is_dir() else []:
+        try:
+            head = readme.read_text(encoding="utf-8", errors="replace")[:8192]
+        except OSError:
+            continue
+        found = MODULE_ID.search(head.split("\n---", 1)[0]) if head.startswith("---") else None
+        if found:
+            out.setdefault(found.group(1), readme.parent.name)
+    return out
+
+
+def placed(place: str | None, module: str | None, folders: dict[str, str]) -> str | None:
+    """A planned place with its module folder as `dest` holds it."""
+    if place and module and module in folders and "/" in place:
+        return f"{folders[module]}/{place.split('/', 1)[1]}"
+    return place
+
+
+def link_paths(cap: dict, dest: str, known: dict[str, dict], folders: dict[str, str]) -> dict[str, str]:
+    """The target of every link the capture's page makes: the page's path, by `known[]` where it was written, else where it goes."""
+    course = cap["item"].rsplit("/", 1)[0]
+    rows = {**(cap.get("links") or {}), bbnotes.cap_key(cap): {"title": cap.get("title"), "place": cap.get("place"), "module": cap.get("module")}}
+    out = {}
+    for key, row in rows.items():
+        path = (known.get(f"{course}/{key}") or {}).get("path")
+        where = placed(row.get("place"), row.get("module"), folders)
+        out[key] = path.removesuffix(".md") if path else f"{dest.rstrip('/')}/{where or row.get('title') or key}"
+    return out
+
+
+def write_page(page: dict, resource: str, dest: str, known_path: str | None, place: str | None = None,
+               fields: dict | None = None) -> tuple[str | None, str | None, bool]:
+    """`(path, None, False)` written; `(None, why, True)` a page that is not this item's stood at the path; `(None, why, False)` refused.
+    `place` is where a new page goes under `dest` (`<folder>/<stem>`); its filename is the stem, its `title` the page's."""
     pairs = [f"type={page['type']}", f"resource={resource}", "extracted=true"]
     if page.get("abstract"):
         pairs.append(f"abstract={page['abstract']}")
     if page.get("published"):
         pairs.append(f"published={page['published']}")
-    path = known_path or f"{dest.rstrip('/')}/{page['title']}.md"
+    # An empty value clears the key (`removed` on an item back in the course); a new page has nothing to clear.
+    clears = [f"{k}=" for k, v in (fields or {}).items() if v in (None, "")]
+    pairs += [f"{k}={v}" for k, v in (fields or {}).items() if v not in (None, "")]
+    path = known_path or f"{dest.rstrip('/')}/{place or page['title']}.md"
     if known_path:
-        rc, answer = ops_json("page", "edit", path, *pairs, "--stdin", stdin=page["body"])
+        rc, answer = ops_json("page", "edit", path, *pairs, *clears, "--stdin", stdin=page["body"])
     elif Path(path).is_file():
         # Not this item's page by `known[]`: edit it only where its own frontmatter says it is.
         other = resource_of(Path(path))
         if other != resource:
             return None, f"{path} holds {'another item, ' + other if other else 'a page no item wrote'}: not written over", True
-        rc, answer = ops_json("page", "edit", path, *pairs, "--stdin", stdin=page["body"])
+        rc, answer = ops_json("page", "edit", path, *pairs, *clears, "--stdin", stdin=page["body"])
     else:
-        rc, answer = ops_json("page", "create", f"title={page['title']}", f"dest={dest}", *pairs, "--stdin", stdin=page["body"])
+        folder, _, stem = f"{dest.rstrip('/')}/{place or page['title']}".rpartition("/")
+        rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--stdin", stdin=page["body"])
+        if rc == 0 and stem != page["title"]:
+            # The filename is the title at create; the page's own title is the course's whole name for it.
+            rc, answer = ops_json("page", "edit", answer.get("path") or path, f"title={page['title']}")
     if rc != 0:
         return None, f"{page['title']}: {answer.get('error') or answer}", False
     return answer.get("path") or path, None, False
@@ -101,9 +170,9 @@ def has_root(dest: str) -> bool | None:
 CURRENT = {"true": "true", "yes": "true", "false": "false", "no": "false"}
 
 
-def write_root(capture: Path, cap: dict, dest: str, options: dict) -> str | None:
+def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | None = None, overview: str | None = None) -> str | None:
     """Make the course's bundle root once, ever: a root that exists is a person's, and one a person deleted stays deleted.
-    The marker in the course's own capture says it was made. The refusal, or None."""
+    The marker in the course's own capture says it was made. The job's `root` keys go on it over the unit's. The refusal, or None."""
     marker = capture / ROOT_MADE
     if marker.exists():
         return None
@@ -115,17 +184,79 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict) -> str | None
     if found is None:
         return f"{ROOT}: `page ls filter=prop:root` did not answer, so no root was made"
     if not found:
-        root = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current == "true")
-        pairs = [f"{k}={v}" for k, v in root["fields"].items()] + [f"abstract={root['abstract']}"]
-        rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={dest}", "type=document", *pairs,
-                              "--stdin", stdin=root["body"])
-        if rc == 0:
-            # The filename is the title at create; the root's own title is the course's.
-            rc, answer = ops_json("page", "edit", answer.get("path") or f"{dest.rstrip('/')}/{ROOT}", f"title={root['title']}")
-        if rc != 0:
-            return f"{ROOT}: {answer.get('error') or answer}"
+        made = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current == "true", overview)
+        keys = {**made["fields"], **{k: ("true" if v is True else "false" if v is False else str(v)) for k, v in (root or {}).items()}}
+        why = create_root(dest, made, keys)
+        if why:
+            return why
     marker.write_text(json.dumps({"dest": dest, "made": not found}) + "\n", encoding="utf-8")
     return None
+
+
+def create_root(folder: str, made: dict, keys: dict) -> str | None:
+    """`README.md` in `folder` with `keys`, then its title: the filename is the title at create."""
+    pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"]
+    rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={folder}", "type=document", *pairs,
+                          "--stdin", stdin=made["body"])
+    if rc == 0:
+        rc, answer = ops_json("page", "edit", answer.get("path") or f"{folder.rstrip('/')}/{ROOT}", f"title={made['title']}")
+    return f"{folder.rstrip('/')}/{ROOT}: {answer.get('error') or answer}" if rc != 0 else None
+
+
+def write_module_roots(capture: Path, cap: dict, dest: str, record: dict, folders: dict[str, str], overview: str | None) -> list[str]:
+    """Each released module's folder root, once, as the course root is: `modules-made.json` in the course capture names the
+    modules settled, so a module root a person deleted stays deleted. The refusals."""
+    marker = capture / MODULES_MADE
+    try:
+        made = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        made = {}
+    refused = []
+    for module in record.get("modules") or []:
+        mid = module.get("id")
+        if not mid or mid in made:
+            continue
+        folder = folders.get(mid) or module["folder"]
+        if mid not in folders:
+            found = has_root(f"{dest.rstrip('/')}/{folder}")
+            if found is None:
+                refused.append(f"{folder}/{ROOT}: `page ls filter=prop:root` did not answer, so no module root was made")
+                continue
+            if not found:
+                made_root = bbnotes.module_root(cap, module, overview)
+                why = create_root(f"{dest.rstrip('/')}/{folder}", made_root, made_root["fields"])
+                if why:
+                    refused.append(why)
+                    continue
+        made[mid] = folder
+    marker.write_text(json.dumps(made, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return refused
+
+
+def case_twins(dest: str) -> list[str]:
+    """A folder beside `dest` whose name differs from it only by case: one directory on a case-insensitive disk, two to git."""
+    path = Path(dest.rstrip("/"))
+    try:
+        return [p.as_posix() for p in path.parent.iterdir() if p.is_dir() and p.name != path.name and p.name.casefold() == path.name.casefold()]
+    except OSError:
+        return []
+
+
+def removed(ticket_id: str, capture: Path, cap: dict, known: dict[str, dict]) -> int:
+    """An item the course no longer lists: its page keeps its text and gains `removed: <day>`, which a later pull that finds the
+    item again clears. A page a person moved is theirs."""
+    row = known.get(cap["item"]) or {}
+    if not row.get("path") or row.get("reason") == "moved":
+        post_update(ticket_id, "process", "ok", reason="no longer in the course; no page of this job's to date")
+        return 0
+    rc, answer = ops_json("page", "edit", row["path"], f"removed={cap['removed']}")
+    if rc != 0:
+        post_update(ticket_id, "process", "failed", reason=f"{row['path']}: {answer.get('error') or answer}"[:400])
+        return 0
+    (capture / WRITTEN).write_text(json.dumps([row["path"]]) + "\n", encoding="utf-8")
+    post_update(ticket_id, "process", "ok", reason=f"{row['path']}: no longer in the course since {cap['removed']}",
+                written_from=(capture / WRITTEN).as_posix())
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -148,22 +279,37 @@ def main(argv: list[str]) -> int:
     except (ValueError, KeyError):
         post_update(ticket_id, "process", "failed", reason=f"options.timezone={zone!r} is no IANA zone this machine knows")
         return 0
+    known = {k["resource"]: k for k in t.get("known") or [] if k.get("resource") and k.get("path")}
+    written, refused, thin, left, clashed = [], [], [], [], []
+    if cap.get("removed"):
+        return removed(ticket_id, capture, cap, known)
+    folders = module_folders(dest)
+    links = link_paths(cap, dest, known, folders)
     try:
-        pages = bbnotes.render(capture)
+        pages = bbnotes.render(capture, links)
     except (OSError, ValueError, KeyError) as exc:
         post_update(ticket_id, "process", "failed", reason=f"render failed: {type(exc).__name__}: {exc}"[:400])
         return 0
-    known = {k["resource"]: k for k in t.get("known") or [] if k.get("resource") and k.get("path")}
-    written, refused, thin, left, clashed = [], [], [], [], []
-    if cap.get("kind") == "course" and (why := write_root(capture, cap, dest, t.get("options") or {})):
-        refused.append(why)
+    if cap.get("kind") == "course":
+        record = json.loads((capture / cap["body"]).read_text(encoding="utf-8"))
+        overview = links.get(bbnotes.cap_key(cap))
+        if why := write_root(capture, cap, dest, t.get("options") or {}, t.get("root") or {}, overview):
+            refused.append(why)
+        refused += write_module_roots(capture, cap, dest, record, folders, overview)
+        left += [f"{twin} differs from {dest} only by case: one folder on a case-insensitive disk, two to git" for twin in case_twins(dest)]
+    fields = dict(cap.get("fields") or {})
+    if cap.get("part_of") and cap["part_of"] in links:
+        owner = (cap.get("links") or {}).get(cap["part_of"]) or {}
+        fields["part_of"] = f"[[{links[cap['part_of']]}|{owner.get('title') or cap['part_of']}]]"
+    place = placed(cap.get("place"), cap.get("module"), folders)
     for n, page in enumerate(pages, 1):
         resource = cap["item"] if n == 1 else f"{cap['item']}#part-{n}"
         row = known.get(resource) or {}
         if row.get("reason") == "moved":
             left.append(f"{row['path']}: moved by a person, left alone")
             continue
-        path, why, clash = write_page(page, resource, dest, row.get("path"))
+        here = place if n == 1 or not place else f"{place} (part {n})"
+        path, why, clash = write_page(page, resource, dest, row.get("path"), here, fields)
         if path:
             written.append(path)
         else:
