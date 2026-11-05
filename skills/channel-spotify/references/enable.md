@@ -26,7 +26,7 @@
    argument (argv is readable in `ps` and lands in shell history), and
    `credentials set` asks only at a terminal: its stdin is not a pipe. The
    third maps the route to it; `bind` refuses a value whose host is not the
-   route's. `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs, maps
+   route's. `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps
    nothing: it lists `spotify` as unmapped, with that line. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
    token request bound for `accounts.spotify.com`. With the route mapped to a

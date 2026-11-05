@@ -33,6 +33,5 @@
    machine that maps nothing claims none of the job's harvests: `jobs claim`
    refuses, "harvest requires dir and this machine fills none of it". Bind the
    job, not the skill: a skill's `dir` is handed to every job of the skill,
-   unattended. `skills enable` maps nothing by itself (`/{{@brain-plugin}}:enable`
-   runs it with `--confirm`, which asks no question and lists this line as
-   unmapped).
+   unattended. `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps
+   nothing by itself and lists this line as unmapped.

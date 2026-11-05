@@ -18,8 +18,8 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   window and say what the wiki did. It also exposes every committed file's
   content and `.git/config`'s remote urls, so this list is not a read
   boundary; the grant stays because those three need it.
-  `skills enable` names it a dangerous line and takes it only as
-  `accept=.git`.
+  `skills enable` names it a dangerous line, which its one approval
+  answers.
 - The `daily-report` overlay and the `daily-report-setup` marker sit under
   the ops dir's `policy`, which the stock `_base` already reads: the template
   names no entry for them.
