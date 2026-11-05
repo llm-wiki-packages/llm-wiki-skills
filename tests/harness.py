@@ -229,6 +229,10 @@ _TOOLCHAIN = """
 import json, os, sys, llm_wiki_ops
 roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
 roots += [p for p in sys.path if p and os.path.isdir(p)]
+# The record the CLI resolves its machine home by, before anything else: a
+# checkout's sits at the checkout's root, outside every tree above.
+from llm_wiki_machine import paths
+roots.append(str(paths.record().path))
 from llm_wiki_ops.lib.errors import Refused
 from llm_wiki_ops.lib.plugin_root import plugin_root  # the plugin's own scripts, which a slice runs; an ImportError is loud
 try:
