@@ -97,7 +97,7 @@ MACHINE_READS = {
     ("frameio", "harvest"): ["playwright-cache"],
     ("hubspot-cms", "harvest"): ["playwright-cache"],
     ("substack", "harvest"): ["playwright-cache"],
-    ("youtube", "harvest"): ["yt-dlp-cache"],
+    ("youtube", "harvest"): ["yt-dlp-cache", "playwright-cache"],
 }
 
 # `(template, stage) -> filesystem`; absent means none.

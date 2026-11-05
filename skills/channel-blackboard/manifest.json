@@ -29,7 +29,7 @@
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.11.0"
+    "ops": ">=0.15.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
   "stages": {
