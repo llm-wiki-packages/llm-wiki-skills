@@ -907,3 +907,111 @@ def test_two_captures_planned_to_one_name_are_told_apart_by_key(tmp_path, bb, mo
     _dump(h / "files.json", files)
     places = sorted(c["place"] for c in _split(bb, h, tmp_path / "items").values() if c["kind"] == "file")
     assert len(places) == len(set(places)) == 3 and sum(p.endswith(")") for p in places) == 2
+
+
+# ---------------------------------------------------------------- review fold (#106)
+
+
+def _drop_and_remake(h: Path, old: str, new: str) -> None:
+    """The instructor deletes item `old` and makes `new` with the same title at the same position."""
+    contents = json.loads((h / "contents.json").read_text())
+    for c in contents:
+        if c["id"] == old:
+            c["id"] = new
+    _dump(h / "contents.json", contents)
+
+
+def test_an_item_remade_at_a_dropped_items_place_gets_a_place_of_its_own(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    first = _split(bb, h, tmp_path / "items")
+    _drop_and_remake(h, "_3_1", "_33_1")
+    again = _split(bb, h, tmp_path / "items", when="2026-11-02T00:00:00Z")
+    old = first["item-3_1"]["place"]
+    assert again["item-33_1"]["place"] != old and again["item-33_1"]["place"].startswith("01 Unit I/02 Scholarly Activity")
+
+
+def test_a_removed_stamp_is_posted_again_until_process_dates_it(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    contents = json.loads((h / "contents.json").read_text())
+    _dump(h / "contents.json", [c for c in contents if c["id"] != "_3_1"])
+    bb.split(h, tmp_path / "items", fetched_at="2026-11-02T00:00:00Z", options={"layout": "modules"})
+    stamped = bb.split(h, tmp_path / "items", fetched_at="2026-11-03T00:00:00Z", options={"layout": "modules"})
+    assert "item-3_1" in {d.name for d in stamped}
+    # The edit failed (no `dated.json`): the next pull posts it again.
+    retried = bb.split(h, tmp_path / "items", fetched_at="2026-11-04T00:00:00Z", options={"layout": "modules"})
+    assert "item-3_1" in {d.name for d in retried}
+    (tmp_path / "items/item-3_1" / bb.DATED).write_text('"2026-11-03"\n')
+    done = bb.split(h, tmp_path / "items", fetched_at="2026-11-05T00:00:00Z", options={"layout": "modules"})
+    assert "item-3_1" not in {d.name for d in done}
+    # Listed again, then dropped again: dated afresh.
+    _dump(h / "contents.json", contents)
+    bb.split(h, tmp_path / "items", fetched_at="2026-11-06T00:00:00Z", options={"layout": "modules"})
+    assert not (tmp_path / "items/item-3_1" / bb.DATED).exists()
+
+
+def test_a_listing_that_answers_empty_removes_nothing(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    _dump(h / "contents.json", [])
+    _dump(h / "discussions.json", [])
+    for when in ("2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z", "2026-11-04T00:00:00Z"):
+        dirs = bb.split(h, tmp_path / "items", fetched_at=when, options={"layout": "modules"})
+    assert not [d for d in dirs if json.loads((d / "capture.json").read_text()).get("removed")]
+
+
+def test_two_modules_of_one_title_get_two_folders(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    contents = json.loads((h / "contents.json").read_text())
+    contents += [{"id": "_8_1", "parent": None, "path": "Unit I", "title": "Unit I", "handler": "resource/x-bb-lesson"},
+                 {"id": "_9_1", "parent": "_8_1", "path": "Unit I/Recap", "title": "Recap", "handler": "resource/x-bb-document", "has_body": True}]
+    _dump(h / "contents.json", contents)
+    (h / "bodies" / "_9_1.html").write_text("<p>Recap.</p>")
+    caps = _split(bb, h, tmp_path / "items", prefix="none")
+    folders = {c["place"].rsplit("/", 1)[0] for k, c in caps.items() if k in ("item-2_1", "item-9_1")}
+    assert len(folders) == 2
+
+
+def test_a_due_date_the_instructor_took_away_is_cleared_on_the_page(tmp_path, bb):
+    caps = _split(bb, make_harvest(tmp_path / "s"), tmp_path / "s" / "items")
+    assert caps["item-2_1"]["fields"]["due"] is None and caps["item-2_1"]["fields"]["points"] is None
+    _modules_captures(tmp_path)
+    known = [{"resource": "blackboard:_42_1/item-2_1", "path": "sources/courses/psy/01 Unit I/01 Study Guide.md"}]
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-2_1", known=known))
+    edit = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "edit"])
+    assert {"due=", "points=", "removed=", "title=PSY 2301 — Study Guide"} <= set(edit)
+
+
+def test_a_removed_discussion_dates_every_part_and_is_dated_only_when_all_took(tmp_path):
+    items = _modules_captures(tmp_path)
+    cap = json.loads((items / "discussion-d1_1/capture.json").read_text())
+    cap["removed"] = "2026-11-04"
+    (items / "discussion-d1_1/capture.json").write_text(json.dumps(cap))
+    known = [{"resource": cap["item"], "path": "sources/courses/psy/discussions/Board.md"},
+             {"resource": cap["item"] + "#part-2", "path": "sources/courses/psy/discussions/Board (part 2).md"}]
+    _, calls, updates = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "discussion-d1_1", known=known))
+    assert sorted(c["argv"][3] for c in calls if c["argv"][1:3] == ["page", "edit"]) == sorted(k["path"] for k in known)
+    assert "status=ok" in updates[0] and (items / "discussion-d1_1/dated.json").is_file()
+
+
+def test_a_long_boards_continued_in_link_names_where_part_two_is(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    big = "<p>" + "word " * (bb.PART_BYTES // 4) + "</p>"
+    _dump(h / "discussions/_d1_1.json", [
+        {"id": f"_p{n}_1", "parentId": "_t1_1", "givenName": "Ana", "familyName": "Ruiz", "postDate": "2026-09-30T21:00:00Z", "body": big}
+        for n in range(1, 4)])
+    legacy = tmp_path / "legacy"
+    bb.split(h, legacy)
+    d = legacy / "discussion-d1_1"
+    title = json.loads((d / "capture.json").read_text())["title"]
+    # Written: the link names where part 2 is now.
+    pages = bb.render(d, {"discussion-d1_1": "sources/c/Board", "discussion-d1_1#part-2": "notes/mine/Board 2"})
+    assert len(pages) >= 2 and "Continued in [[notes/mine/Board 2|" in pages[0]["body"]
+    # Not written yet, legacy: its title, cut by the same rule as the page's own name, in `dest`.
+    pages = bb.render(d, {"discussion-d1_1": "sources/c/Board", "discussion-d1_1#dir": "sources/c"})
+    assert f"Continued in [[sources/c/{bb.page_title(title + ' (part 2)')}|" in pages[0]["body"]
+    # Not written yet, placed: beside its first part's planned place, wherever part 1 went.
+    placed = tmp_path / "placed"
+    bb.split(h, placed, options={"layout": "modules"})
+    pages = bb.render(placed / "discussion-d1_1", {"discussion-d1_1": "notes/moved/Board", "discussion-d1_1#base": "sources/c/discussions/Board"})
+    assert "Continued in [[sources/c/discussions/Board (part 2)|" in pages[0]["body"]

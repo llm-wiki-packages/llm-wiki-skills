@@ -19,7 +19,10 @@ courses can differ; a new job takes the unit's `watch.defaults.options`.
 A job added before 0.3.0 has no `layout`, and keeps the layout its pages
 already have (`legacy`: one folder, a page per title): no verb moves a
 `sources/` page, so a new layout on an old job would leave two layouts in
-one folder. Any other word is a `failed` harvest naming it.
+one folder. Any other word is a `failed` harvest naming it. The first pull
+after upgrading to 0.3.0 posts every page of every course once, legacy
+ones too, since each page now carries its fields (`kind`, `position`,
+`due`…) and its links name paths; later pulls post only what changed.
 
 The course folder is the job's `dest`, chosen at `jobs add`: the slug
 (`sources/courses/<slug>`, the default), the course code
@@ -52,7 +55,11 @@ sources/courses/<slug>/
 - A place is decided once, the pull that first sees the item, and kept in
   `items/placement.json` under the job's `_raw`: an instructor inserting an
   item renumbers no existing page, though two pages may then share a
-  prefix. The `position` field always says where the item sits now.
+  prefix. The `position` field always says where the item sits now. A
+  place once given is never given again: an item deleted and remade at the
+  same spot is named with its id. A renamed item keeps its filename and
+  takes its new `title`. A due date or points the instructor takes away
+  leave the page too.
 - A module's pages go to the folder whose `README.md` carries the module's
   `module_id`, wherever that is: a person may rename a module folder.
 
@@ -108,8 +115,10 @@ go stale.
 - `backfill=all`: every page re-renders every pull, as a refresh does.
 - An item or board two whole pulls in a row have not listed is posted once
   more: process writes `removed: <day>` on its page and nothing else, and
-  the overview lists it under Removed. Nothing is judged from a listing
-  that failed, a lesson that lists no children, an item still in the
+  the overview lists it under Removed; a stamp process could not write is
+  posted again each pull until it takes, on every part of a long board.
+  Nothing is judged from a listing that failed or answered with nothing at
+  all, a lesson that lists no children, an item still in the
   outline with nothing left to render, or a board `discussions=skip` stopped
   fetching; an announcement leaves at the end of its display window, and is
   never judged. Every later write of a listed item clears `removed`.

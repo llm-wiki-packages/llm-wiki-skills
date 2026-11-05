@@ -463,6 +463,8 @@ def _place(src: Path, dest: Path) -> None:
 
 # In the items directory, beside the captures: where each page was first placed, each module's folder, what left the course.
 LEDGER = "placement.json"
+# In a removed item's capture: written by process once its page carries `removed`, so a stamp that failed is posted again.
+DATED = "dated.json"
 # The job's layout options, each with its words; the first is the default. `legacy` is the layout before 0.3.0 (one folder,
 # a page per title): a job added before then has no `layout` option, and its pages already stand at their titles.
 CHOICES = {"layout": ("legacy", "modules", "flat"), "prefix": ("position", "none"), "backfill": ("changed", "none", "all")}
@@ -641,6 +643,7 @@ class _Split:
         """Stage one capture; `settle` writes it once every title in the course is known. `under` qualifies a shared title."""
         d = self.out / key
         d.mkdir(parents=True, exist_ok=True)
+        (d / DATED).unlink(missing_ok=True)  # listed again: a later removal is dated afresh
         printed = None
         if record is None:
             _place(body_file, d / body_file.name)
@@ -734,7 +737,9 @@ class _Split:
             if mid and due and due > last_due.get(mid, ""):
                 last_due[mid] = due
         out = {}
-        used = {str(r.get("place")).casefold() for k, r in pages.items() if r.get("place") and k in keys}
+        # Every place the ledger ever gave is taken, a dropped item's too: its page may still stand there, and a new item at the
+        # same name would meet another item's page and never be written.
+        used = {str(r.get("place")).casefold(): k for k, r in pages.items() if r.get("place")}
         for p in self.pending:
             key, node, kind = p["key"], p["node"], p["kind"]
             title = titles[key]
@@ -752,16 +757,20 @@ class _Split:
                 row = pages[key] = {"first_seen": today}
             if lay["layout"] != "legacy":
                 if mid and lay["layout"] == "modules" and mid not in modules:
-                    modules[mid] = {"folder": self.module_folder(mid), "released": today}
+                    folder = self.module_folder(mid)
+                    if folder.casefold() in {str(m.get("folder")).casefold() for m in modules.values()}:
+                        # Two modules of one title (`prefix=none`, or one dropped and remade at its position): the id tells them apart.
+                        folder = page_title(f"{folder} ({mid.strip('_')})")
+                    modules[mid] = {"folder": folder, "released": today}
                 if row.get("layout") != lay["layout"] or not row.get("place"):
                     place = self.planned(p, title, mid)
-                    if place.casefold() in used:
+                    if used.get(place.casefold()) not in (None, key):
                         # Two captures cut to one name (a long title, `flat`): the key's tail tells them apart, as a shared title's does.
                         folder, _, stem = place.rpartition("/")
                         tail = f" ({key.rsplit('-', 1)[-1][-8:]})"
                         place = (folder + "/" if folder else "") + safe_title(stem[: TITLE_MAX - len(tail)].rstrip(" .…-") + tail)
                     row["place"], row["layout"] = place, lay["layout"]
-                    used.add(place.casefold())
+                    used[place.casefold()] = key
                 got["place"] = row["place"]
             out[key] = got
         return out
@@ -820,7 +829,8 @@ class _Split:
             out["due"] = local_time(g["due"])
         if g.get("points"):
             out["points"] = f"{g['points']:g}"
-        return {k: v for k, v in out.items() if v not in (None, "")}
+        # `due` and `points` are always named: one the instructor took away is cleared on the page (`key=`), not left standing.
+        return {**{k: v for k, v in out.items() if v not in (None, "")}, "due": out.get("due"), "points": out.get("points")}
 
     def index(self, titles: dict[str, str], placed: dict[str, dict]) -> dict:
         """What the course overview adds to its record: the outline with each row's page, due date and points; the modules with
@@ -849,7 +859,7 @@ class _Split:
             rows.append({"depth": len(o.chain(cid)) - 1, "title": o.title(cid), "handler": c.get("handler"), "available": c.get("available"),
                          "url": c.get("url") if (c.get("url") or "").startswith("http") else None, "page": page_of.get(cid),
                          "carries": sorted(carried.get(cid, []), key=lambda k: titles[k]), "due": g.get("due"), "points": g.get("points")})
-        today = datetime.fromisoformat(self.fetched_at.replace("Z", "+00:00")).date()
+        today = datetime.fromisoformat(day(self.fetched_at)).date()  # a local day, as `first_seen` is
         since = led.data.get("since")
         added = sorted(((row.get("first_seen"), k) for k, row in led.data.get("pages", {}).items()
                         if k in keys and k != "course" and since and (row.get("first_seen") or "") > since
@@ -876,8 +886,16 @@ class _Split:
         failed = [str(e.get("what", "")) for e in _load(self.h, "errors.json", []) if isinstance(e, dict)]
         # Only an item and a board are judged, each where its own listing answered whole: a file or video leaves with its item
         # (or with `files=skip`), an announcement leaves at the end of its display window, a board with `discussions=skip`.
+        # A listing that answered with nothing at all (a course closed to students, an outage that returns `[]`) judges nothing either:
+        # an instructor emptying a whole course is rarer than a listing that came back blank.
         judged = tuple(kind for kind, listing in (("item-", ("contents",)), ("discussion-", ("discussions", "discussion messages")))
-                       if not any(w.startswith(listing) for w in failed) and (kind != "discussion-" or self.discussions))
+                       if not any(w.startswith(listing) for w in failed) and (kind != "discussion-" or self.discussions)
+                       and any(k.startswith(kind) for k in now))
+        for key in sorted(removed):
+            # Dated once process says so (`DATED` in the capture): a stamp a failed edit never wrote is posted again.
+            d = self.out / key
+            if key not in now and (d / CAPTURE).is_file() and not (d / DATED).is_file():
+                self.dirs.append(d)
         for key in sorted(before - now):
             if key in removed or not judged or not key.startswith(judged):
                 continue
@@ -1155,6 +1173,9 @@ def link_targets(cap: dict, given: dict | None = None) -> dict[str, str]:
     out = {}
     for key, row in {**(cap.get("links") or {}), cap_key(cap): {"title": cap.get("title"), "place": cap.get("place")}}.items():
         out[key] = (given or {}).get(key) or row.get("place") or row.get("title") or key
+    # A board's later parts and where its first part goes (`<key>#part-<n>`, `#base`, `#dir`), as process names them.
+    own = f"{cap_key(cap)}#"
+    out.update({k: v for k, v in (given or {}).items() if k.startswith(own) and v})
     return out
 
 
@@ -1226,11 +1247,22 @@ def _render_discussion(cap: dict, r: dict, targets: dict[str, str]) -> list[dict
     out = []
     said = abstract(f"Discussion board in {_course_of(cap)}: {r.get('title')}, {len(posts)} post{'' if len(posts) == 1 else 's'}.",
                     _due(r.get("grade") or {}), f"Prompt: {opening(r.get('prompt'))}" if r.get("prompt") else None)
+    ck = cap_key(cap)
+    own = targets.get(ck) or cap["title"]
+
+    def part_at(m: int) -> str:
+        """Where part `m` is: written (`#part-m`), else beside its first part's place, else its legacy title in `dest`."""
+        if targets.get(f"{ck}#part-{m}"):
+            return targets[f"{ck}#part-{m}"]
+        if cap.get("place"):
+            return f"{targets.get(ck + '#base') or own} (part {m})"
+        name = page_title(f"{cap['title']} (part {m})")
+        return f"{targets[ck + '#dir']}/{name}" if targets.get(ck + "#dir") else name
+
     for n, chunk in enumerate(chunks, 1):
         title = cap["title"] if n == 1 else page_title(f"{cap['title']} (part {n})")
-        own = targets.get(cap_key(cap)) or cap["title"]
         back = f"[[{own}]]" if own == cap["title"] else f"[[{own}|{cap['title']}]]"
-        nxt, nxt_title = f"{own} (part {n + 1})", page_title(cap["title"] + f" (part {n + 1})")
+        nxt, nxt_title = part_at(n + 1), page_title(cap["title"] + f" (part {n + 1})")
         lead = intro if n == 1 else f"# {one_line(r.get('title'))} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', back)])}\n\n"
         tail = (f"\n\nContinued in [[{nxt}]]." if nxt == nxt_title else f"\n\nContinued in [[{nxt}|{nxt_title}]].") if n < len(chunks) else ""
         out.append({"title": title, "type": "note", "published": cap.get("published"),

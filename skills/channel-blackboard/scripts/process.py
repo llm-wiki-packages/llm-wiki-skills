@@ -149,6 +149,15 @@ def link_paths(cap: dict, dest: str, known: dict[str, dict], folders: dict[str, 
         path = (known.get(f"{course}/{key}") or {}).get("path")
         where = placed(row.get("place"), row.get("module"), folders)
         out[key] = path.removesuffix(".md") if path else f"{dest.rstrip('/')}/{where or row.get('title') or key}"
+    # A discussion's later parts: where each was written, else beside where its first part goes (`#base`), or in `dest` (`#dir`).
+    own = bbnotes.cap_key(cap)
+    for res, row in known.items():
+        if res.startswith(f"{course}/{own}#part-") and row.get("path"):
+            out[f"{own}#part-{res.rsplit('#part-', 1)[1]}"] = row["path"].removesuffix(".md")
+    where = placed(cap.get("place"), cap.get("module"), folders)
+    if where:
+        out[f"{own}#base"] = f"{dest.rstrip('/')}/{where}"
+    out[f"{own}#dir"] = dest.rstrip("/")
     return out
 
 
@@ -157,6 +166,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
     """`(path, None, False)` written; `(None, why, True)` a page that is not this item's stood at the path; `(None, why, False)` refused.
     `place` is where a new page goes under `dest` (`<folder>/<stem>`); its filename is the stem, its `title` the page's."""
     pairs = [f"type={page['type']}", f"resource={resource}", "extracted=true"]
+    # An edit names the title too: an item the instructor renamed keeps its filename (its place) and takes its new title.
+    titled = [f"title={page['title']}"]
     if page.get("abstract"):
         pairs.append(f"abstract={page['abstract']}")
     if page.get("published"):
@@ -166,13 +177,13 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
     pairs += [f"{k}={v}" for k, v in (fields or {}).items() if v not in (None, "")]
     path = known_path or f"{dest.rstrip('/')}/{place or page['title']}.md"
     if known_path:
-        rc, answer = ops_json("page", "edit", path, *pairs, *clears, "--stdin", stdin=page["body"])
+        rc, answer = ops_json("page", "edit", path, *pairs, *titled, *clears, "--stdin", stdin=page["body"])
     elif Path(path).is_file():
         # Not this item's page by `known[]`: edit it only where its own frontmatter says it is.
         other = resource_of(Path(path))
         if other != resource:
             return None, f"{path} holds {'another item, ' + other if other else 'a page no item wrote'}: not written over", True
-        rc, answer = ops_json("page", "edit", path, *pairs, *clears, "--stdin", stdin=page["body"])
+        rc, answer = ops_json("page", "edit", path, *pairs, *titled, *clears, "--stdin", stdin=page["body"])
     else:
         folder, _, stem = f"{dest.rstrip('/')}/{place or page['title']}".rpartition("/")
         rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--stdin", stdin=page["body"])
@@ -271,16 +282,26 @@ def case_twins(dest: str) -> list[str]:
 def removed(ticket_id: str, capture: Path, cap: dict, known: dict[str, dict]) -> int:
     """An item the course no longer lists: its page keeps its text and gains `removed: <day>`, which a later pull that finds the
     item again clears. A page a person moved is theirs."""
-    row = known.get(cap["item"]) or {}
-    if not row.get("path") or row.get("reason") == "moved":
+    # The item's page and a discussion's later parts (`<item>#part-<n>`), each where `known[]` says it is.
+    rows = [r for res, r in sorted(known.items()) if res == cap["item"] or res.startswith(f"{cap['item']}#part-")]
+    rows = [r for r in rows if r.get("path") and r.get("reason") != "moved"]
+    dated = capture / bbnotes.DATED
+    if not rows:
+        dated.write_text(json.dumps(cap["removed"]) + "\n", encoding="utf-8")
         post_update(ticket_id, "process", "ok", reason="no longer in the course; no page of this job's to date")
         return 0
-    rc, answer = ops_json("page", "edit", row["path"], f"removed={cap['removed']}")
-    if rc != 0:
-        post_update(ticket_id, "process", "failed", reason=f"{row['path']}: {answer.get('error') or answer}"[:400])
+    written, refused = [], []
+    for row in rows:
+        rc, answer = ops_json("page", "edit", row["path"], f"removed={cap['removed']}")
+        (written if rc == 0 else refused).append(row["path"] if rc == 0 else f"{row['path']}: {answer.get('error') or answer}")
+    (capture / WRITTEN).write_text(json.dumps(written) + "\n", encoding="utf-8")
+    if refused:
+        # Not dated: the next pull posts the stamp again.
+        post_update(ticket_id, "process", "partial" if written else "failed", reason="; ".join(refused)[:400],
+                    written_from=(capture / WRITTEN).as_posix())
         return 0
-    (capture / WRITTEN).write_text(json.dumps([row["path"]]) + "\n", encoding="utf-8")
-    post_update(ticket_id, "process", "ok", reason=f"{row['path']}: no longer in the course since {cap['removed']}",
+    dated.write_text(json.dumps(cap["removed"]) + "\n", encoding="utf-8")
+    post_update(ticket_id, "process", "ok", reason=f"{', '.join(written)}: no longer in the course since {cap['removed']}"[:600],
                 written_from=(capture / WRITTEN).as_posix())
     return 0
 
