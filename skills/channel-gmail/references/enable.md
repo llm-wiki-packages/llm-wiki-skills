@@ -39,7 +39,7 @@
    (`options.mailbox` included). So it is the operator's consent, per
    machine and per mailbox: "this machine's session is signed into THIS
    mailbox". Bind the job, never the skill: a skill's mapping answers for
-   every mailbox. `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs,
+   every mailbox. `skills enable`, which `/{{@brain-plugin}}:enable` runs,
    maps nothing and lists the skill's `file` slot as unmapped with a `bind
    skill` line; leave that line unrun. Exactly what to run, on the machine
    that pulls:

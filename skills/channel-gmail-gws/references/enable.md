@@ -44,7 +44,7 @@ separately; either works without the other.
    `bind` refuses a name not set on this machine. A machine with no binding
    skips the job's harvest — a `bindings` doctor row, nothing fails. After a
    peer changes what the job pulls (`options.mailbox`), check the login and
-   bind again. `skills enable --confirm` lists the `dir` slot as unmapped
+   bind again. `skills enable` lists the `dir` slot as unmapped
    with a `bind skill` line: leave it unrun, a skill-wide mapping would
    answer for every mailbox.
 

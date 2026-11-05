@@ -125,11 +125,11 @@ def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, e
         done = run(ops, attended, "--json", "credentials", "set", "notion",
                    input=json.dumps({"value": token, "host": "api.notion.com"}))
         assert done.returncode == 0, done.stdout + done.stderr
-        refused = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
+        refused = run(ops, attended, "--json", "skills", "enable", UNIT)
         assert refused.returncode == 2 and "its harvest probe" in refused.stdout, refused.stdout + refused.stderr
         done = run(ops, attended, "--json", "credentials", "bind", "skill", UNIT, "notion=notion")
         assert done.returncode == 0, done.stdout + done.stderr
-        done = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
+        done = run(ops, attended, "--json", "skills", "enable", UNIT)
         assert done.returncode == 0, done.stdout + done.stderr
         ticket_id, _cap = claimed(ops, env, wiki, job)
         session = staged(ops, env, wiki, ticket_id, "step route printenv NOTION_API_TOKEN\n")
