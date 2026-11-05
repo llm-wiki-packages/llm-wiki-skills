@@ -66,6 +66,10 @@
         "prompt": "The time zone due dates read in, an IANA name (America/Chicago); blank keeps UTC",
         "required": false
       },
+      "layout": {
+        "prompt": "How the course's pages are laid out: modules (a numbered folder per module, in course order) or flat (one folder, module-ordered names)",
+        "default": "modules"
+      },
       "files": {
         "prompt": "Fetch attachments, pdfs and videos (download), or only the course's own text (skip)",
         "default": "download"
