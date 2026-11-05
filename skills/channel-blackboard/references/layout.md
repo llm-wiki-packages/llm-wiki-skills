@@ -117,6 +117,21 @@ go stale.
   returning item could not be brought back.
 - A page a person moved is left alone, as before.
 
+## A person may reorganise inside `dest`; moving `dest` itself needs the job moved too.
+
+- A page moved anywhere under `dest` stays the job's: the next pull edits it
+  where it now sits (`known[]` names its path), and the overview links it
+  there.
+- A new item joins its module: in the folder whose `README.md` names the
+  module's `module_id`; with no such root, in the folder where most of the
+  module's written pages now sit (`dest` itself for a flattened module);
+  only with neither, its planned folder.
+- A page moved out of `dest` is the person's: no pull writes it again.
+- Renaming or moving `dest` moves every page out of it, and `jobs edit`
+  refuses a new `dest` (simple10/llm-wiki-plugins#4097): the next pull
+  leaves every page alone and writes new items under the old `dest`, made
+  again. Leave a followed course's folder where its job put it.
+
 ## Pages made by hand do not join a job's layout.
 
 `bbnotes notes --layout modules` writes the same folders and names by

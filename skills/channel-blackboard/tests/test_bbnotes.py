@@ -768,6 +768,35 @@ def test_a_module_page_goes_to_the_folder_whose_root_names_the_module(tmp_path):
     assert "dest=sources/courses/psy/Unit One (mine)" in create
 
 
+def _created_in(tmp_path, known, readme=None):
+    _modules_captures(tmp_path)
+    if readme:
+        root = tmp_path / "sources/courses/psy" / readme / "README.md"
+        root.parent.mkdir(parents=True)
+        root.write_text("---\nroot: true\nmodule_id: _1_1\n---\n# Unit I\n")
+    rows = [{"resource": "blackboard:_42_1/item-2_1", "path": path, "reason": why} for path, why in known]
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1", known=rows))
+    create = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"])
+    return next(a for a in create if a.startswith("dest="))
+
+
+def test_a_new_item_joins_its_modules_pages_where_a_person_moved_them(tmp_path):
+    assert _created_in(tmp_path, [("sources/courses/psy/Week one/01 Study Guide.md", None)]) == "dest=sources/courses/psy/Week one"
+
+
+def test_a_new_item_of_a_flattened_module_goes_to_dest_itself(tmp_path):
+    assert _created_in(tmp_path, [("sources/courses/psy/01 Study Guide.md", None)]) == "dest=sources/courses/psy"
+
+
+def test_a_page_moved_out_of_dest_casts_no_vote_for_its_modules_folder(tmp_path):
+    assert _created_in(tmp_path, [("notes/01 Study Guide.md", "moved")]) == "dest=sources/courses/psy/01 Unit I"
+
+
+def test_a_module_root_outranks_where_the_modules_pages_sit(tmp_path):
+    got = _created_in(tmp_path, [("sources/courses/psy/Week one/01 Study Guide.md", None)], readme="Unit One (mine)")
+    assert got == "dest=sources/courses/psy/Unit One (mine)"
+
+
 def test_the_course_capture_makes_each_module_root_once_and_links_by_path(tmp_path):
     _modules_captures(tmp_path)
     (tmp_path / "sources/courses/PSY").mkdir(parents=True)

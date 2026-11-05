@@ -23,7 +23,9 @@ A new page goes where the capture's `place` says under `dest` (the job's
 (`01 Unit IV Study Guide`), and a second `page edit` gives it the page's
 whole title. A module's pages go to the folder whose `README.md` names the
 module's `module_id`, where one exists, so a renamed folder or a second
-harvesting machine's plan never splits a module. Every link a page makes
+harvesting machine's plan never splits a module. A module with no root
+there goes where most of its written pages now sit, so a person who moves a
+module's pages or flattens its folder is followed. Every link a page makes
 names the target's path: `known[]`'s where it was written, else its place.
 
 The course overview's capture also makes the course's bundle root, once:
@@ -107,10 +109,34 @@ def module_folders(dest: str) -> dict[str, str]:
     return out
 
 
+def module_homes(cap: dict, dest: str, known: dict[str, dict], ledger: dict) -> dict[str, str]:
+    """Each planned module's folder by where most of its written pages sit under `dest` now (`""`: `dest` itself): a person
+    who moved a module's pages, or flattened its folder and deleted its root, sees the module's next item join them, not
+    its first folder made again. A page moved out of `dest` is the person's, and casts no vote."""
+    course, base = cap["item"].rsplit("/", 1)[0], f"{dest.rstrip('/')}/"
+    pages, out = ledger.get("pages") or {}, {}
+    for mid, row in (ledger.get("modules") or {}).items():
+        prefix = f"{row.get('folder') or ''}/"
+        votes: dict[str, int] = {}
+        for key, page in pages.items():
+            if prefix == "/" or not str(page.get("place") or "").startswith(prefix):
+                continue
+            hit = known.get(f"{course}/{key}") or {}
+            path = hit.get("path") or ""
+            if hit.get("reason") == "moved" or not path.startswith(base):
+                continue
+            folder = path[len(base):].rpartition("/")[0]
+            votes[folder] = votes.get(folder, 0) + 1
+        if votes:
+            out[mid] = max(sorted(votes), key=votes.__getitem__)
+    return out
+
+
 def placed(place: str | None, module: str | None, folders: dict[str, str]) -> str | None:
-    """A planned place with its module folder as `dest` holds it."""
+    """A planned place with its module folder as `dest` holds it (`""`: a module flattened into `dest`)."""
     if place and module and module in folders and "/" in place:
-        return f"{folders[module]}/{place.split('/', 1)[1]}"
+        stem = place.split("/", 1)[1]
+        return f"{folders[module]}/{stem}" if folders[module] else stem
     return place
 
 
@@ -284,7 +310,13 @@ def main(argv: list[str]) -> int:
     if cap.get("removed"):
         return removed(ticket_id, capture, cap, known)
     folders = module_folders(dest)
-    links = link_paths(cap, dest, known, folders)
+    # Where a module's pages go: its root's folder, else where most of its pages now sit, else the ledger's plan.
+    try:
+        ledger = json.loads((capture.parent / bbnotes.LEDGER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        ledger = {}
+    homes = {**module_homes(cap, dest, known, ledger if isinstance(ledger, dict) else {}), **folders}
+    links = link_paths(cap, dest, known, homes)
     try:
         pages = bbnotes.render(capture, links)
     except (OSError, ValueError, KeyError) as exc:
@@ -301,7 +333,7 @@ def main(argv: list[str]) -> int:
     if cap.get("part_of") and cap["part_of"] in links:
         owner = (cap.get("links") or {}).get(cap["part_of"]) or {}
         fields["part_of"] = f"[[{links[cap['part_of']]}|{owner.get('title') or cap['part_of']}]]"
-    place = placed(cap.get("place"), cap.get("module"), folders)
+    place = placed(cap.get("place"), cap.get("module"), homes)
     for n, page in enumerate(pages, 1):
         resource = cap["item"] if n == 1 else f"{cap['item']}#part-{n}"
         row = known.get(resource) or {}
