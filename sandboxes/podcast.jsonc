@@ -11,8 +11,8 @@
     "routine": {
       "extends": "routine",
       "filesystem": {
-        // Each tree by name: a bare $WORKDIR grants nothing. `.git` for the
-        // window (`op latest`) and what changed in it (`git changed`),
+        // Each tree by name: a bare $WORKDIR grants nothing. `.git` for what
+        // changed in the window (`git changed`),
         // `sources/` and `research/` for the pages an episode covers. The
         // `podcast` overlay is `_base`'s `$OPS/policy` read.
         "read": [

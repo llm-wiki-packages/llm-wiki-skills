@@ -65,24 +65,33 @@ def test_one_op_is_opened_after_the_overlay_read_and_closed_last():
     assert COMMANDS[-1] == "llm-wiki-ops op close", COMMANDS[-3:]
 
 
-# The default scope is what changed since the last good episode, read the
-# way the daily report reads its window: the op record, then git.
-def test_the_default_window_opens_at_the_last_ok_episode():
-    assert "llm-wiki-ops op latest podcast filter=outcome:ok\n" in BODY
+# The default window opens where the last UNFOCUSED episode's closed, read
+# off the episodes themselves: `op latest` would count a focused by-hand
+# episode too, and move the weekly window past pages it never covered.
+def test_the_default_window_is_read_off_the_last_unfocused_episode():
+    assert "op latest" not in BODY
+    assert 'llm-wiki-ops page read "<episode path>" fields=window_since,window_until\n' in BODY
     assert "llm-wiki-ops git changed sources filter=since:<the window's start>\n" in BODY
+    assert "a focused episode omits both" in BODY
     assert "never a page under\n`wiki/podcasts/`" in BODY, "an episode may feed the next"
+
+
+# The scheduled run's sandbox reaches no search service: search is a session's.
+def test_search_is_a_sessions_only():
+    assert "Only a session may also ask" in BODY
+    assert not re.search(r"^llm-wiki-ops search ", BODY, re.M), "search as a step every run takes"
 
 
 def test_the_episode_is_one_page_written_through_the_page_verbs_asking_for_audio():
     creates = re.findall(r"^llm-wiki-ops page create (.*)$", BODY, re.M)
     assert len(creates) == 1, creates
-    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "audio=podcast"):
+    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "audio=podcast", "focus=", "window_until="):
         assert field in creates[0], (field, creates[0])
     edits = re.findall(r"^llm-wiki-ops page edit (.*)$", BODY, re.M)
     assert len(edits) == 1, edits
     # A rewritten script is stale audio, and stale audio never re-renders on
     # its own: the edit asks for the render again.
-    for field in ("covers=", "audio=podcast", "audio_refresh=podcast"):
+    for field in ("covers=", "audio=podcast", "audio_refresh=podcast", "focus=", "window_until="):
         assert field in edits[0], (field, edits[0])
 
 

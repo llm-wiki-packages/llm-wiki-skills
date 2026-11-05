@@ -57,7 +57,7 @@ none`:
 | length | 1,200 to 1,800 spoken words: eight to twelve minutes |
 | shape | a cold open with a hook, one segment per theme (never one per page), three takeaways, a sign-off that names next episode's likely topic when the focus suggests one |
 | tone | entertaining but exact: banter and a running joke are welcome, invented facts are not |
-| sources | at most eight pages; past that, the newest eight, and the show notes list the rest as not covered |
+| sources | at most eight pages; past that, the eight the throughline needs most, and the show notes link the rest under not covered: an episode is a digest, never an archive |
 
 The host names are the speaker labels the engine voices: the wiki's
 `[narrate.voices]` maps a name such as `Alex` to a voice, so an overlay
@@ -66,30 +66,43 @@ The overlay may also name one host, for a solo show, or three.
 
 ## 2. Fix the window
 
-Only when `$ARGUMENTS` names no focus:
+A focus that names a time span ("this week", "since the midterm") sets the
+window itself: its start is the date the span opens. A focus with no span
+has no window (§3). With no focus at all, the window opens where the last
+unfocused episode's closed: each one records the window it covered, so a
+by-hand episode on one course never moves it.
 
 ```sh
-{{@brain-cli-ops}} op latest podcast filter=outcome:ok
+date -u +%Y-%m-%d
+{{@brain-cli-ops}} page ls filter=under:wiki/podcasts
+{{@brain-cli-ops}} page read "<episode path>" fields=window_since,window_until
 ```
 
-The window opens at that run's commit. `found: false`: the window is the
-last seven days. A focus that names its own time span ("this week",
-"since the midterm") sets the window instead, and needs no lookup.
+Episode titles open with their date: read the newest first, and the first
+that carries `window_until` opens the window at that date. None does: the
+window is the last seven days. A window may overlap the last one by a day;
+it never leaves a gap.
 
 ## 3. Pick the pages, then read them
 
-With a focus, find what it names:
-
-```sh
-{{@brain-cli-ops}} page ls filter=under:<the folder the focus names>
-{{@brain-cli-ops}} search query "<the focus>"
-```
-
-Without one, the window's changes:
+With a window, what changed inside it:
 
 ```sh
 {{@brain-cli-ops}} git changed sources filter=since:<the window's start>
 ```
+
+A focus that also names a course, a folder or a topic keeps only the
+changed pages under it or about it ("this week's BIO 101 lectures"). A
+focus with no span finds what it names:
+
+```sh
+{{@brain-cli-ops}} page ls filter=under:<the folder the focus names>
+{{@brain-cli-ops}} page ls filter=type:<the type the focus names>
+```
+
+and matches titles against the focus. Only a session may also ask
+`{{@brain-cli-ops}} search query "<the focus>"`: the scheduled run's
+sandbox reaches no search service.
 
 Keep `.md` pages only; never an attachment, and never a page under
 `wiki/podcasts/`, so an episode never feeds the next. Then read each:
@@ -137,32 +150,34 @@ not a host is a voice nobody mapped.
 
 ## 5. Write the episode page
 
-```sh
-{{@brain-cli-ops}} page ls filter=under:wiki/podcasts
-```
-
-The episode is titled `<YYYY-MM-DD> <episode title>`, the date the run's
-own. Absent: create it. Present, from an earlier run today: replace its body
-and frontmatter values, and ask for the audio again; the earlier episode
-stays in git.
+The episode from §2's listing that is dated today and carries the same
+`focus` (or, for a run with none, the same `window_since`) is this run's
+own, from an earlier run today. Absent: create one titled
+`<YYYY-MM-DD> <episode title>`, the date the run's own. Present: replace
+its body and frontmatter values, keep its title, and ask for the audio
+again; the earlier script stays in git.
 
 ```sh
-{{@brain-cli-ops}} page create type=podcast dest=wiki/podcasts title="<YYYY-MM-DD> <episode title>" description="<one sentence: what the episode covers>" covers="[[<page>]],[[<page>]]" audio=podcast --stdin
-{{@brain-cli-ops}} page edit "<episode path>" description="<one sentence: what the episode covers>" covers="[[<page>]],[[<page>]]" audio=podcast audio_refresh=podcast --stdin
+{{@brain-cli-ops}} page create type=podcast dest=wiki/podcasts title="<YYYY-MM-DD> <episode title>" description="<one sentence: what the episode covers>" focus="<the focus, or none>" window_since=<start> window_until=<today> covers="[[<page>]],[[<page>]]" audio=podcast --stdin
+{{@brain-cli-ops}} page edit "<episode path>" description="<one sentence: what the episode covers>" focus="<the focus, or none>" window_since=<start> window_until=<today> covers="[[<page>]],[[<page>]]" audio=podcast audio_refresh=podcast --stdin
 ```
 
-`covers` lists every page the script drew on, so each one's backlinks lead
-to the episode. The body arrives on stdin:
+`focus` is `$ARGUMENTS` as given, or `none`. `window_since` and
+`window_until` are written only by a run with no focus: they are what §2
+reads next time, so a focused episode omits both. `covers` lists every
+page the script drew on, so each one's backlinks lead to the episode. The
+body arrives on stdin:
 
 - **The lead** — two sentences: what the episode covers and the throughline.
 - **`## Show notes`** — one bullet per page drawn on, in the order the
   episode takes them: the link `[[<title>]]` and one line on what the hosts
-  took from it. Then the pages left out (past the cap, or unreadable), and
-  any open questions.
+  took from it. Then, under not covered, a link to each page left out (past
+  the cap, or unreadable), and any open questions.
 - **`## Script`** — the `narrate` block from §4, and nothing after it.
 
-A `page edit` refused because a person is still editing the episode is left
-alone: the run closes `partial` and says so.
+A `page edit` refused because a person is still editing the episode leaves
+that episode as it is: no new episode landed, so the run closes `failed`
+and says so.
 
 ## 6. The audio, now: a session only
 
@@ -186,8 +201,9 @@ pass.
 ```
 
 `outcome` is `ok` when the episode landed, or when there was nothing new to
-cover (say which), `partial` when it landed short of what the focus asked
-(pages left unread, an edit refused), `failed` when no episode landed.
+cover (say which), `partial` when it landed without a page it meant to
+cover (one that would not read), `failed` when no episode landed. Pages
+past the cap are the overlay's choice, not a shortfall.
 
 ## Never
 

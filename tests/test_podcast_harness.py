@@ -21,6 +21,10 @@ LECTURE_2 = "sources/documents/courses/Harness 101/Lecture 2 — Sugar.md"
 TITLE = "2026-01-08 Light into sugar"
 EPISODE = f"wiki/podcasts/{TITLE}.md"
 SUMMARY = "harness podcast"
+# The last unfocused episode, which §2 opens the window at, and a later
+# focused one, which must not move it.
+EARLIER = "wiki/podcasts/2026-01-01 Week one.md"
+FOCUSED = "wiki/podcasts/2026-01-04 Harness 101 deep dive.md"
 
 # The body arrives as a file the fake agent pipes in: a fenced block's
 # backticks inside an `sh -c` string would be command substitution.
@@ -46,13 +50,14 @@ def _plan() -> str:
     return f"""\
 step overlay "$OPS" --json policy get podcast
 step op-open "$OPS" --json op open podcast
-step window "$OPS" --json op latest podcast filter=outcome:ok
+step today date -u +%Y-%m-%d
+step episodes "$OPS" --json page ls filter=under:wiki/podcasts
+step last "$OPS" --json page read "{EARLIER}" fields=window_since,window_until
 step changed "$OPS" --json git changed sources filter=since:2026-01-01
 step lecture1 "$OPS" --json page read "{LECTURE_1}"
 step lecture2 "$OPS" --json page read "{LECTURE_2}"
-step episodes "$OPS" --json page ls filter=under:wiki/podcasts
-step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=Two lectures on light and sugar." "covers={COVERS}" audio=podcast --stdin < "$FIX/episode.md"'
-step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=Two lectures on light and sugar, refreshed." "covers={COVERS}" audio=podcast audio_refresh=podcast --stdin < "$FIX/episode.md"'
+step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=Two lectures on light and sugar." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" audio=podcast --stdin < "$FIX/episode.md"'
+step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=Two lectures on light and sugar, refreshed." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" audio=podcast audio_refresh=podcast --stdin < "$FIX/episode.md"'
 step write-sources sh -c 'printf x >> "{LECTURE_1}"'
 step commit "$OPS" --json git commit message=harness
 step op-close "$OPS" --json op close podcast outcome=ok "summary={SUMMARY}"
@@ -67,7 +72,12 @@ def ran(ops, env, wiki) -> dict:
         where, name = rel.rsplit("/", 1)
         r = run(ops, rooted(env, wiki), "--json", "page", "create", f"title={name.removesuffix('.md')}", f"dest={where}", "--stdin", input=body)
         assert r.returncode == 0 and (wiki / rel).is_file(), r.stdout + r.stderr
-    r = run(ops, rooted(env, wiki), "--json", "git", "commit", LECTURE_1, LECTURE_2, "message=harness: what podcast reads")
+    for rel, fields in ((EARLIER, ("focus=none", "window_since=2025-12-25", "window_until=2026-01-01")), (FOCUSED, ("focus=Harness 101",))):
+        where, name = rel.rsplit("/", 1)
+        r = run(ops, rooted(env, wiki), "--json", "page", "create", f"title={name.removesuffix('.md')}", f"dest={where}", "type=podcast",
+                *fields, "--stdin", input="An earlier episode.\n")
+        assert r.returncode == 0 and (wiki / rel).is_file(), r.stdout + r.stderr
+    r = run(ops, rooted(env, wiki), "--json", "git", "commit", LECTURE_1, LECTURE_2, EARLIER, FOCUSED, "message=harness: what podcast reads")
     assert r.returncode == 0, r.stdout + r.stderr
     r = run(ops, rooted(env, wiki), "--json", "jobs", "add", SLUG, "routines=podcast", "every=7d", "description=harness: podcast")
     assert r.returncode == 0, r.stdout + r.stderr
@@ -88,9 +98,12 @@ def test_the_routine_runs_in_its_sandbox_and_lands_the_episode(ops, env, wiki, r
     and its `op close` is the report the landing commits under the skill's
     own op."""
     session = ran["session"]
-    for step in ("overlay", "op-open", "window", "changed", "lecture1", "lecture2", "episodes", "create", "refresh", "op-close"):
+    for step in ("overlay", "op-open", "today", "episodes", "last", "changed", "lecture1", "lecture2", "create", "refresh", "op-close"):
         assert session.step(step).returncode == 0, (step, session.step(step))
-    assert session.step("window").data["found"] is False, session.step("window").stdout
+    listed = [p["path"] for p in session.step("episodes").data["pages"]]
+    assert {EARLIER, FOCUSED} <= set(listed), session.step("episodes").stdout
+    # The focused episode carries no window; the unfocused one opens it.
+    assert session.step("last").data["frontmatter"]["window_until"] == "2026-01-01", session.step("last").stdout
     assert {LECTURE_1, LECTURE_2} <= set(session.step("changed").data["files"]), session.step("changed").stdout
     assert "chlorophyll" in session.step("lecture1").data["body"], session.step("lecture1").stdout
     assert session.step("write-sources").returncode != 0, "the routine sandbox let the run write under `sources/`"
@@ -112,6 +125,7 @@ def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_covers(ops, en
     assert page.returncode == 0, page.stdout + page.stderr
     front = page.data["frontmatter"]
     assert front["type"] == "podcast" and front["description"].endswith("refreshed."), front
+    assert (front["focus"], front["window_since"], front["window_until"]) == ("none", "2026-01-01", "2026-01-08"), front
     # A string until the plugins declare `audio` a list field (#4102); then a list.
     assert front["audio"] in ("podcast", ["podcast"]) and front["audio_refresh"] in ("podcast", ["podcast"]), front
     assert "audio_render" not in front, front

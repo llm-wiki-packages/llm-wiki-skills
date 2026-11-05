@@ -88,10 +88,25 @@ text:
 ```
 
 The answer's `path=` is the unit's own page; each `relation=tests` row
-names the concept it tests. A `document_id` that no longer resolves is
-skipped, and a row with `path=none` is never given to a verb. No logs, or
-nothing weak: the show is review, from the focus, or else from the
-concepts most recently written.
+names the concept it tests, and a unit with no such row tested itself: a
+concept the quiz asked directly, which the show asks about in a question of
+its own (§3). A `document_id` that no longer resolves is skipped, and a row
+with `path=none` is never given to a verb.
+
+Five is the stock window. When the rule in force needs more than those five
+hold — an overlay's "last three appearances" — find a tested concept's
+older sessions by what they cover:
+
+```sh
+{{@brain-cli-ops}} page backlinks "<tested concept path>"
+```
+
+Its `relation=covers` rows under the log type's directory are every session
+that tested it; read them, newest first, until the rule is settled for that
+concept. No logs, or nothing weak: the show is review, of the focus, or
+else of the concepts the newest sessions covered; with no sessions at all,
+of the concepts that have questions, in the order the listing gives them.
+The lead says it is review.
 
 ## 3. Pick the questions
 
@@ -115,8 +130,9 @@ concept it tests:
 
 Weak questions first, then the focus's, until the rounds are full. A
 question's `answer` field is the answer the show gives: the explanation may
-draw on the concept, never contradict the answer. Too few questions: the
-show asks its own, drawn from a concept page, and the show notes mark each
+draw on the concept, never contradict the answer. A weak concept the quiz
+asked directly, or too few questions to fill the rounds: the show asks its
+own, drawn from a concept page read in full, and the show notes mark each
 one as not a wiki question. Never create a question page. Nothing at all to
 ask: write no page, and close `ok` saying so (§7).
 
@@ -152,10 +168,12 @@ not a host is a voice nobody mapped.
 {{@brain-cli-ops}} page ls filter=under:wiki/podcasts
 ```
 
-The episode is titled `<YYYY-MM-DD> Pop Quiz — <the focus, or "weak spots">`,
-the date the run's own, the show's name the overlay's. Absent: create it.
-Present, from an earlier run today: replace its body and frontmatter
-values, and ask for the audio again; the earlier episode stays in git.
+The episode is titled `<YYYY-MM-DD> <the show's name> — <the focus, or
+"weak spots">`, the date the run's own, the show's name the overlay's:
+every part of it fixed by the run, so a second run today with the same
+focus finds the first. Absent: create it. Present: replace its body and
+frontmatter values, and ask for the audio again; the earlier script stays
+in git.
 
 ```sh
 {{@brain-cli-ops}} page create type=podcast dest=wiki/podcasts title="<episode title>" description="<one sentence: what the quiz covers>" covers="[[<question>]],[[<concept>]]" audio=podcast --stdin
@@ -173,8 +191,9 @@ one's backlinks lead to the episode. The body arrives on stdin:
   questions, and any open questions.
 - **`## Script`** — the `narrate` block from §4, and nothing after it.
 
-A `page edit` refused because a person is still editing the episode is left
-alone: the run closes `partial` and says so.
+A `page edit` refused because a person is still editing the episode leaves
+that episode as it is: no new episode landed, so the run closes `failed`
+and says so.
 
 ## 6. The audio, now: a session only
 
@@ -197,9 +216,10 @@ pass.
 {{@brain-cli-ops}} op close quiz-show outcome=ok summary="quiz-show <date>: <one line>"
 ```
 
-`outcome` is `ok` when the episode landed, or when there was nothing to
-ask (say which), `partial` when it landed short (too few questions, an edit
-refused), `failed` when no episode landed.
+`outcome` is `ok` when the episode landed with its rounds full, the show's
+own questions included, or when there was nothing to ask (say which),
+`partial` when it landed with fewer rounds than the overlay asks, `failed`
+when no episode landed.
 
 ## Never
 

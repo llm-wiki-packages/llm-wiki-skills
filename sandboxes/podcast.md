@@ -16,8 +16,8 @@ None of its own. The model endpoints are the harness profile's; see
 A slice keeps only an in-wiki entry spelled `$WORKDIR/<path>`, so each tree
 the run reads is named; `$WORKDIR` alone grants nothing.
 
-- Read `.git`: the window opens at the last episode's commit (`op latest`),
-  and `git changed` lists what changed in `sources/` since.
+- Read `.git`: `git changed` lists what changed in `sources/` inside the
+  window, which the last unfocused episode's `window_until` opens.
 - Read `sources/` and `research/`: the lectures, notes and reading an
   episode covers.
 - The `podcast` overlay sits under the ops dir's `policy`, which the stock
