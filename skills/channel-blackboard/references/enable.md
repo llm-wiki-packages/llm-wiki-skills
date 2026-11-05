@@ -24,7 +24,9 @@
    (`layout=modules`, `prefix=position`, `backfill=changed`,
    `announcements_dir=announcements`, `discussions_dir=discussions`). Write
    any other answer there, in the installed copy's `manifest.json`, so every
-   later `jobs add` on every machine takes it; one course that differs takes
+   later `jobs add` on every machine takes it; a layout also goes in
+   `watch.inputs.layout.default`, the answer `jobs add` offers, which must
+   agree with it. One course that differs takes
    `options.<key>=<word>` on its own `jobs add`. Tell the person what was
    chosen. A job's options are fixed at `jobs add`, and no verb moves a page
    once written: a change applies to jobs added after it, and to a job edited
