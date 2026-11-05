@@ -116,7 +116,8 @@ go stale.
 - An item or board two whole pulls in a row have not listed is posted once
   more: process writes `removed: <day>` on its page and nothing else, and
   the overview lists it under Removed; a stamp process could not write is
-  posted again each pull until it takes, on every part of a long board.
+  posted again on the next three pulls until it takes (an archived page
+  takes none), on every part of a long board.
   Nothing is judged from a listing that failed or answered with nothing at
   all, a lesson that lists no children, an item still in the
   outline with nothing left to render, or a board `discussions=skip` stopped

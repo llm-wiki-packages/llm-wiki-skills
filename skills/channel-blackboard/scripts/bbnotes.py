@@ -465,6 +465,8 @@ def _place(src: Path, dest: Path) -> None:
 LEDGER = "placement.json"
 # In a removed item's capture: written by process once its page carries `removed`, so a stamp that failed is posted again.
 DATED = "dated.json"
+# How many later pulls post an undated removal again before leaving it.
+REMOVED_TRIES = 3
 # The job's layout options, each with its words; the first is the default. `legacy` is the layout before 0.3.0 (one folder,
 # a page per title): a job added before then has no `layout` option, and its pages already stand at their titles.
 CHOICES = {"layout": ("legacy", "modules", "flat"), "prefix": ("position", "none"), "backfill": ("changed", "none", "all")}
@@ -892,9 +894,11 @@ class _Split:
                        if not any(w.startswith(listing) for w in failed) and (kind != "discussion-" or self.discussions)
                        and any(k.startswith(kind) for k in now))
         for key in sorted(removed):
-            # Dated once process says so (`DATED` in the capture): a stamp a failed edit never wrote is posted again.
+            # Dated once process says so (`DATED` in the capture): a stamp a failed edit never wrote is posted again, up to
+            # `REMOVED_TRIES` pulls, so a page that takes no write (archived, held) is not posted every pull forever.
             d = self.out / key
-            if key not in now and (d / CAPTURE).is_file() and not (d / DATED).is_file():
+            if key not in now and (d / CAPTURE).is_file() and not (d / DATED).is_file() and removed[key].get("tries", 0) < REMOVED_TRIES:
+                removed[key]["tries"] = removed[key].get("tries", 0) + 1
                 self.dirs.append(d)
         for key in sorted(before - now):
             if key in removed or not judged or not key.startswith(judged):

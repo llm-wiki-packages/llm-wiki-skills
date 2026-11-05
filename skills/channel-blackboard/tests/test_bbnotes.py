@@ -941,6 +941,9 @@ def test_a_removed_stamp_is_posted_again_until_process_dates_it(tmp_path, bb):
     # The edit failed (no `dated.json`): the next pull posts it again.
     retried = bb.split(h, tmp_path / "items", fetched_at="2026-11-04T00:00:00Z", options={"layout": "modules"})
     assert "item-3_1" in {d.name for d in retried}
+    # A page that never takes the write (archived) is posted a bounded number of times, then left.
+    tries = [bb.split(h, tmp_path / "items", fetched_at=f"2026-11-1{n}T00:00:00Z", options={"layout": "modules"}) for n in range(5)]
+    assert sum("item-3_1" in {d.name for d in t} for t in tries) == bb.REMOVED_TRIES - 1
     (tmp_path / "items/item-3_1" / bb.DATED).write_text('"2026-11-03"\n')
     done = bb.split(h, tmp_path / "items", fetched_at="2026-11-05T00:00:00Z", options={"layout": "modules"})
     assert "item-3_1" not in {d.name for d in done}
