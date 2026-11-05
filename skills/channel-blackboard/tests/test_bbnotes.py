@@ -703,18 +703,21 @@ def test_a_layout_word_that_is_not_one_is_refused(bb):
 
 
 def test_backfill_none_holds_back_a_module_a_week_past_its_last_due_date(tmp_path):
-    items = _captures(tmp_path)
+    opts = {"layout": "modules", "timezone": "America/Chicago"}
+    run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options=opts))
+    items = tmp_path / "_raw/psy/course/items"
     known = [{"resource": json.loads((d / "capture.json").read_text())["item"], "path": "x"} for d in items.iterdir() if d.is_dir()]
     (tmp_path / "fixture/harvest/bodies/_2_1.html").write_text("<p>Read chapter 3.</p>")
-    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "none", "layout": "modules"}))
-    assert not [a for a in updates[0] if a.endswith("/item-2_1")]
+    (tmp_path / "calls.log").unlink()
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={**opts, "backfill": "none"}))
+    assert not [a for a in updates[0] if a.startswith("captured=")]
     assert any("backfill=none" in a for a in updates[0])
     # The edit held back is posted once the module is no longer frozen.
     (tmp_path / "calls.log").unlink()
-    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"layout": "modules"}))
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options=opts))
     assert [a for a in updates[0] if a.startswith("captured=")] == ["captured=_raw/psy/course/items/item-2_1"]
     (tmp_path / "calls.log").unlink()
-    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "all", "layout": "modules"}))
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={**opts, "backfill": "all"}))
     assert len([a for a in updates[0] if a.startswith("captured=")]) == 8
 
 
