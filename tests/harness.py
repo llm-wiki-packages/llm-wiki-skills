@@ -364,10 +364,6 @@ def installed_sandbox(ops: list, env: dict, wiki: Path, unit: str) -> dict:
     return jsonc((wiki / ops_dir / "skills" / unit / "sandbox.jsonc").read_text(encoding="utf-8"))
 
 
-# What `skills enable` asks beyond the ordinary yes, per unit: the dangerous
-# tokens the unit's sandbox names, which `accept=` answers in an attended session.
-ACCEPT = {"daily-report": ".git"}
-
 # A unit whose sandbox probe spends a mapped route at enable: the route's name
 # and the one host its value may be spent at. The probe runs in the composed
 # jail, where the route's variable holds the phantom only once it is mapped.
@@ -383,7 +379,7 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
     r = run(ops, rooted(env, wiki), "--json", "skills", "install", name)
     assert r.returncode == 0, r.stdout + r.stderr
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
-    argv = ["--json", "skills", "enable", name, "--confirm", *([f"accept={ACCEPT[name]}"] if name in ACCEPT else [])]
+    argv = ["--json", "skills", "enable", name]
     with contextlib.ExitStack() as stack:
         if name in PROBE_SPENDS:
             route, host = PROBE_SPENDS[name]
@@ -413,8 +409,7 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     `bind` refuses a name not set here first. The VALUE is unread by
     everything, so any placeholder does (enable.md). Returns `name`."""
     name = name or f"{slug}-cred"
-    # Both are protected writes: nobody is at a terminal for this harness
-    # process, so each asks and refuses unless the session is marked attended.
+    # Both are protected writes, their rows in `conftest.SILENCED`.
     attended_env = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, attended_env, "--json", "credentials", "set", name, input=value)
     assert r.returncode == 0, r.stdout + r.stderr

@@ -102,6 +102,9 @@ def env(ops) -> dict:
     mp = Path(dirs["data"]) / "packages" / "marketplaces" / SOURCE
     mp.parent.mkdir(parents=True)
     mp.symlink_to(ROOT, target_is_directory=True)
+    # `skills enable` builds a unit's script envs offline from the machine
+    # cache's uv cache: the one the CI warm step filled.
+    (Path(dirs["cache"]) / "uv").symlink_to(uv_cache, target_is_directory=True)
     machine_harness(machine_home)
     return e
 
@@ -114,12 +117,9 @@ def wiki(ops, env) -> Path:
     r = run(_cli(ops), env, "init", str(w), "preset=general")  # values are key=value; init commits on its own
     assert r.returncode == 0, r.stderr
     # `jobs add` needs a joined checkout. `join` registers the wiki in the
-    # throwaway machine config above and seeds this box's sandbox base under
-    # `env`'s scratch HOME. It is a protected write: nobody is at a terminal
-    # for this harness process, so it asks and refuses unless the session is
-    # marked attended.
-    join_env = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
-    r = run(ops, join_env, "join", "key=harness", cwd=w)
+    # scratch machine home above and seeds its sandbox base; a protected
+    # write, its row is in `SILENCED`.
+    r = run(ops, env, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
     machine_layer(ops, Path(env["HOME"]), env["UV_CACHE_DIR"])
     # A wiki must declare its packages with a pinned version, and `@latest`

@@ -1,12 +1,12 @@
 # daily-report — after enabling
 
-Enabling the unit asks for `accept=.git`: the routine reads the wiki's git
-history (`op latest`, `op since`, `git changed`), and `skills enable` names
-that read as a dangerous line. Run the dry run, read it to the operator, and
-enable with the token they type:
+The routine reads the wiki's git history (`op latest`, `op since`, `git
+changed`), and `skills enable` names that read as a dangerous line, which
+the enable's one approval answers. Run the dry run, read it to the operator,
+and enable once they say yes:
 
 ```sh
-{{@brain-cli-ops}} skills enable daily-report accept=.git
+{{@brain-cli-ops}} skills enable daily-report
 ```
 
 1. Run the interview once, with a person answering, so the brief is this

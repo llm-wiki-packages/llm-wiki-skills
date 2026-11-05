@@ -37,7 +37,7 @@ def test_skills_enable_answers_with_the_stages_mcp_row(ops, env, wiki):
     """The sandbox `skills install` wrote, then the unit enabled: the review row names the server and the `env` names, never a value."""
     _installed(ops, env, wiki)
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
-    done = run(ops, attended, "--json", "skills", "enable", UNIT, "--confirm")
+    done = run(ops, attended, "--json", "skills", "enable", UNIT)
     assert done.returncode == 0, done.stdout + done.stderr
     answer = done.data
     stages = [one for one in answer["stages"] if one["stage"] == "harvest"]
