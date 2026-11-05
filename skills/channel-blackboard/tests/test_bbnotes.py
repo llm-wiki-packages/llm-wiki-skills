@@ -242,11 +242,11 @@ def front_door(tmp_path, ticket):
 
 
 def fake_browser(tmp_path, exit_code=0):
-    """Stands in for `browser_python`: given `bb.py harvest <id> --out DIR …`, writes the fixture harvest into DIR."""
+    """Stands in for the unit env's python: given `bb.py harvest <id> --out DIR …`, writes the fixture harvest into DIR."""
     src = tmp_path / "fixture"
     if not src.exists():
         make_harvest(src)
-    fake = tmp_path / f"browser_python_{exit_code}"
+    fake = tmp_path / f"env_python_{exit_code}"
     fake.write_text(
         f"#!{sys.executable}\n"
         "import json, os, shutil, sys\n"
@@ -261,9 +261,14 @@ def fake_browser(tmp_path, exit_code=0):
     return str(fake)
 
 
-def run_stage(tmp_path, script, ticket):
+# Runs a script with `sys.executable` set to argv[1]: harvest.py launches bb.py on its own interpreter.
+ON_PYTHON = "import runpy, sys; sys.executable = sys.argv.pop(1); sys.argv.pop(0); runpy.run_path(sys.argv[0], run_name='__main__')"
+
+
+def run_stage(tmp_path, script, ticket, bb_exit=0):
     env = {**os.environ, "LLM_WIKI_OPS": front_door(tmp_path, ticket), "FAKE_CALLS": str(tmp_path / "calls.log"), "FAKE_BB": str(tmp_path / "bb.log")}
-    cp = subprocess.run([sys.executable, str(SCRIPTS / script), f"ticket={ticket['ticket']}"], cwd=tmp_path, env=env, capture_output=True, text=True)
+    on = ["-c", ON_PYTHON, fake_browser(tmp_path, bb_exit)] if script == "harvest.py" else []
+    cp = subprocess.run([sys.executable, *on, str(SCRIPTS / script), f"ticket={ticket['ticket']}"], cwd=tmp_path, env=env, capture_output=True, text=True)
     calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()] if (tmp_path / "calls.log").exists() else []
     updates = [c["argv"] for c in calls if c["argv"][1:3] == ["tickets", "update"]]
     return cp, calls, updates
@@ -271,7 +276,7 @@ def run_stage(tmp_path, script, ticket):
 
 def harvest_ticket(tmp_path, **over):
     t = {"ticket": "t1", "stage": "harvest", "slug": "psy", "target": TARGET, "item": TARGET, "capture_dir": "_raw/psy/course",
-         "credential_dir": str(tmp_path / "profile"), "browser_python": fake_browser(tmp_path), "known": [], "options": {}}
+         "credential_dir": str(tmp_path / "profile"), "known": [], "options": {}}
     t.update(over)
     return t
 
@@ -301,8 +306,7 @@ def test_a_second_pull_posts_only_what_changed(tmp_path):
 
 
 def test_an_expired_session_is_a_failed_harvest_naming_auth(tmp_path):
-    t = harvest_ticket(tmp_path, browser_python=fake_browser(tmp_path, exit_code=2))
-    _, _, updates = run_stage(tmp_path, "harvest.py", t)
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path), bb_exit=2)
     assert "status=failed" in updates[0] and f"missing=learn.example.edu,{TARGET},auth" in updates[0]
 
 
@@ -447,9 +451,9 @@ def test_an_unknown_option_word_or_zone_fails_the_harvest(tmp_path):
 
 
 def test_a_harvest_whose_course_json_names_no_id_fails(tmp_path):
-    t = harvest_ticket(tmp_path)
+    make_harvest(tmp_path / "fixture")
     _dump(tmp_path / "fixture/harvest/course.json", {"name": "x"})
-    _, _, updates = run_stage(tmp_path, "harvest.py", t)
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path))
     assert "status=failed" in updates[0] and f"missing=learn.example.edu,{TARGET},error" in updates[0]
 
 

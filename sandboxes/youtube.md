@@ -21,19 +21,23 @@ harness`.
 `machine_reads: yt-dlp-cache`: read on yt-dlp's cache directory
 (`$HOME/.cache/yt-dlp`).
 
+`machine_reads: playwright-cache`: read on Playwright's browser build
+(`$HOME/.cache/ms-playwright` on Linux, `$HOME/Library/Caches/ms-playwright`
+on macOS), which `export_cookies.py` launches on a bound profile.
+
 ## Credential
 
 `requires.credentials.dir` is `"optional"`: unbound, the stage runs keyless and reaches
 public videos only. Bound, the slot holds a `dir` credential with `login:
 browser` — a Chromium profile a person signed in to YouTube on through
 `credentials login`, which the ticket hands over as `credential_dir`
-(granted read-write to this slice) with `browser_python` beside it. A slot
+(granted read-write to this slice). A slot
 and not a route: yt-dlp reads cookies off disk, and no proxy can inject a
 browser session.
 
 yt-dlp takes cookies only; there is no OAuth or password route. The unit
-exports a Netscape `cookies.txt` into that same directory once (through
-`browser_python`, the profile opened headless and closed again) and passes
+exports a Netscape `cookies.txt` into that same directory once (on the
+unit's own Playwright env, the profile opened headless and closed again) and passes
 `--cookies <dir>/cookies.txt` to every yt-dlp call from then on. yt-dlp
 writes the cookies YouTube rotates back into that file, so the directory must
 stay writable and the jar, not the profile, is the live session: no failure

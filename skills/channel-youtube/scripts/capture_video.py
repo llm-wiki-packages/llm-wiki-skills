@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["playwright==1.63.0"]
+# ///
 """The YouTube harvest stage: one video's metadata and captions through
 `yt-dlp`, the capture record beside them, and the progress post — no model
 session. Nothing in a harvest is left for a model to judge, so the stage
@@ -22,17 +26,17 @@ update: `missing=<host>,<url>,<why>`, `why` read off yt-dlp's own stderr
 
 A ticket bound to a `dir` credential (`credential_dir`, a browser profile the
 slice may write) spends it as a Netscape `cookies.txt` IN that directory:
-exported once through `browser_python` running `export_cookies.py` when the
-jar is missing, then handed to every yt-dlp call as `--cookies <jar>`. The
-profile is reopened only to export again, and nothing of it lands in the
-capture dir. The jar is the live session once yt-dlp has written rotated
-cookies back into it, so no failure deletes it; a `credentials login` since
-the export, read as the profile's cookie DB being newer than the jar, is what
-makes the next run export anew. An export that fails is
+exported once by `export_cookies.py`, run on this script's own interpreter
+(the unit env, which has Playwright), when the jar is missing, then handed to
+every yt-dlp call as `--cookies <jar>`. The profile is reopened only to
+export again, and nothing of it lands in the capture dir. The jar is the live
+session once yt-dlp has written rotated cookies back into it, so no failure
+deletes it; a `credentials login` since the export, read as the profile's
+cookie DB being newer than the jar, is what makes the next run export anew. An export that fails is
 `credential_store_error`. Unbound, every argv is as before.
 
-Stdlib only, deliberately no PEP 723 block: a script stage is run by the
-interpreter directly, and a block is refused at install.
+Its own code is stdlib; the block is `export_cookies.py`'s, which runs on
+the env `skills enable` builds from it.
 """
 
 from __future__ import annotations
@@ -189,11 +193,8 @@ def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
     except OSError as exc:
         # The dir is granted read-write to this slice; a dir that cannot be read is the store's problem, not a login's.
         return None, f"credential dir cannot be read: {exc}"
-    python = ticket.get("browser_python")
-    if not isinstance(python, str) or not python:
-        return None, f"no {JAR} in the credential dir and the ticket names no browser_python to export one"
     try:
-        cp = subprocess.run([python, str(EXPORT), profile, str(jar)], capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
+        cp = subprocess.run([sys.executable, str(EXPORT), profile, str(jar)], capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, f"export_cookies.py could not run: {exc}"
     if cp.returncode != 0 or not jar.is_file():

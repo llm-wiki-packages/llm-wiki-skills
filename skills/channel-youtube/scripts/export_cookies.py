@@ -1,10 +1,10 @@
 """Export a bound browser profile's YouTube cookies as a Netscape `cookies.txt`.
 
-    <browser_python> export_cookies.py <profile_dir> <out_file>
+    <python> export_cookies.py <profile_dir> <out_file>
 
-Run by the ticket's `browser_python` (the browser runtime's Python, which has
-Playwright), from `capture_video.py` when the profile holds no jar yet; never
-by `llm-wiki-ops run`. YouTube rotates an account's cookies whenever a browser
+Run by `capture_video.py` on its own interpreter (the unit env, whose PEP 723
+block pins Playwright) when the profile holds no jar yet; never by
+`llm-wiki-ops run`. YouTube rotates an account's cookies whenever a browser
 tab holds the session, so a jar yt-dlp shares with a live browser dies within
 minutes. Exporting once and letting yt-dlp alone hold the session (it writes
 rotated cookies back into `--cookies`) keeps the login good, which is why the

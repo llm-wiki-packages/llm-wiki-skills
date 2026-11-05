@@ -7,8 +7,8 @@
   "stages": {
     "harvest": {
       "extends": "harvest",
-      // yt-dlp's cache directory.
-      "machine_reads": ["yt-dlp-cache"],
+      // yt-dlp's cache directory, and Playwright's browser build, which the cookie export launches.
+      "machine_reads": ["yt-dlp-cache", "playwright-cache"],
       "network": {
         // Allow-list mode: naming any host denies every other.
         "allow_domain": [

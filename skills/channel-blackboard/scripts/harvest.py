@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["playwright==1.63.0"]
+# ///
 """The Blackboard harvest stage: one course, through the signed-in profile, split into one capture per item. No model session.
 
   llm-wiki-ops run ops/skills/channel-blackboard/scripts/harvest.py ticket=<id>
 
 The runner starts it that way, in the stage's jail. It reads the ticket
-through `tickets open`, runs `bb.py harvest` under the ticket's
-`browser_python` on the granted `credential_dir` into
+through `tickets open`, runs `bb.py harvest` on its own interpreter (the
+unit env `skills enable` built from the block above, which has Playwright)
+on the granted `credential_dir` into
 `<capture_dir>/harvest/`, then `bbnotes.split` into `<capture_dir>/items/`,
 and posts every item directory that is new or changed since the last pull as
 `captured=`. The host turns each into a transcribe ticket (a video whose
@@ -29,7 +34,7 @@ the default, or `skip`: no board is fetched, so no classmate's name or post)
 and `timezone`, the zone every date reads in. Any other `files` or
 `discussions` word, or a zone this machine does not know, is `failed`.
 
-Stdlib only, no PEP 723 block: a script stage runs under the ops interpreter.
+Its own code is stdlib; the block is bb.py's pin, so the browser it launches has its driver.
 """
 
 from __future__ import annotations
@@ -100,7 +105,7 @@ def main(argv: list[str]) -> int:
     if not site or not course:
         post_update(ticket_id, "harvest", "failed", reason="the job's target names no Blackboard course url (…/courses/_N_1/…)")
         return 0
-    profile, python = t.get("credential_dir"), t.get("browser_python") or sys.executable
+    profile = t.get("credential_dir")
     if not profile:
         post_update(ticket_id, "harvest", "failed", reason="no browser profile is granted to this slice: bind a `kind=dir login=browser` credential to the job")
         return 0
@@ -117,7 +122,7 @@ def main(argv: list[str]) -> int:
     except (ValueError, KeyError):
         post_update(ticket_id, "harvest", "failed", reason=f"options.timezone={options.get('timezone')!r} is no IANA zone this machine knows")
         return 0
-    argv_bb = [python, str(BB), "harvest", course, "--out", str(harvest), "--profile", profile, "--site", site]
+    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--profile", profile, "--site", site]
     if chosen["files"] == "skip":
         argv_bb.append("--no-files")
     if chosen["discussions"] == "skip":
