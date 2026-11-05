@@ -5,10 +5,13 @@ module loads once (pytest loads `conftest` itself as a plugin, and a
 `from conftest import` under importlib mode would load a second copy).
 
     LLM_WIKI_OPS   the ops CLI to run (a command line; default: `llm-wiki-ops`
-                   on PATH). Absent → the install tests skip, saying so.
+                   on PATH). Absent, or an installed CLI, which never
+                   honors the scratch machine home → the install tests
+                   skip, saying so. A plugins checkout's CLI does, once the
+                   checkout carries its `checkout` record.
 
-The checkout is symlinked as `marketplaces/<owner>/<repo>` under a tmp
-packages home, which the CLI treats as a developer's clone: `latest` is
+The checkout is symlinked as `marketplaces/<owner>/<repo>` under the scratch
+machine home's package store, which the CLI treats as a developer's clone: `latest` is
 this checkout's HEAD — commit before you run — and nothing fetches.
 `LLM_WIKI_PACKAGES_OFFLINE` is set, so nothing here touches the network.
 """
@@ -424,7 +427,7 @@ def local_vault(ops: list, env: dict):
     value through it, at bind, at spawn and on each request, so a case holds
     it across all three. The config is put back as it was found, so no case
     leans on another having named the vault."""
-    config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
+    config = Path(env["LLM_WIKI_TEST_HOME"]) / "config.toml"
     before = config.read_bytes()
     r = run(_cli(ops), {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}, "--json", "machine", "wikis", "vault", "harness", "local")
     assert r.returncode == 0, r.stdout + r.stderr

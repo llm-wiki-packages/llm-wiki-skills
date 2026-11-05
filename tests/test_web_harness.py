@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from harness import declared_job, is_globally_routable, no_jail_here, outbound_ip, plugin_refused, rooted, run, unit_tests
+from harness import _cli, declared_job, is_globally_routable, no_jail_here, outbound_ip, plugin_refused, rooted, run, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("web-page", "test_fetch"))
@@ -85,7 +85,8 @@ def test_a_harvested_url_becomes_a_staged_page_through_the_runner(ops, env, wiki
         if pages:
             break
     mine = [t["id"] for t in run(ops, rooted(env, wiki), "--json", "tickets", "ls").data["tickets"] if t["slug"] == job.slug]
-    logs = [p for one in mine for p in Path(env["HOME"]).glob(f".local/state/llm-wiki/wikis/*/sessions/*/slices/{one}.log")]
+    state = Path(run(_cli(ops), env, "--json", "machine", "home").data["state"])
+    logs = [p for one in mine for p in state.glob(f"wikis/*/sessions/*/slices/{one}.log")]
     plugin_refused(wiki, "".join(p.read_text(encoding="utf-8", errors="replace") for p in logs))
     reports = [json.loads(path.read_text(encoding="utf-8")) for path in (wiki / "_raw" / job.slug).glob("*/report.*.json")]
     harvest = [report for report in reports if report.get("stage") == "harvest"]

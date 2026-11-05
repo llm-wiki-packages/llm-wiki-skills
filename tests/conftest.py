@@ -28,32 +28,43 @@ def _cli_bin(ops: list) -> list:
     return [str(Path(ops[-1]).parent)] if os.sep in ops[-1] else []
 
 
+# The gated rows the harness's own calls ask. A test home's `[approvals]` answers them
+# silently, the plugins suites' way, so no case here meets the gate it is not about:
+# the operator's knob (the plugins' machine-config contract), set on a throwaway home.
+SILENCED = (
+    "credentials bind",
+    "credentials remove",
+    "credentials set",
+    "credentials unbind",
+    "join",
+    "machine wikis vault",
+    "skills enable",
+    "skills install",
+)
+
+
 @pytest.fixture(scope="session")
 def env(ops) -> dict:
-    home = SCRATCH / "packages-home"
-    home.mkdir()
-    mp = home / "marketplaces" / SOURCE
-    mp.parent.mkdir(parents=True)
-    mp.symlink_to(ROOT, target_is_directory=True)
-    # Every CLI call reads this box's config under HOME: a scratch one, so the
-    # suite never touches the real machine's, and uv keeps its real cache.
+    # Every CLI call reads this box's machine home: a scratch one, so the suite
+    # never touches the real machine's. `LLM_WIKI_TEST_HOME` names it, which only
+    # a CLI run from a plugins checkout with a `checkout` record honors; an
+    # installed CLI resolves its install's home whatever it is told, so the
+    # install tier refuses to run on one (below). uv keeps its real cache.
     machine_home = SCRATCH / "home"
     machine_home.mkdir()
-    machine_harness(machine_home)
     uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
     e = dict(os.environ)
     # A suite started from inside a wiki session must not act on THAT wiki:
     # `LLM_WIKI_ROOT` binds one ahead of the `cwd=` a `run` case uses, and
     # `CLAUDE_PROJECT_DIR` — the harness's project dir, never a wiki root, and
     # read by no CLI — goes too, so nothing downstream mistakes it for one.
-    for ambient in ("LLM_WIKI_ROOT", "CLAUDE_PROJECT_DIR"):
+    # A test home the caller's own suite set is not this one.
+    for ambient in ("LLM_WIKI_ROOT", "CLAUDE_PROJECT_DIR", "LLM_WIKI_TEST_HOME"):
         e.pop(ambient, None)
     e.update(
         HOME=str(machine_home),
         UV_CACHE_DIR=uv_cache,
-        LLM_WIKI_PACKAGES_HOME=str(home),
         LLM_WIKI_PACKAGES_OFFLINE="1",
-        LLM_WIKI_MACHINE_CONFIG=str(home / "no-machine-config.toml"),
         GIT_AUTHOR_NAME="harness",
         GIT_AUTHOR_EMAIL="harness@example.invalid",
         GIT_COMMITTER_NAME="harness",
@@ -63,6 +74,35 @@ def env(ops) -> dict:
         LLM_WIKI_SESSION_ID="harness-session",
         PATH=os.pathsep.join([str(AGENT_DIR / "bin"), *_cli_bin(ops), e.get("PATH", os.defpath)]),
     )
+    # Where the default layout puts a home, so the profile and sandbox base
+    # `machine_harness` and `machine_layer` write land in it; its state, data
+    # and cache dirs are its siblings.
+    seeded = run(_cli(ops), e, "--json", "machine", "home", "init", str(machine_home / ".config" / "llm-wiki"), "--confirm")
+    assert seeded.returncode == 0, seeded.stdout + seeded.stderr
+    dirs = seeded.data
+    e["LLM_WIKI_TEST_HOME"] = dirs["home"]
+    where = run(_cli(ops), e, "--json", "machine", "home")
+    assert where.returncode == 0, where.stdout + where.stderr
+    if where.data["source"] != "LLM_WIKI_TEST_HOME":
+        refusal = (
+            f"the ops CLI ({' '.join(ops)}) resolves the machine home {where.data['home']} "
+            f"({where.data['source']}), not the scratch one: every install case would write this machine's own. "
+            "Set LLM_WIKI_OPS to a plugins checkout's CLI, its `checkout` record written by its `scripts/checkout_home.py`"
+        )
+        if os.environ.get("LLM_WIKI_OPS"):
+            pytest.fail(refusal)
+        pytest.skip(refusal)
+    config = Path(dirs["home"]) / "config.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\n[approvals]\n" + "".join(f'"{row}" = "silent"\n' for row in SILENCED),
+        encoding="utf-8",
+    )
+    # The checkout as a developer's clone of this package: nothing fetches into
+    # a symlinked marketplace, and `latest` is its HEAD.
+    mp = Path(dirs["data"]) / "packages" / "marketplaces" / SOURCE
+    mp.parent.mkdir(parents=True)
+    mp.symlink_to(ROOT, target_is_directory=True)
+    machine_harness(machine_home)
     return e
 
 
