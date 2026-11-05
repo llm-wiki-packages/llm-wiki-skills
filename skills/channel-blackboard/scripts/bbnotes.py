@@ -485,7 +485,7 @@ def layout_of(options: dict | None) -> dict:
         out[key] = word
     for section, key in SECTIONS.items():
         word = str(options.get(key) or section).strip()
-        folder = ALONGSIDE if word.lower() == ALONGSIDE else safe_title(word.strip("/"), section)
+        folder = ALONGSIDE if word.lower() == ALONGSIDE else page_title(word.strip("/"), section)
         if "/" in word.strip("/"):
             raise ValueError(f"options.{key}={word!r} is one folder name, or {ALONGSIDE}")
         out[section] = folder
@@ -734,6 +734,7 @@ class _Split:
             if mid and due and due > last_due.get(mid, ""):
                 last_due[mid] = due
         out = {}
+        used = {str(r.get("place")).casefold() for k, r in pages.items() if r.get("place") and k in keys}
         for p in self.pending:
             key, node, kind = p["key"], p["node"], p["kind"]
             title = titles[key]
@@ -745,18 +746,23 @@ class _Split:
             if mid and lay["backfill"] == "none" and mid in last_due:
                 ends = datetime.fromisoformat(last_due[mid].replace("Z", "+00:00")) + FREEZE_GRACE
                 got["frozen"] = ends < datetime.fromisoformat(self.fetched_at.replace("Z", "+00:00"))
-            if key in led.data.get("removed", {}):
-                fields["removed"] = ""  # back in the course: process clears the page's date
-                del led.data["removed"][key]
+            led.data.get("removed", {}).pop(key, None)  # back in the course; process clears `removed` on every listed item's page
             row = pages.get(key)
             if row is None:
                 row = pages[key] = {"first_seen": today}
             if lay["layout"] != "legacy":
-                if row.get("layout") != lay["layout"] or not row.get("place"):
-                    row["place"], row["layout"] = self.planned(p, title, mid), lay["layout"]
-                got["place"] = row["place"]
                 if mid and lay["layout"] == "modules" and mid not in modules:
-                    modules[mid] = {"folder": row["place"].split("/", 1)[0], "released": today}
+                    modules[mid] = {"folder": self.module_folder(mid), "released": today}
+                if row.get("layout") != lay["layout"] or not row.get("place"):
+                    place = self.planned(p, title, mid)
+                    if place.casefold() in used:
+                        # Two captures cut to one name (a long title, `flat`): the key's tail tells them apart, as a shared title's does.
+                        folder, _, stem = place.rpartition("/")
+                        tail = f" ({key.rsplit('-', 1)[-1][-8:]})"
+                        place = (folder + "/" if folder else "") + safe_title(stem[: TITLE_MAX - len(tail)].rstrip(" .…-") + tail)
+                    row["place"], row["layout"] = place, lay["layout"]
+                    used.add(place.casefold())
+                got["place"] = row["place"]
             out[key] = got
         return out
 
@@ -780,12 +786,17 @@ class _Split:
         prefix = o.prefix(node)
         if not mid:
             return safe_title(f"{prefix} {short}" if numbered else short)
-        module = o.title(mid)
-        mprefix = f"{o.position(mid) + 1:02d}"
         if lay["layout"] == "flat":
-            return safe_title((f"{mprefix}.{prefix} " if numbered else "") + f"{module} — {short}")
-        folder = (self.ledger.data.get("modules", {}).get(mid) or {}).get("folder") or safe_title(f"{mprefix} {module}" if numbered else module)
-        return f"{folder}/{safe_title(f'{prefix} {short}' if numbered else short)}"
+            return page_title((f"{o.position(mid) + 1:02d}.{prefix} " if numbered else "") + f"{o.title(mid)} — {short}")
+        return f"{self.module_folder(mid)}/{safe_title(f'{prefix} {short}' if numbered else short)}"
+
+    def module_folder(self, mid: str) -> str:
+        """The module's folder: the one the ledger says it was given, else `NN Title` by its position now."""
+        made = (self.ledger.data.get("modules", {}).get(mid) or {}).get("folder")
+        if made:
+            return made
+        title = self.outline.title(mid)
+        return page_title(f"{self.outline.position(mid) + 1:02d} {title}" if self.layout["prefix"] == "position" else title)
 
     def fields(self, p: dict, title: str, mid: str | None) -> dict:
         """The page's own frontmatter beyond `type`, `resource`, `published` and `abstract`: what it is and where it sits.
@@ -854,20 +865,24 @@ class _Split:
                 "removed": [{"day": r.get("day"), "title": r.get("title")} for r in sorted(led.data.get("removed", {}).values(), key=lambda r: r.get("day") or "")]}
 
     def removals(self, before: set[str], now: set[str]) -> None:
-        """Captures of an earlier pull this one did not list: after two whole pulls in a row without one, its capture is stamped
-        `removed` with a new fingerprint, so the harvest posts it and process dates its page. A pull whose listing failed anywhere,
-        or a lesson that lists no children (the look of one not yet released), judges nothing."""
+        """Items and boards an earlier pull made that this one did not list: after two whole pulls in a row without one, its
+        capture is stamped `removed` with a new fingerprint, so the harvest posts it and process dates its page. A kind whose
+        listing failed, a lesson that lists no children (the look of one not yet released), or an item still in the outline
+        with nothing to render, judges nothing."""
         led = self.ledger
         missing, removed = led.data.setdefault("missing", {}), led.data.setdefault("removed", {})
         for key in now:
             missing.pop(key, None)
-        errors = _load(self.h, "errors.json", [])
-        if any(str(e.get("what", "")).startswith("contents") for e in errors if isinstance(e, dict)):
-            return
-        # A file or video leaves with its item, or with `files=skip`; a board with `discussions=skip`: neither is the course's word.
-        judged = ("item-", "announcement-") + (("discussion-",) if self.discussions else ())
+        failed = [str(e.get("what", "")) for e in _load(self.h, "errors.json", []) if isinstance(e, dict)]
+        # Only an item and a board are judged, each where its own listing answered whole: a file or video leaves with its item
+        # (or with `files=skip`), an announcement leaves at the end of its display window, a board with `discussions=skip`.
+        judged = tuple(kind for kind, listing in (("item-", ("contents",)), ("discussion-", ("discussions", "discussion messages")))
+                       if not any(w.startswith(listing) for w in failed) and (kind != "discussion-" or self.discussions))
         for key in sorted(before - now):
-            if key in removed or not key.startswith(judged):
+            if key in removed or not judged or not key.startswith(judged):
+                continue
+            if key.startswith("item-") and f"_{key.removeprefix('item-')}" in self.outline.rows:
+                missing.pop(key, None)  # still in the outline, with nothing of its own to render: not gone
                 continue
             d = self.out / key
             try:

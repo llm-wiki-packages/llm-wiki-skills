@@ -690,7 +690,7 @@ def test_an_item_gone_two_whole_pulls_is_stamped_removed_and_its_return_clears_i
     assert "- PSY 2301 — Scholarly Activity: not listed since 2026-11-04" in bb.render(tmp_path / "items/course")[0]["body"]
     _dump(h / "contents.json", contents)
     back = _split(bb, h, tmp_path / "items", when="2026-11-05T00:00:00Z")
-    assert "removed" not in back["item-3_1"] and back["item-3_1"]["fields"]["removed"] == ""
+    assert "removed" not in back["item-3_1"] and "removed" not in back["item-3_1"]["fields"]
     assert course["removed"] == [{"day": "2026-11-04", "title": "PSY 2301 — Scholarly Activity"}]
     assert not json.loads((tmp_path / "items/course/record.json").read_text())["removed"]
 
@@ -709,6 +709,10 @@ def test_backfill_none_holds_back_a_module_a_week_past_its_last_due_date(tmp_pat
     _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "none", "layout": "modules"}))
     assert not [a for a in updates[0] if a.endswith("/item-2_1")]
     assert any("backfill=none" in a for a in updates[0])
+    # The edit held back is posted once the module is no longer frozen.
+    (tmp_path / "calls.log").unlink()
+    _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"layout": "modules"}))
+    assert [a for a in updates[0] if a.startswith("captured=")] == ["captured=_raw/psy/course/items/item-2_1"]
     (tmp_path / "calls.log").unlink()
     _, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, known=known, options={"backfill": "all", "layout": "modules"}))
     assert len([a for a in updates[0] if a.startswith("captured=")]) == 8
@@ -806,3 +810,68 @@ def test_a_board_no_longer_fetched_is_not_removed_from_the_course(tmp_path, bb):
     for when in ("2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z"):
         dirs = bb.split(h, tmp_path / "items", fetched_at=when, discussions=False, options={"layout": "modules"})
     assert not [d for d in dirs if json.loads((d / "capture.json").read_text()).get("removed")]
+
+
+def test_a_kind_whose_listing_failed_is_not_judged_gone(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    _dump(h / "discussions.json", [])
+    _dump(h / "errors.json", [{"what": "discussions", "status": 0}])
+    for when in ("2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z"):
+        dirs = bb.split(h, tmp_path / "items", fetched_at=when, options={"layout": "modules"})
+    assert not [d for d in dirs if json.loads((d / "capture.json").read_text()).get("removed")]
+
+
+def test_an_item_with_nothing_left_to_render_is_not_gone(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    (h / "bodies" / "_2_1.html").write_text("")
+    for when in ("2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z"):
+        dirs = bb.split(h, tmp_path / "items", fetched_at=when, options={"layout": "modules"})
+    assert not [d for d in dirs if json.loads((d / "capture.json").read_text()).get("removed")]
+
+
+def test_module_folders_and_long_flat_names_stay_link_safe_and_distinct(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    contents = json.loads((h / "contents.json").read_text())
+    contents[0]["title"] = "Week #3 [Required]"
+    contents[1]["title"] = "A very long study guide title " * 4
+    _dump(h / "contents.json", contents)
+    # The long item carries two files: cut to the name bound, both would be one name.
+    files = json.loads((h / "files.json").read_text())
+    second = h / "files/Unit I/Study Guide/Other.docx"
+    _office(second, "word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>')
+    files.append({"item": "_2_1", "kind": "nested", "path": str(second.relative_to(h))})
+    _dump(h / "files.json", files)
+    caps = _split(bb, h, tmp_path / "items")
+    assert caps["item-3_1"]["place"].startswith("01 Week ＃3 (Required)/")
+    flat = _split(bb, h, tmp_path / "flat", layout="flat")
+    places = [c["place"] for c in flat.values()]
+    assert len(places) == len({p.casefold() for p in places})
+    assert all(len(p.rsplit("/", 1)[-1].encode()) <= bb.TITLE_MAX_BYTES + 3 for p in places)
+
+
+def test_an_item_moved_into_a_new_module_gets_that_modules_folder(tmp_path, bb):
+    h = make_harvest(tmp_path)
+    _split(bb, h, tmp_path / "items")
+    contents = json.loads((h / "contents.json").read_text())
+    contents.append({"id": "_7_1", "parent": None, "path": "Unit II", "title": "Unit II", "handler": "resource/x-bb-lesson"})
+    for c in contents:
+        if c["id"] == "_3_1":
+            c["parent"], c["path"] = "_7_1", "Unit II/Scholarly Activity"
+    _dump(h / "contents.json", contents)
+    _split(bb, h, tmp_path / "items", when="2026-11-02T00:00:00Z")
+    record = json.loads((tmp_path / "items/course/record.json").read_text())
+    assert {m["title"]: m["folder"] for m in record["modules"]} == {"Unit I": "01 Unit I", "Unit II": "02 Unit II"}
+
+
+def test_two_captures_planned_to_one_name_are_told_apart_by_key(tmp_path, bb, monkeypatch):
+    monkeypatch.setattr(bb._Split, "planned", lambda self, p, title, mid: "01 Unit I/" + "x" * 130 if p["kind"] == "file" else p["key"])
+    h = make_harvest(tmp_path)
+    files = json.loads((h / "files.json").read_text())
+    second = h / "files/Unit I/Study Guide/Other.docx"
+    _office(second, "word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>')
+    files.append({"item": "_2_1", "kind": "nested", "path": str(second.relative_to(h))})
+    _dump(h / "files.json", files)
+    places = sorted(c["place"] for c in _split(bb, h, tmp_path / "items").values() if c["kind"] == "file")
+    assert len(places) == len(set(places)) == 3 and sum(p.endswith(")") for p in places) == 2

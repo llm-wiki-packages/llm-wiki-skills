@@ -187,6 +187,10 @@ def main(argv: list[str]) -> int:
                 captured.append(d.as_posix())
             continue
         if page and cap.get("frozen") and not refresh:
+            # Held back with the fingerprint last posted, so an edit made meanwhile is posted once the module thaws.
+            if before.get(d.name) and before[d.name] != cap["fingerprint"]:
+                cap["fingerprint"] = before[d.name]
+                (d / bbnotes.CAPTURE).write_text(json.dumps(cap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
             frozen += 1
             continue
         if page and before.get(d.name) == cap["fingerprint"] and not refresh:

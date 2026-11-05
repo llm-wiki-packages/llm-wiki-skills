@@ -102,15 +102,19 @@ go stale.
 - `backfill=changed` (default): every new or edited item is posted again,
   in any module.
 - `backfill=none`: a written page in a module whose last due date is seven
-  days past is no longer re-rendered; a new item there still is. It saves
+  days past is no longer re-rendered; a new item there still is, and an
+  edit held back is posted if the module thaws (a due date moved). It saves
   page writes, not fetches: `bb.py` still pulls the whole course.
 - `backfill=all`: every page re-renders every pull, as a refresh does.
-- An item two whole pulls in a row have not listed (a pull whose listing
-  failed anywhere, or a lesson that lists no children, judges nothing) is
-  posted once more: process writes `removed: <day>` on its page and nothing
-  else, and the overview lists it under Removed. The item's return clears
-  `removed`. `Archive` stays the person's box: an archived page takes no
-  write, so a returning item could not be brought back.
+- An item or board two whole pulls in a row have not listed is posted once
+  more: process writes `removed: <day>` on its page and nothing else, and
+  the overview lists it under Removed. Nothing is judged from a listing
+  that failed, a lesson that lists no children, an item still in the
+  outline with nothing left to render, or a board `discussions=skip` stopped
+  fetching; an announcement leaves at the end of its display window, and is
+  never judged. Every later write of a listed item clears `removed`.
+  `Archive` stays the person's box: an archived page takes no write, so a
+  returning item could not be brought back.
 - A page a person moved is left alone, as before.
 
 ## Pages made by hand do not join a job's layout.

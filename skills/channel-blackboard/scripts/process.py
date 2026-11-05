@@ -135,8 +135,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
         pairs.append(f"abstract={page['abstract']}")
     if page.get("published"):
         pairs.append(f"published={page['published']}")
-    # An empty value clears the key (`removed` on an item back in the course); a new page has nothing to clear.
-    clears = [f"{k}=" for k, v in (fields or {}).items() if v in (None, "")]
+    # A listed item is in the course: an edit clears a `removed` an earlier pull wrote, on whichever machine (a no-op where absent).
+    clears = [f"{k}=" for k, v in (fields or {}).items() if v in (None, "")] + ["removed="]
     pairs += [f"{k}={v}" for k, v in (fields or {}).items() if v not in (None, "")]
     path = known_path or f"{dest.rstrip('/')}/{place or page['title']}.md"
     if known_path:
