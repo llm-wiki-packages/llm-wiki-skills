@@ -5,8 +5,9 @@
     bbnotes.py render <capture dir> [--out <file>]         that capture's page(s) as JSON: title, type, published, abstract, body
     bbnotes.py notes  <harvest dir> --out <dir>            split and render every capture into <dir>/<title>.md
 
-`harvest.py` runs `split` on what `bb.py harvest` wrote and posts each capture
-dir as `captured=`; `process.py` runs `render` on one capture and writes its
+`harvest.py` runs `split` on what `bb.py harvest` wrote (placing each new page
+by the job's layout options, `layout_of`, and keeping each place in
+`placement.json` beside the captures) and posts each capture dir as `captured=`; `process.py` runs `render` on one capture and writes its
 page. `notes` is the same two steps by hand, for a harvest taken outside a
 job: each note carries `published`, `type` and `course` frontmatter and can be
 dropped into `sources/`.
@@ -39,7 +40,7 @@ import shutil
 import sys
 import zipfile
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -458,9 +459,177 @@ def _place(src: Path, dest: Path) -> None:
         shutil.copy2(src, dest)
 
 
+# ---------------------------------------------------------------- layout
+
+# In the items directory, beside the captures: where each page was first placed, each module's folder, what left the course.
+LEDGER = "placement.json"
+# In a removed item's capture: written by process once its page carries `removed`, so a stamp that failed is posted again.
+DATED = "dated.json"
+# How many later pulls post an undated removal again before leaving it.
+REMOVED_TRIES = 3
+# The job's layout options, each with its words; the first is the default. `legacy` is the layout before 0.3.0 (one folder,
+# a page per title): a job added before then has no `layout` option, and its pages already stand at their titles.
+CHOICES = {"layout": ("legacy", "modules", "flat"), "prefix": ("position", "none"), "backfill": ("changed", "none", "all")}
+SECTIONS = {"announcements": "announcements_dir", "discussions": "discussions_dir"}
+ALONGSIDE = "alongside"
+# `backfill=none` leaves a module's pages alone this long after its last due date: grades and feedback come after it.
+FREEZE_GRACE = timedelta(days=7)
+# The overview's "Added" section: what was first seen this many days back, the first pull's own excepted.
+ADDED_DAYS = 7
+
+
+def layout_of(options: dict | None) -> dict:
+    """The job's layout options, checked; a word that is not one raises `ValueError` naming it."""
+    options = options or {}
+    out = {}
+    for key, words in CHOICES.items():
+        word = str(options.get(key) or words[0]).strip().lower()
+        if word not in words:
+            raise ValueError(f"options.{key}={options.get(key)!r} (one of {', '.join(words)})")
+        out[key] = word
+    for section, key in SECTIONS.items():
+        word = str(options.get(key) or section).strip()
+        folder = ALONGSIDE if word.lower() == ALONGSIDE else page_title(word.strip("/"), section)
+        if "/" in word.strip("/"):
+            raise ValueError(f"options.{key}={word!r} is one folder name, or {ALONGSIDE}")
+        out[section] = folder
+    depth = str(options.get("depth") or "1").strip()
+    if depth != "1":
+        raise ValueError(f"options.depth={depth!r}: only 1 (top-level modules, deeper items numbered 03.02) is made yet")
+    return out
+
+
+class Ledger:
+    """`placement.json`: read once, written whole through a temporary file, so a pull that dies leaves the last one."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        loaded = _load(path.parent, path.name, {}) if path.parent.is_dir() else {}
+        self.data = loaded if isinstance(loaded, dict) else {}
+        self.data.setdefault("v", 1)
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self.data, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, self.path)
+
+
+class _Outline:
+    """The content tree by parent id (a title may hold `/`, so never by splitting `path`)."""
+
+    def __init__(self, contents: list[dict]):
+        self.rows = {c["id"]: c for c in contents if isinstance(c, dict) and c.get("id")}
+        self.order = [c["id"] for c in contents if isinstance(c, dict) and c.get("id")]
+        self.kids: dict[str | None, list[str]] = {}
+        for cid in self.order:
+            self.kids.setdefault(self.parent(cid), []).append(cid)
+
+    def parent(self, cid: str) -> str | None:
+        p = (self.rows.get(cid) or {}).get("parent")
+        return p if p in self.rows and p != cid else None
+
+    def position(self, cid: str) -> int:
+        raw = (self.rows[cid].get("raw") or {}).get("position")
+        if isinstance(raw, int) and raw >= 0:
+            return raw
+        return self.kids.get(self.parent(cid), [cid]).index(cid)
+
+    def title(self, cid: str) -> str:
+        return item_title(self.rows[cid])
+
+    def anchor(self, cid: str) -> str:
+        """The row a page stands for: an item that is its folder's only child is the folder (Ultra's `ultraDocumentBody`,
+        a `Part 1.` folder holding its one document), so it takes the folder's place in the outline."""
+        cur = cid
+        while True:
+            p = self.parent(cur)
+            if p is None or self.parent(p) is None or self.rows[p].get("handler") != "resource/x-bb-folder" or len(self.kids.get(p, [])) != 1:
+                return cur
+            cur = p
+
+    def chain(self, cid: str) -> list[str]:
+        """The anchor and every row above it, top first."""
+        out, cur = [], self.anchor(cid)
+        while cur is not None and cur not in out:
+            out.append(cur)
+            cur = self.parent(cur)
+        return out[::-1]
+
+    def module(self, cid: str | None) -> str | None:
+        """The top-level lesson or folder a row sits in; None for a row at the top."""
+        if cid not in self.rows:
+            return None
+        chain = self.chain(cid)
+        return chain[0] if len(chain) > 1 and self.rows[chain[0]].get("handler") in CONTAINERS else None
+
+    def modules(self) -> list[str]:
+        return [cid for cid in self.kids.get(None, []) if self.rows[cid].get("handler") in CONTAINERS]
+
+    def prefix(self, cid: str) -> str:
+        """The row's outline position below its module, one-based and zero-padded: `03`, or `03.02` a level deeper."""
+        chain = self.chain(cid)
+        below = chain[1:] if self.module(cid) else chain
+        return ".".join(f"{self.position(x) + 1:02d}" for x in below) or "00"
+
+    def path(self, cid: str) -> str:
+        return " / ".join(self.title(x) for x in self.chain(cid))
+
+
+ROMAN = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
+ORDINAL = re.compile(r"^\s*(?:unit|module|week|part|lesson|chapter|topic|section|session)\s*[-:.]?\s*(\d+|[ivxlc]+)\b", re.I)
+
+
+def module_order(title: str) -> int | None:
+    """`Unit IV` reads 4, `Module 3- Memory` 3, `Part 2.` 2; a title with no number None."""
+    found = ORDINAL.match(title or "")
+    if not found:
+        return None
+    word = found.group(1).lower()
+    if word.isdigit():
+        return int(word)
+    total = 0
+    for a, b in zip(word, word[1:] + " "):
+        n = ROMAN[a]
+        total += -n if b in ROMAN and ROMAN[b] > n else n
+    return total
+
+
+def page_kind(handler: str | None, title: str) -> str:
+    if handler == "resource/x-bb-asmt-test-link":
+        return "assignment"
+    if re.search(r"study\s*guide", title or "", re.I):
+        return "study-guide"
+    if handler == "resource/x-bb-file":
+        return "file"
+    return "document"
+
+
+def local_time(stamp: str) -> str:
+    """A UTC stamp in `ZONE`, to the minute, with its offset: what a `due` field holds."""
+    try:
+        t = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return stamp
+    return t.astimezone(ZONE[0]).isoformat(timespec="minutes")
+
+
+def _short(title: str, code: str) -> str:
+    """A settled title less its course code: the folder carries the course."""
+    for lead in (f"{code} — ", f"{code} announcement — ", f"{code} discussion — "):
+        if title.startswith(lead):
+            return title[len(lead):]
+    return title
+
+
 class _Split:
-    def __init__(self, harvest: Path, out: Path, fetched_at: str, course_id: str | None = None, discussions: bool = True):
+    def __init__(self, harvest: Path, out: Path, fetched_at: str, course_id: str | None = None, discussions: bool = True,
+                 options: dict | None = None):
         self.h, self.out, self.fetched_at, self.discussions = harvest, out, fetched_at, discussions
+        self.layout = layout_of(options)
+        self.ledger = Ledger(out / LEDGER)
+        self.outline = _Outline([])
+        self.grade_of: dict[str, dict] = {}
         loaded = _load(harvest, "course.json", {})
         self.course = loaded if isinstance(loaded, dict) else {}
         self.code = course_code(self.course)
@@ -472,10 +641,11 @@ class _Split:
         self.dirs: list[Path] = []
 
     def write(self, key: str, kind: str, title: str, published: str | None, *, record=None, body_file: Path | None = None, extra=None,
-              facts=None, under: str | None = None) -> Path:
+              facts=None, under: str | None = None, node: str | None = None, section: str | None = None) -> Path:
         """Stage one capture; `settle` writes it once every title in the course is known. `under` qualifies a shared title."""
         d = self.out / key
         d.mkdir(parents=True, exist_ok=True)
+        (d / DATED).unlink(missing_ok=True)  # listed again: a later removal is dated afresh
         printed = None
         if record is None:
             _place(body_file, d / body_file.name)
@@ -484,7 +654,8 @@ class _Split:
                 _place(words, d / words.name)
                 printed = fingerprint(printed, file_print(words))
         self.pending.append({"dir": d, "key": key, "kind": kind, "base": page_title(title), "under": under, "published": published,
-                             "record": record, "body": RECORD if record is not None else body_file.name, "printed": printed, "facts": facts})
+                             "record": record, "body": RECORD if record is not None else body_file.name, "printed": printed, "facts": facts,
+                             "node": node, "section": section})
         self.dirs.append(d)
         return d
 
@@ -508,14 +679,23 @@ class _Split:
 
     def settle(self) -> None:
         titles = self.titles()
+        before = {c.parent.name for c in self.out.glob(f"*/{CAPTURE}")}
+        placed = self.place(titles)
+        self.removals(before, {p["key"] for p in self.pending})
+        links = {p["key"]: {"title": titles[p["key"]], "place": placed[p["key"]]["place"],
+                            **({"module": placed[p["key"]]["module"]} if placed[p["key"]]["place"] and self.layout["layout"] == "modules"
+                               and placed[p["key"]].get("module") else {})} for p in self.pending}
         for p in self.pending:
-            record, printed = p["record"], p["printed"]
+            if p["key"] == "course":
+                p["record"].update(self.index(titles, placed))
+        for p in self.pending:
+            record, printed, got = p["record"], p["printed"], placed[p["key"]]
             if record is not None:
-                if isinstance(record.get("carries"), list):
-                    record["carries"] = [titles[k] for k in record["carries"] if k in titles]
                 text = json.dumps(record, indent=1, ensure_ascii=False, default=str)
                 (p["dir"] / RECORD).write_text(text + "\n", encoding="utf-8")
                 printed = fingerprint(text)
+            wants = set(links) if p["key"] == "course" else {*(record or {}).get("carries", ()), *([got["part_of"]] if got.get("part_of") else [])}
+            linked = {k: links[k] for k in sorted(wants) if k in links}
             cap = {
                 "v": 1,
                 "slug": None,
@@ -527,10 +707,223 @@ class _Split:
                 "course": self.code,
                 "course_name": self.course.get("name"),
                 "published": p["published"],
-                "fingerprint": printed,
+                # The page's place, frontmatter and links are part of what it is: a moved position or a renamed link target re-renders it.
+                "fingerprint": fingerprint(printed, got["place"], got["fields"], linked),
                 **({"facts": p["facts"]} if p["facts"] else {}),
+                "place": got["place"],
+                "fields": got["fields"],
+                **({"module": got["module"]} if got.get("module") else {}),
+                **({"part_of": got["part_of"]} if got.get("part_of") else {}),
+                **({"frozen": True} if got.get("frozen") else {}),
+                **({"links": linked} if linked else {}),
             }
             (p["dir"] / CAPTURE).write_text(json.dumps(cap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.ledger.save()
+
+    # ------------------------------------------------------------ layout
+
+    def place(self, titles: dict[str, str]) -> dict[str, dict]:
+        """Each capture's place under the job's dest (`<folder>/<stem>`, or None for the titles-only legacy layout) and its own
+        frontmatter. A place is decided once, the first pull that sees the capture, and kept in the ledger: an instructor inserting an
+        item renumbers no page that exists."""
+        lay, o, led = self.layout, self.outline, self.ledger
+        today = day(self.fetched_at)
+        led.data["since"] = led.data.get("since") or today
+        pages, modules = led.data.setdefault("pages", {}), led.data.setdefault("modules", {})
+        keys = {p["key"] for p in self.pending}
+        page_of = {o.anchor(p["node"]): p["key"] for p in self.pending if p["kind"] == "item" and p["node"] in o.rows}
+        last_due: dict[str, str] = {}
+        for p in self.pending:
+            mid = o.module(p["node"]) if p["node"] in o.rows else None
+            due = (self.grade_of.get(p["node"]) or {}).get("due") if p["kind"] == "item" else None
+            if mid and due and due > last_due.get(mid, ""):
+                last_due[mid] = due
+        out = {}
+        # Every place the ledger ever gave is taken, a dropped item's too: its page may still stand there, and a new item at the
+        # same name would meet another item's page and never be written.
+        used = {str(r.get("place")).casefold(): k for k, r in pages.items() if r.get("place")}
+        for p in self.pending:
+            key, node, kind = p["key"], p["node"], p["kind"]
+            title = titles[key]
+            mid = o.module(node) if node in o.rows else None
+            fields = self.fields(p, title, mid)
+            got = {"place": None, "fields": fields, "module": mid}
+            if kind in ("file", "video") and node in o.rows and page_of.get(o.anchor(node)) in keys:
+                got["part_of"] = page_of[o.anchor(node)]
+            if mid and lay["backfill"] == "none" and mid in last_due:
+                ends = datetime.fromisoformat(last_due[mid].replace("Z", "+00:00")) + FREEZE_GRACE
+                got["frozen"] = ends < datetime.fromisoformat(self.fetched_at.replace("Z", "+00:00"))
+            led.data.get("removed", {}).pop(key, None)  # back in the course; process clears `removed` on every listed item's page
+            row = pages.get(key)
+            if row is None:
+                row = pages[key] = {"first_seen": today}
+            if lay["layout"] != "legacy":
+                if mid and lay["layout"] == "modules" and mid not in modules:
+                    folder = self.module_folder(mid)
+                    if folder.casefold() in {str(m.get("folder")).casefold() for m in modules.values()}:
+                        # Two modules of one title (`prefix=none`, or one dropped and remade at its position): the id tells them apart.
+                        folder = page_title(f"{folder} ({mid.strip('_')})")
+                    modules[mid] = {"folder": folder, "released": today}
+                if row.get("layout") != lay["layout"] or not row.get("place"):
+                    place = self.planned(p, title, mid)
+                    if used.get(place.casefold()) not in (None, key):
+                        # Two captures cut to one name (a long title, `flat`): the key's tail tells them apart, as a shared title's does.
+                        folder, _, stem = place.rpartition("/")
+                        tail = f" ({key.rsplit('-', 1)[-1][-8:]})"
+                        place = (folder + "/" if folder else "") + safe_title(stem[: TITLE_MAX - len(tail)].rstrip(" .…-") + tail)
+                    row["place"], row["layout"] = place, lay["layout"]
+                    used[place.casefold()] = key
+                got["place"] = row["place"]
+            out[key] = got
+        return out
+
+    def planned(self, p: dict, title: str, mid: str | None) -> str:
+        """Where a capture first seen now goes: `NN Module/NN Item` (modules), `NN.NN Module — Item` (flat), a section folder for
+        announcements and boards. The course code leaves the filename; the folder and the page's `title` carry it."""
+        lay, o = self.layout, self.outline
+        numbered = lay["prefix"] == "position"
+        short = _short(title, self.code)
+        if p["key"] == "course":
+            return "00 Course overview" if numbered else "Course overview"
+        if p["section"]:
+            folder = lay[p["section"]]
+            stem = short
+            if p["section"] == "announcements" and numbered and p["record"] and day(p["record"].get("created")):
+                stem = f"{day(p['record']['created'])} {short}"
+            return safe_title(stem) if folder == ALONGSIDE else f"{folder}/{safe_title(stem)}"
+        node = p["node"]
+        if node not in o.rows:
+            return safe_title(short)
+        prefix = o.prefix(node)
+        if not mid:
+            return safe_title(f"{prefix} {short}" if numbered else short)
+        if lay["layout"] == "flat":
+            return page_title((f"{o.position(mid) + 1:02d}.{prefix} " if numbered else "") + f"{o.title(mid)} — {short}")
+        return f"{self.module_folder(mid)}/{safe_title(f'{prefix} {short}' if numbered else short)}"
+
+    def module_folder(self, mid: str) -> str:
+        """The module's folder: the one the ledger says it was given, else `NN Title` by its position now."""
+        made = (self.ledger.data.get("modules", {}).get(mid) or {}).get("folder")
+        if made:
+            return made
+        title = self.outline.title(mid)
+        return page_title(f"{self.outline.position(mid) + 1:02d} {title}" if self.layout["prefix"] == "position" else title)
+
+    def fields(self, p: dict, title: str, mid: str | None) -> dict:
+        """The page's own frontmatter beyond `type`, `resource`, `published` and `abstract`: what it is and where it sits.
+        Grades, grade status and feedback stay in the body, dated by the pull, never fields."""
+        o, node, record = self.outline, p["node"], p["record"] or {}
+        kind = {"course": "overview", "announcement": "announcement", "discussion": "discussion", "file": "file", "video": "video"}.get(p["kind"])
+        out: dict = {}
+        if p["kind"] == "item":
+            kind = page_kind(record.get("handler"), record.get("title") or title)
+            out["bb_id"] = record.get("id")
+        elif p["kind"] in ("announcement", "discussion"):
+            out["bb_id"] = record.get("id")
+        out = {"kind": kind, **out}
+        if node in o.rows:
+            out["outline_path"] = o.path(node)
+            out["position"] = o.prefix(node)
+            if mid and self.layout["layout"] != "modules":
+                out["module"] = o.title(mid)
+        g = record.get("grade") or (self.grade_of.get(node) if p["kind"] == "item" else None) or {}
+        if g.get("due"):
+            out["due"] = local_time(g["due"])
+        if g.get("points"):
+            out["points"] = f"{g['points']:g}"
+        # `due` and `points` are always named: one the instructor took away is cleared on the page (`key=`), not left standing.
+        return {**{k: v for k, v in out.items() if v not in (None, "")}, "due": out.get("due"), "points": out.get("points")}
+
+    def index(self, titles: dict[str, str], placed: dict[str, dict]) -> dict:
+        """What the course overview adds to its record: the outline with each row's page, due date and points; the modules with
+        their folders; what was first seen in the last week; what left the course."""
+        o, led = self.outline, self.ledger
+        keys = {p["key"]: p for p in self.pending}
+        page_of = {o.anchor(p["node"]): k for k, p in keys.items() if p["kind"] == "item" and p["node"] in o.rows}
+        carried: dict[str, list[str]] = {}
+        for k, p in keys.items():
+            if p["kind"] in ("file", "video") and p["node"] in o.rows:
+                carried.setdefault(o.anchor(p["node"]), []).append(k)
+        # A course link in the outline that shares a board's title is that board: it names no id.
+        named = Counter(str((p["record"] or {}).get("title") or "").casefold() for p in keys.values() if p["kind"] == "discussion")
+        boards = {str(p["record"].get("title")).casefold(): k for k, p in keys.items()
+                  if p["kind"] == "discussion" and named[str(p["record"].get("title") or "").casefold()] == 1}
+        rows = []
+        for cid in o.order:
+            if o.anchor(cid) != cid and page_of.get(o.anchor(cid)):
+                continue  # a folder's one item: the folder's row names its page
+            c = o.rows[cid]
+            g = self.grade_of.get(cid) or {}
+            board = boards.get(str(c.get("title") or "").casefold()) if c.get("handler") == "resource/x-bb-courselink" else None
+            if board:
+                page_of.setdefault(cid, board)
+                g = g or keys[board]["record"].get("grade") or {}
+            rows.append({"depth": len(o.chain(cid)) - 1, "title": o.title(cid), "handler": c.get("handler"), "available": c.get("available"),
+                         "url": c.get("url") if (c.get("url") or "").startswith("http") else None, "page": page_of.get(cid),
+                         "carries": sorted(carried.get(cid, []), key=lambda k: titles[k]), "due": g.get("due"), "points": g.get("points")})
+        today = datetime.fromisoformat(day(self.fetched_at)).date()  # a local day, as `first_seen` is
+        since = led.data.get("since")
+        added = sorted(((row.get("first_seen"), k) for k, row in led.data.get("pages", {}).items()
+                        if k in keys and k != "course" and since and (row.get("first_seen") or "") > since
+                        and (today - datetime.fromisoformat(row["first_seen"]).date()).days < ADDED_DAYS), reverse=True)
+        modules = []
+        for mid in o.modules():
+            made = (led.data.get("modules") or {}).get(mid)
+            if made:
+                modules.append({"id": mid, "title": o.title(mid), "folder": made["folder"], "released": made.get("released"),
+                                "order": module_order(o.title(mid)), "position": o.position(mid) + 1,
+                                "kind": SHORT_HANDLER.get(o.rows[mid].get("handler"))})
+        return {"outline": rows, "modules": modules, "added": [{"day": d, "page": k} for d, k in added],
+                "removed": [{"day": r.get("day"), "title": r.get("title")} for r in sorted(led.data.get("removed", {}).values(), key=lambda r: r.get("day") or "")]}
+
+    def removals(self, before: set[str], now: set[str]) -> None:
+        """Items and boards an earlier pull made that this one did not list: after two whole pulls in a row without one, its
+        capture is stamped `removed` with a new fingerprint, so the harvest posts it and process dates its page. A kind whose
+        listing failed, a lesson that lists no children (the look of one not yet released), or an item still in the outline
+        with nothing to render, judges nothing."""
+        led = self.ledger
+        missing, removed = led.data.setdefault("missing", {}), led.data.setdefault("removed", {})
+        for key in now:
+            missing.pop(key, None)
+        failed = [str(e.get("what", "")) for e in _load(self.h, "errors.json", []) if isinstance(e, dict)]
+        # Only an item and a board are judged, each where its own listing answered whole: a file or video leaves with its item
+        # (or with `files=skip`), an announcement leaves at the end of its display window, a board with `discussions=skip`.
+        # A listing that answered with nothing at all (a course closed to students, an outage that returns `[]`) judges nothing either:
+        # an instructor emptying a whole course is rarer than a listing that came back blank.
+        judged = tuple(kind for kind, listing in (("item-", ("contents",)), ("discussion-", ("discussions", "discussion messages")))
+                       if not any(w.startswith(listing) for w in failed) and (kind != "discussion-" or self.discussions)
+                       and any(k.startswith(kind) for k in now))
+        for key in sorted(removed):
+            # Dated once process says so (`DATED` in the capture): a stamp a failed edit never wrote is posted again, up to
+            # `REMOVED_TRIES` pulls, so a page that takes no write (archived, held) is not posted every pull forever.
+            d = self.out / key
+            if key not in now and (d / CAPTURE).is_file() and not (d / DATED).is_file() and removed[key].get("tries", 0) < REMOVED_TRIES:
+                removed[key]["tries"] = removed[key].get("tries", 0) + 1
+                self.dirs.append(d)
+        for key in sorted(before - now):
+            if key in removed or not judged or not key.startswith(judged):
+                continue
+            if key.startswith("item-") and f"_{key.removeprefix('item-')}" in self.outline.rows:
+                missing.pop(key, None)  # still in the outline, with nothing of its own to render: not gone
+                continue
+            d = self.out / key
+            try:
+                cap = json.loads((d / CAPTURE).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            mid = cap.get("module")
+            if mid in self.outline.rows and not self.outline.kids.get(mid):
+                continue
+            missing[key] = missing.get(key, 0) + 1
+            if missing[key] < 2:
+                continue
+            gone = day(self.fetched_at)
+            cap["removed"] = gone
+            cap["fingerprint"] = fingerprint(cap.get("fingerprint"), "removed", gone)
+            (d / CAPTURE).write_text(json.dumps(cap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            removed[key] = {"day": gone, "title": cap.get("title")}
+            missing.pop(key, None)
+            self.dirs.append(d)
 
     def run(self) -> list[Path]:
         h = self.h
@@ -541,6 +934,7 @@ class _Split:
         by_content = {c.get("contentId"): c for c in columns if c.get("contentId")}
         by_id = {c.get("id"): c for c in columns}
         items = {c["id"]: c for c in contents}
+        self.outline = _Outline(contents)
         files_of: dict[str, list[dict]] = {}
         for f in files:
             files_of.setdefault(f.get("item"), []).append(f)
@@ -558,6 +952,11 @@ class _Split:
                 "score": shown.get("score"),
                 "feedback": g.get("feedback"),
             }
+
+        for c in contents:
+            col = by_id.get(((c.get("raw") or {}).get("contentHandler") or {}).get("gradeColumnId")) or by_content.get(c["id"])
+            if col:
+                self.grade_of[c["id"]] = grade_facts(col)
 
         # One page per document or video a content item carries; the item's own page lists them.
         carried: dict[str, list[str]] = {}
@@ -578,13 +977,13 @@ class _Split:
                     words, _how = transcript_of(src)
                     title = f"{self.code} — {item_title(owner)} — {src.stem} (video)"
                     self.write(key, "video", title, day(owner.get("modified")), body_file=src, extra=[words] if words else None, facts=where,
-                               under=_folder(owner.get("path")))
+                               under=_folder(owner.get("path")), node=item_id)
                 else:
                     if suffix in (".html", ".htm") and not html_text(src.read_text(encoding="utf-8", errors="replace")):
                         continue
                     alone = owner.get("handler") == "resource/x-bb-file"
                     title = f"{self.code} — {item_title(owner)}" + ("" if alone else f" — {src.name}")
-                    self.write(key, "file", title, day(owner.get("modified")), body_file=src, facts=where, under=_folder(owner.get("path")))
+                    self.write(key, "file", title, day(owner.get("modified")), body_file=src, facts=where, under=_folder(owner.get("path")), node=item_id)
                 carried.setdefault(item_id, []).append(self.dirs[-1].name)
 
         # Media a person fetched beside the harvest (`external/`, yt-dlp): a video capture each.
@@ -627,17 +1026,17 @@ class _Split:
                 "instructions": instructions,
                 "description": description,
                 "grade": grade_facts(col),
-                "carries": carried.get(item["id"], []),  # capture keys; `settle` makes them titles
+                "carries": carried.get(item["id"], []),  # capture keys; the capture's `links` names their pages
             }
             record["title"] = item_title(item)
             self.write(f"item-{item['id'].strip('_')}", "item", f"{self.code} — {item_title(item)}", day(item.get("modified")), record=record,
-                       under=_folder(item.get("path")))
+                       under=_folder(item.get("path")), node=item["id"])
 
         for a in _load(h, "announcements.json", []):
             record = {"id": a.get("id"), "title": a.get("title"), "created": a.get("created"), "modified": a.get("modified"),
                       "shown_from": ((a.get("availability") or {}).get("duration") or {}).get("start"), "text": html_text(a.get("body"))}
             self.write(f"announcement-{str(a.get('id')).strip('_')}", "announcement", f"{self.code} announcement — {a.get('title')}",
-                       day(a.get("modified") or a.get("created")), record=record, under=day(a.get("created")))
+                       day(a.get("modified") or a.get("created")), record=record, under=day(a.get("created")), section="announcements")
 
         for d in _load(h, "discussions.json", []) if self.discussions else []:
             posts = _load(h, f"discussions/{d.get('id')}.json", [])
@@ -652,7 +1051,8 @@ class _Split:
                                  "posted": p.get("postDate") or p.get("createdDate"), "text": html_text(p.get("body"), shift=2)}
                                 for p in posts],
                       "topic_id": topic.get("id")}
-            self.write(f"discussion-{str(d.get('id')).strip('_')}", "discussion", f"{self.code} discussion — {d.get('title')}", day(last), record=record)
+            self.write(f"discussion-{str(d.get('id')).strip('_')}", "discussion", f"{self.code} discussion — {d.get('title')}", day(last), record=record,
+                       section="discussions")
 
         outline = [{"path": c.get("path"), "title": c.get("title"), "handler": c.get("handler"), "available": c.get("available"),
                     "url": c.get("url") if (c.get("url") or "").startswith("http") else None} for c in contents]
@@ -682,12 +1082,15 @@ def _qualified(base: str, by: str) -> str:
     return safe_title(base[: max(1, TITLE_MAX - len(suffix))].rstrip() + suffix)
 
 
-def split(harvest: Path, out: Path, fetched_at: str | None = None, *, course_id: str | None = None, discussions: bool = True) -> list[Path]:
-    """One capture dir per item under `out`, titles settled across the course; returns them in the order written.
+def split(harvest: Path, out: Path, fetched_at: str | None = None, *, course_id: str | None = None, discussions: bool = True,
+          options: dict | None = None) -> list[Path]:
+    """One capture dir per item under `out`, titles settled across the course; returns them in the order written, then any
+    capture an earlier pull made that is now stamped `removed`.
 
-    `course_id` stands in where `course.json` names none; with neither it raises `ValueError`. `discussions=False` makes no board's page."""
+    `course_id` stands in where `course.json` names none; with neither it raises `ValueError`. `discussions=False` makes no board's page.
+    `options` are the job's (`layout_of`): where each page goes, and `backfill`; a word that is not one raises `ValueError`."""
     stamp = fetched_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return _Split(harvest, out, stamp, course_id, discussions).run()
+    return _Split(harvest, out, stamp, course_id, discussions, options).run()
 
 
 # ---------------------------------------------------------------- render
@@ -768,7 +1171,30 @@ def _grade_rows(g: dict) -> list[tuple[str, object]]:
             ("Instructor feedback", html_text(g.get("feedback")).replace("\n", " ") if g.get("feedback") else None)]
 
 
-def _render_item(cap: dict, r: dict) -> list[dict]:
+def link_targets(cap: dict, given: dict | None = None) -> dict[str, str]:
+    """Each page this capture links to, as the target a link names: `given`'s (process: the page's path, where `known[]` or the
+    job's dest says it is), else its place, else its title."""
+    out = {}
+    for key, row in {**(cap.get("links") or {}), cap_key(cap): {"title": cap.get("title"), "place": cap.get("place")}}.items():
+        out[key] = (given or {}).get(key) or row.get("place") or row.get("title") or key
+    # A board's later parts and where its first part goes (`<key>#part-<n>`, `#base`, `#dir`), as process names them.
+    own = f"{cap_key(cap)}#"
+    out.update({k: v for k, v in (given or {}).items() if k.startswith(own) and v})
+    return out
+
+
+def cap_key(cap: dict) -> str:
+    """The capture's own key: its directory's name, the tail of its `item`."""
+    return str(cap.get("item") or "").rsplit("/", 1)[-1]
+
+
+def wikilink(cap: dict, key: str, targets: dict[str, str], shown: str | None = None) -> str:
+    title = shown or ((cap.get("links") or {}).get(key) or {}).get("title") or key
+    target = targets.get(key) or title
+    return f"[[{target}]]" if target == title else f"[[{target}|{title}]]"
+
+
+def _render_item(cap: dict, r: dict, targets: dict[str, str]) -> list[dict]:
     kind = SHORT_HANDLER.get(r.get("handler"), r.get("handler"))
     head = _facts([("Course", cap.get("course_name")), ("Where", (r.get("path") or "").replace("/", " › ")), ("Kind", kind),
                    ("Syllabus", "yes" if r.get("syllabus") else None), ("Link", r.get("url")),
@@ -778,7 +1204,7 @@ def _render_item(cap: dict, r: dict) -> list[dict]:
         if text:
             parts.append((f"## {heading}\n\n" if heading else "") + (plain(text) if heading == "Description" else text))
     if r.get("carries"):
-        parts.append("## Files and videos\n\n" + "\n".join(f"- [[{t}]]" for t in r["carries"]))
+        parts.append("## Files and videos\n\n" + "\n".join(f"- {wikilink(cap, k, targets)}" for k in r["carries"] if k in targets))
     g = r.get("grade") or {}
     summary = abstract(f"{(kind or 'item').capitalize()} in {_course_of(cap)}, under {(r.get('path') or '').replace('/', ' › ')}." if r.get("path") else
                        f"{(kind or 'item').capitalize()} in {_course_of(cap)}.", _due(g),
@@ -795,7 +1221,7 @@ def _render_announcement(cap: dict, r: dict) -> list[dict]:
              "body": f"# {one_line(r.get('title'))}\n\n{head}\n\n{r.get('text') or ''}\n"}]
 
 
-def _render_discussion(cap: dict, r: dict) -> list[dict]:
+def _render_discussion(cap: dict, r: dict, targets: dict[str, str]) -> list[dict]:
     posts = r.get("posts") or []
     kids: dict[str | None, list[dict]] = {}
     for p in posts:
@@ -825,17 +1251,31 @@ def _render_discussion(cap: dict, r: dict) -> list[dict]:
     out = []
     said = abstract(f"Discussion board in {_course_of(cap)}: {r.get('title')}, {len(posts)} post{'' if len(posts) == 1 else 's'}.",
                     _due(r.get("grade") or {}), f"Prompt: {opening(r.get('prompt'))}" if r.get("prompt") else None)
+    ck = cap_key(cap)
+    own = targets.get(ck) or cap["title"]
+
+    def part_at(m: int) -> str:
+        """Where part `m` is: written (`#part-m`), else beside its first part's place, else its legacy title in `dest`."""
+        if targets.get(f"{ck}#part-{m}"):
+            return targets[f"{ck}#part-{m}"]
+        if cap.get("place"):
+            return f"{targets.get(ck + '#base') or own} (part {m})"
+        name = page_title(f"{cap['title']} (part {m})")
+        return f"{targets[ck + '#dir']}/{name}" if targets.get(ck + "#dir") else name
+
     for n, chunk in enumerate(chunks, 1):
         title = cap["title"] if n == 1 else page_title(f"{cap['title']} (part {n})")
-        lead = intro if n == 1 else f"# {one_line(r.get('title'))} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', f'[[{cap['title']}]]')])}\n\n"
-        tail = f"\n\nContinued in [[{page_title(cap['title'] + f' (part {n + 1})')}]]." if n < len(chunks) else ""
+        back = f"[[{own}]]" if own == cap["title"] else f"[[{own}|{cap['title']}]]"
+        nxt, nxt_title = part_at(n + 1), page_title(cap["title"] + f" (part {n + 1})")
+        lead = intro if n == 1 else f"# {one_line(r.get('title'))} (part {n} of {len(chunks)})\n\n{_facts([('Course', cap.get('course_name')), ('Continues', back)])}\n\n"
+        tail = (f"\n\nContinued in [[{nxt}]]." if nxt == nxt_title else f"\n\nContinued in [[{nxt}|{nxt_title}]].") if n < len(chunks) else ""
         out.append({"title": title, "type": "note", "published": cap.get("published"),
                     "abstract": said if n == 1 else abstract(f"Part {n} of {len(chunks)} of {cap['title']}."),
                     "body": lead + ("## Posts\n\n" if chunk else "") + chunk.rstrip() + tail + "\n"})
     return out
 
 
-def _render_course(cap: dict, r: dict) -> list[dict]:
+def _render_course(cap: dict, r: dict, targets: dict[str, str]) -> list[dict]:
     c = r.get("course") or {}
     term = r.get("term") or {}
     parts = [f"# {cap['title'].removesuffix(' — course overview')}",
@@ -852,19 +1292,28 @@ def _render_course(cap: dict, r: dict) -> list[dict]:
         parts.append("## Gradebook\n\n" + "\n".join(lines))
     if r.get("calendar"):
         parts.append("## Calendar\n\n" + "\n".join(f"- {when(e.get('start'))}: {one_line(e.get('title'))} ({one_line(e.get('type'))})" for e in r["calendar"]))
-    outline = [o for o in r.get("outline") or [] if o.get("path")]
+    outline = [o for o in r.get("outline") or [] if o.get("title")]
     if outline:
         lines = []
         for o in outline:
-            depth = o["path"].count("/")
+            pad = "  " * o.get("depth", 0)
             kind = SHORT_HANDLER.get(o.get("handler"), o.get("handler"))
             hidden = "" if o.get("available") in (None, "Yes", True) else f", {one_line(o['available'])}"
-            lines.append(f"{'  ' * depth}- {one_line(o.get('title'))} ({kind}{hidden})" + (f" — {shown_url(o['url'])}" if o.get("url") else ""))
-        parts.append("## Outline\n\n" + "\n".join(lines))
+            name = wikilink(cap, o["page"], targets, one_line(o["title"])) if o.get("page") in targets else one_line(o.get("title"))
+            due = f", due {when(o['due'])}" if o.get("due") else ""
+            pts = f", {o['points']:g} points" if o.get("points") else ""
+            lines.append(f"{pad}- {name} ({kind}{hidden}{due}{pts})" + (f" — {shown_url(o['url'])}" if o.get("url") else ""))
+            lines += [f"{pad}  - {wikilink(cap, k, targets)}" for k in o.get("carries") or [] if k in targets]
+        parts.insert(2, "## Outline\n\n" + "\n".join(lines))
+    added = [a for a in r.get("added") or [] if a.get("page") in targets]
+    if added:
+        parts.insert(2, "## Added this week\n\n" + "\n".join(f"- {a['day']}: {wikilink(cap, a['page'], targets)}" for a in added))
     ext = [e for e in r.get("external") or [] if e.get("url")]
     if ext:
         parts.append("## Off-site links\n\n" + "\n".join(
             f"- {one_line(e.get('title') or e.get('item') or 'link')}{' (video)' if e.get('video') else ''}: {shown_url(e['url'])}" for e in ext))
+    if r.get("removed"):
+        parts.append("## Removed from the course\n\n" + "\n".join(f"- {one_line(x.get('title'))}: not listed since {x.get('day')}" for x in r["removed"]))
     graded = [g for g in rows if g.get("due")]
     summary = abstract(f"Course overview of {c.get('name') or _course_of(cap)}" + (f" ({c['courseId']})" if c.get("courseId") else "") + ":",
                        f"term {_term(term)}." if _term(term) else None,
@@ -880,18 +1329,49 @@ def _term(term: dict) -> str | None:
     return f"{start} to {end}" if start and end else f"from {start}" if start else None
 
 
-def root_page(cap: dict, record: dict, current: bool) -> dict:
-    """The course's bundle root (`README.md` in the job's dest): the keys every page below inherits, and a line on what it is."""
+def root_page(cap: dict, record: dict, current: bool, overview: str | None = None) -> dict:
+    """The course's bundle root (`README.md` in the job's dest): the keys every page below inherits, and a line on what it is.
+    `overview` is the link target of the course overview page; its title where none is given."""
     c = record.get("course") or {}
     title = course_title(c) if c.get("name") else _course_of(cap)
     term = _term(record.get("term") or {})
-    fields = {"root": "true", "current": "true" if current else "false", **({"term": term} if term else {})}
+    span = record.get("term") or {}
+    code = course_code(c) if c.get("name") or c.get("courseId") else cap.get("course")
+    url = c.get("externalAccessUrl") or ""
+    section = (c.get("courseId") or "").replace(" ", "")
+    lead = re.match(r"[A-Za-z]{2,5}\s?-?\d{3,4}[A-Za-z]?-?", section)
+    fields = {
+        "root": "true", "current": "true" if current else "false", **({"term": term} if term else {}),
+        "course": code, "course_title": title, "course_id": c.get("courseId"),
+        "section": section[lead.end():] if lead and section[lead.end():] else None,
+        "term_start": day(span.get("start")), "term_end": day(span.get("end")),
+        "group": code, "group_type": "course", "channel": "blackboard",
+        "source_host": urlsplit(url).hostname if url else None, "course_url": url or None,
+    }
+    fields = {k: v for k, v in fields.items() if v not in (None, "")}
     summary = abstract(f"{c.get('name') or title}" + (f" ({c['courseId']})" if c.get("courseId") else "") + ",",
                        f"term {term}," if term else None, "taken now" if current else "a past course",
                        "— the course's pages from Blackboard Learn.")
+    target = overview or cap["title"]
+    link = f"[[{target}]]" if target == cap["title"] else f"[[{target}|{cap['title']}]]"
     body = (f"# {title}\n\nThis course's pages from Blackboard Learn. The keys above are read by every page in this folder: "
-            f"set `current: false` when the course is over. The outline, gradebook and calendar: [[{cap['title']}]].\n")
+            f"set `current: false` when the course is over. The outline, with every page in course order, the gradebook and the calendar: {link}.\n")
     return {"title": title, "fields": fields, "abstract": summary, "body": body}
+
+
+def module_root(cap: dict, module: dict, overview: str | None = None) -> dict:
+    """A module folder's bundle root (`README.md`): the module's keys, lent to every page in the folder over the course root's."""
+    course = _course_of(cap)
+    fields = {"root": "true", "module": module["title"], "module_order": module.get("order"), "module_position": module.get("position"),
+              "module_kind": module.get("kind"), "released": module.get("released"), "module_id": module["id"]}
+    fields = {k: str(v) for k, v in fields.items() if v not in (None, "")}
+    target = overview or cap["title"]
+    link = f"[[{target}]]" if target == cap["title"] else f"[[{target}|{cap['title']}]]"
+    return {"title": f"{module['title']} ({cap.get('course') or course})", "fields": fields,
+            "abstract": abstract(f"Module {module['title']} of {course}, from Blackboard Learn" +
+                                 (f", first seen with its items {module['released']}." if module.get("released") else ".")),
+            "body": f"# {one_line(module['title'])}\n\nThis module's pages in {one_line(course)}. The keys above are read by every page in "
+                    f"this folder. The course outline, in order, with due dates: {link}.\n"}
 
 
 def _render_file(cap: dict, path: Path) -> list[dict]:
@@ -924,8 +1404,11 @@ def _render_video(cap: dict, path: Path, directory: Path) -> list[dict]:
              "body": f"# {cap['title'].split(' — ', 1)[-1]}\n\n{head}\n\n" + (f"## Transcript\n\n{body}\n" if body else ""), "problem": why}]
 
 
-def render(directory: Path) -> list[dict]:
-    """The page(s) one capture makes: `title`, `type`, `published`, `abstract`, `body`, and `problem` where text could not be had."""
+def render(directory: Path, links: dict[str, str] | None = None) -> list[dict]:
+    """The page(s) one capture makes: `title`, `type`, `published`, `abstract`, `body`, and `problem` where text could not be had.
+
+    `links` maps a capture key to the target a link to its page names (process: the page's path); the capture's place, else its
+    title, stands in for a key it does not name."""
     cap = json.loads((directory / CAPTURE).read_text(encoding="utf-8"))
     body = directory / cap["body"]
     kind = cap.get("kind")
@@ -934,8 +1417,10 @@ def render(directory: Path) -> list[dict]:
     if kind == "video":
         return _render_video(cap, body, directory)
     record = json.loads(body.read_text(encoding="utf-8"))
-    return {"item": _render_item, "announcement": _render_announcement, "discussion": _render_discussion,
-            "course": _render_course}[kind](cap, record)
+    targets = link_targets(cap, links)
+    if kind == "announcement":
+        return _render_announcement(cap, record)
+    return {"item": _render_item, "discussion": _render_discussion, "course": _render_course}[kind](cap, record, targets)
 
 
 # ---------------------------------------------------------------- cli
@@ -943,7 +1428,8 @@ def render(directory: Path) -> list[dict]:
 
 def _frontmatter(page: dict, cap: dict) -> str:
     # No `resource`: that is a job's page identity, which `process.py` sets; a dropped note belongs to no job.
-    rows = {"type": page["type"], "published": page.get("published"), "course": cap.get("course"), "abstract": page.get("abstract")}
+    rows = {"type": page["type"], **({"title": page["title"]} if cap.get("place") else {}), "published": page.get("published"),
+            "course": cap.get("course"), "abstract": page.get("abstract"), **(cap.get("fields") or {})}
     return "---\n" + "".join(f"{k}: {json.dumps(v, ensure_ascii=False)}\n" for k, v in rows.items() if v) + "---\n"
 
 
@@ -960,6 +1446,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("harvest", type=Path)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--items", type=Path, help="where the captures go (default: <out>/.captures)")
+    for p in (sub.choices["split"], sub.choices["notes"]):
+        p.add_argument("--layout", choices=CHOICES["layout"], default="legacy", help="where each note goes, as a job's options.layout")
     for p in sub.choices.values():
         p.add_argument("--tz", help="the zone due dates and post times read in, an IANA name (default UTC)")
     args = ap.parse_args(argv)
@@ -969,7 +1457,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"refused: {args.harvest} holds no course.json — not a `bb.py harvest` output", file=sys.stderr)
             return 2
         try:
-            dirs = split(args.harvest, args.out)
+            dirs = split(args.harvest, args.out, options={"layout": args.layout})
         except ValueError as exc:
             print(f"refused: {exc}", file=sys.stderr)
             return 2
@@ -987,14 +1475,17 @@ def main(argv: list[str] | None = None) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     written, problems = 0, []
     try:
-        dirs = split(args.harvest, items)
+        dirs = split(args.harvest, items, options={"layout": args.layout})
     except ValueError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 2
     for d in dirs:
         cap = json.loads((d / CAPTURE).read_text(encoding="utf-8"))
-        for page in render(d):
-            (args.out / f"{page['title']}.md").write_text(_frontmatter(page, cap) + page["body"], encoding="utf-8")
+        for n, page in enumerate(render(d), 1):
+            place = f"{cap['place']} (part {n})" if cap.get("place") and n > 1 else cap.get("place") or page["title"]
+            target = args.out / f"{place}.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(_frontmatter(page, cap) + page["body"], encoding="utf-8")
             written += 1
             if page.get("problem"):
                 problems.append(f"{page['title']}: {page['problem']}")
