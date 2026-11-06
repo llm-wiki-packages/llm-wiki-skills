@@ -127,7 +127,7 @@ go stale.
   returning item could not be brought back.
 - A page a person moved is left alone, as before.
 
-## A person may reorganise inside `dest`; moving `dest` itself needs the job moved too.
+## A person may reorganise inside `dest`; moving `dest` itself moves the job with it.
 
 - A page moved anywhere under `dest` stays the job's: the next pull edits it
   where it now sits (`known[]` names its path), and the overview links it
@@ -137,10 +137,31 @@ go stale.
   module's written pages now sit (`dest` itself for a flattened module);
   only with neither, its planned folder.
 - A page moved out of `dest` is the person's: no pull writes it again.
-- Renaming or moving `dest` moves every page out of it, and `jobs edit`
-  refuses a new `dest` (simple10/llm-wiki-plugins#4098): the next pull
-  leaves every page alone and writes new items under the old `dest`, made
-  again. Leave a followed course's folder where its job put it.
+- To rename or move the course folder itself, move the job with it, never
+  the folder alone: `{{@brain-cli-ops}} jobs edit <slug> dest=<new>
+  --move-folder` renames the folder and re-points the job in one commit.
+  It asks for confirmation: re-run the command it prints, which carries
+  `--confirm`. Without `--move-folder` it only re-points, for a folder
+  already moved by hand. A folder moved without its job stops the job
+  (`{{@brain-cli-ops}} jobs check <slug>` says `renamed` and prints the
+  `jobs edit` that fixes it) until it is re-pointed.
+
+## A person may edit any page; the next pull merges into it.
+
+Every page's course text ends on a `---` line, the same each pull. Type
+notes below it, or change anything above it: a pull that finds the page
+edited merges the course's changes into the person's copy instead of
+writing over it. A frontmatter key the person changed keeps their value
+(`updates_waiting` marks the page where the course changed that key too);
+a change both sides made to the same lines is a conflict, held until
+`{{@brain-cli-ops}} page resolve <page> mine|theirs|merged`. A pull leaves
+alone, and says why in its reason, a page a person holds (`draft: true`)
+or archived, one edited outside `dest`, one touched in the last few
+minutes (a later pull writes it), one in conflict, and one with no
+`rendered` stamp yet (pages written before the plugin's edit merging;
+`{{@brain-cli-ops}} doctor --fix` stamps them once). A note typed at the
+very end of a page written before the closing line existed conflicts once,
+on the first pull that adds the line; resolve it and later pulls merge.
 
 ## Pages made by hand do not join a job's layout.
 

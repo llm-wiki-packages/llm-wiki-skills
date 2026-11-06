@@ -26,6 +26,16 @@
     },
     {
       "type": "skill",
+      "name": "podcast",
+      "path": "skills/podcast"
+    },
+    {
+      "type": "skill",
+      "name": "quiz-show",
+      "path": "skills/quiz-show"
+    },
+    {
+      "type": "skill",
       "name": "channel-blackboard",
       "path": "skills/channel-blackboard"
     },
