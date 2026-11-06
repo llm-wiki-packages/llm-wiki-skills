@@ -161,17 +161,21 @@ def test_no_shell_block_in_the_body_carries_served_text():
 LEDGER = UNIT / "scripts" / "ledger.py"
 DAY = "_raw/ps/2026-10-03"
 DEST = "research/channels/ps"
+DATE = DAY.rsplit("/", 1)[-1]
 
 
-def _stub(tmp_path, *, page_exists=False, capture_dir=DAY):
-    """A recording front door: `tickets open` answers the process ticket; `page create` refuses where the day's page exists."""
+def _stub(tmp_path, *, page_exists=False, capture_dir=DAY, pages=(), held=None, ticket_rows=None):
+    """A recording front door: `tickets open` answers the process ticket; `page ls` answers `pages`, `page read` the
+    frontmatter `held` (none: a page with no `resource`); `page create` refuses where the day's page exists."""
     stub = tmp_path / "ops_stub.py"
-    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST}
+    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST, **(ticket_rows or {})}
     stub.write_text(
         "import json, os, sys\n"
         "argv = sys.argv[1:]; verb = [a for a in argv if not a.startswith('--')]\n"
         "open(os.environ['FAKE_CALLS'], 'a').write(json.dumps({'argv': argv, 'stdin': sys.stdin.read() if '--stdin' in argv else None}) + '\\n')\n"
         f"if verb[:2] == ['tickets', 'open']: print(json.dumps({{'ticket': {ticket!r}}})); sys.exit(0)\n"
+        f"if verb[:2] == ['page', 'ls']: print(json.dumps({{'pages': json.loads({json.dumps(list(pages))!r})}})); sys.exit(0)\n"
+        f"if verb[:2] == ['page', 'read']: print(json.dumps({{'frontmatter': json.loads({json.dumps(held or {})!r})}})); sys.exit(0)\n"
         f"if verb[:2] == ['page', 'create'] and {page_exists!r}: print('exists', file=sys.stderr); sys.exit(2)\n"
         "print('{}')\n"
     )
@@ -184,8 +188,9 @@ def _item(tmp_path, name, **doc):
     path.write_text(json.dumps({"v": 1, "attachments": [], "body": "x", **doc}), encoding="utf-8")
 
 
-def _ledger(tmp_path, *args, page_exists=False):
-    env = {**__import__("os").environ, "LLM_WIKI_OPS": _stub(tmp_path, page_exists=page_exists), "FAKE_CALLS": str(tmp_path / "calls.log")}
+def _ledger(tmp_path, *args, page_exists=False, pages=(), held=None, ticket_rows=None):
+    stub = _stub(tmp_path, page_exists=page_exists, pages=pages, held=held, ticket_rows=ticket_rows)
+    env = {**__import__("os").environ, "LLM_WIKI_OPS": stub, "FAKE_CALLS": str(tmp_path / "calls.log")}
     done = subprocess.run([sys.executable, str(LEDGER), DAY, "--ticket", "t1", *args], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
     calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()] if (tmp_path / "calls.log").exists() else []
     return done, calls
@@ -207,7 +212,10 @@ def test_the_ledger_is_built_from_the_items_with_rows_only_where_judged(tmp_path
     done, calls = _ledger(tmp_path)
     assert done.returncode == 0, done.stderr
     (create,) = [c for c in calls if c["argv"][:2] == ["page", "create"]]
-    assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "extracted=true", "status="} <= set(create["argv"])
+    assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "extracted=true", "status=",
+            "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(create["argv"])
+    (lookup,) = [c for c in calls if c["argv"][1:3] == ["page", "ls"]]
+    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
     assert create["stdin"] == (
         "- Lincoln: Early dismissal Friday — parentsquare:ps-post-1\n"
         "- Lincoln: picture day forms due 10/10 — parentsquare:ps-notice-4-0a1b2c3d4e5f\n"
@@ -236,6 +244,68 @@ def test_a_second_pull_of_the_day_edits_the_page_whole(tmp_path):
     assert done.returncode == 0, done.stderr
     (edit,) = [c for c in calls if c["argv"][:2] == ["page", "edit"]]
     assert edit["argv"][2] == f"{DEST}/2026-10-03.md" and "status=" not in edit["argv"] and edit["stdin"].startswith("- Lincoln")
+    assert {"resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(edit["argv"])
+
+
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits(tmp_path):
+    _day(tmp_path)
+    renamed = f"{DEST}/School week.md"
+    done, calls = _ledger(tmp_path, pages=[{"path": renamed, "document_id": "doc-1", "job": "ps"}])
+    assert done.returncode == 0, done.stderr
+    (edit,) = [c for c in calls if c["argv"][:2] == ["page", "edit"]]
+    assert edit["argv"][2] == renamed and not [c for c in calls if c["argv"][:2] == ["page", "create"]]
+    assert json.loads((tmp_path / DAY / "written.json").read_text()) == [renamed]
+
+
+def test_two_ledgers_for_one_day_fail_naming_both(tmp_path):
+    _day(tmp_path)
+    rows = [{"path": f"{DEST}/{n}.md", "document_id": n, "job": "ps"} for n in ("A", "B")]
+    done, calls = _ledger(tmp_path, pages=rows)
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert "status=failed" in update["argv"] and not [c for c in calls if c["argv"][0] == "page"]
+    assert any(f"{DEST}/A.md" in a and f"{DEST}/B.md" in a for a in update["argv"])
+
+
+def test_a_ledger_a_person_holds_is_left_alone(tmp_path):
+    _day(tmp_path)
+    done, calls = _ledger(tmp_path, pages=[{"path": f"{DEST}/x.md", "document_id": "doc-1", "job": "ps", "draft": True}])
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"] and not [c for c in calls if c["argv"][0] == "page"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
+    _day(tmp_path)
+    mine = f"{DEST}/{DATE}.md"
+    held = [{"path": mine, "resource": "parentsquare:ledger", "resource_id": f"parentsquare:day:{DATE}", "status": status}]
+    done, calls = _ledger(tmp_path, pages=[{"path": mine, "document_id": "doc-1", "job": "ps"}], ticket_rows={"held": held})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"] and f"reason={mine}: held ({status}), left alone" in update["argv"]
+    assert not [c for c in calls if c["argv"][:2] in (["page", "edit"], ["page", "create"])]
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone(tmp_path):
+    _day(tmp_path)
+    moved = {"resource": "parentsquare:ledger", "resource_id": f"parentsquare:day:{DATE}", "path": "wiki/ps.md", "reason": "moved"}
+    done, calls = _ledger(tmp_path, ticket_rows={"known": [moved]})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"]
+    assert not [c for c in calls if c["argv"][:2] in (["page", "edit"], ["page", "create"])]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path):
+    _day(tmp_path)
+    held = [{"path": f"{DEST}/{DATE}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    done, calls = _ledger(tmp_path, page_exists=True, ticket_rows={"held": held})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"] and not [c for c in calls if c["argv"][:2] == ["page", "edit"]]
+
+
+def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path):
+    _day(tmp_path)
+    done, calls = _ledger(tmp_path, page_exists=True, held={"resource": "https://example.com/x"})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert "status=failed" in update["argv"] and not [c for c in calls if c["argv"][:2] == ["page", "edit"]]
 
 
 def test_a_day_with_no_items_is_ok_and_writes_no_page(tmp_path):

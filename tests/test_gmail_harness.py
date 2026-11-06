@@ -8,6 +8,9 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
+import subprocess
+import time
+
 import pytest
 
 from harness import bound_credential, claimed, declared_job, pending, rooted, run, staged, unit_tests
@@ -150,6 +153,27 @@ def test_a_second_pull_the_same_day_regenerates_the_one_ledger_whole(ops, env, w
     (cap / "items" / f"{T0 + 1000}--m1.json").unlink()
     ledgered(ops, env, wiki, job, cap, [line_for(2, "rewritten"), line_for(3)])
     assert _bullets(_body(ledger_path.read_text(encoding="utf-8"))) == _bullets(second)[1:]
+
+
+def test_a_ledger_a_person_renamed_is_regenerated_where_it_now_sits(ops, env, wiki, job):
+    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(1)])
+    ledgered(ops, env, wiki, job, cap, [line_for(1)])
+    made = wiki / job.dest / f"{cap.name}.md"
+    renamed = made.with_name("Monday mail.md")
+    for argv in (["mv", str(made.relative_to(wiki)), str(renamed.relative_to(wiki))], ["commit", "-q", "-m", "a person renames the ledger"]):
+        # A landing's own commit, or another case's in this wiki, may hold the index for a moment: a person would retry.
+        deadline = time.monotonic() + 60
+        while True:
+            done = subprocess.run(["git", "-C", str(wiki), *argv], capture_output=True, text=True, env=rooted(env, wiki))
+            if done.returncode == 0 or "index.lock" not in done.stderr or time.monotonic() > deadline:
+                break
+            time.sleep(0.5)
+        assert done.returncode == 0, done.stderr
+
+    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(2), msg(1)])
+    ledgered(ops, env, wiki, job, cap, [line_for(1), line_for(2, "the second pull's")])
+    assert not made.exists() and sorted(p.name for p in renamed.parent.glob("*.md")) == ["Monday mail.md"]
+    assert "- the second pull's — gmail:m2" in _bullets(_body(renamed.read_text(encoding="utf-8")))
 
 
 def test_the_items_are_still_a_ledger_the_hosts_own_extractor_can_make(ops, env, wiki, job):

@@ -68,8 +68,9 @@ clock is ignored, out loud, and the lookback stands in.
 `ledger` is the PROCESS arm. It reads the day's `items/` and the process step's
 own words — `[{"id": "<task-id>", "line": "<one factual line>", "junk": null |
 "<rule>"}]`, one row per item, on stdin or in `--from` — and writes the day's
-ledger under `dest` through the front door: `page create`, or `page edit` over
-the page that day already has. The page is regenerated WHOLE every run, because
+ledger under `dest` through the front door: `page edit` of the day's
+ledger (`page ls resource=notion:ledger resource_id=notion:day:<day>`), wherever
+a person renamed it, else `page create`. The page is regenerated WHOLE every run, because
 the day directory is the source of truth. An item no row names keeps its own
 title as its bullet and the run reports `partial`: a rerun loses no item, and
 no run claims words it did not write. Then `tickets update`, LAST, naming the
@@ -112,6 +113,9 @@ PULL_NAME = "pull.json"
 LINES_NAME = "lines.json"  # the process step's own words, one row per item in the day
 CAPTURE_NAME = "capture.json"
 LEDGER_TYPE = "ledger"
+# The ledger's identity: one resource per channel, a day of it per page (`write_page`).
+LEDGER_RESOURCE = "notion:ledger"
+LEDGER_DAY = "notion:day:"
 BULLET_MAX = 200  # the host's own cap on a ledger bullet: `pipeline/extract.py::BULLET_MAX`
 _FOLD = re.compile(r"\s+")
 _FORGES = str.maketrans({"`": "'", "[": "(", "]": ")"})  # `pipeline/extract.py::_FORGES`
@@ -203,8 +207,8 @@ def report_name(ticket: str) -> str:
 # root: the `cwd=<root>` this script was handed is what binds the nested call
 # to THIS wiki.
 NOT_INHERITED = ("CLAUDE_PROJECT_DIR",)
-# `page create`'s one refusal that is not a failure: this day already has a
-# ledger. The TAIL only: the CLI says `<path> already exists — the filename is
+# `page create`'s refusal of a title already a page: this day's ledger from
+# before ledgers carried an identity, or another page. The TAIL only: the CLI says `<path> already exists — the filename is
 # the title`, and `--json` prints that em dash escaped, so a marker carrying
 # one matches the prose voice and never the JSON one this script asks for.
 EXISTS = "the filename is the title"
@@ -766,15 +770,77 @@ def ledger_body(items, by_id):
     return body, counts
 
 
-def write_page(dest, title, front, body):
-    """The day's ledger under `dest`, through the front door. Returns it,
-    wiki-relative.
+def identity_match(rows, slug, dest):
+    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    `(None, <why>)` where there are several — never one picked.
 
-    `page create` first, `page edit` on the one refusal that means this day
-    already has a ledger — the day directory is the source of truth and the
-    page is regenerated whole from it every run. The arguments are an argv
-    LIST and never a shell line: every value on one started as the venue's
-    text, and a venue that can type onto a Bash line can run a command.
+    A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
+    page written before it carries none. A row from another job is that job's page, not this one's."""
+    folder = str(dest or "").strip("/")
+    mine = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("job") == slug or (row.get("job") is None and folder and str(row.get("path") or "").startswith(folder + "/")))
+    ]
+    if len(mine) > 1:
+        return None, "pages " + ", ".join(sorted(str(row.get("path")) for row in mine)) + " all hold this item: none was written"
+    return (mine[0] if mine else None), None
+
+
+def left_alone(row):
+    """Why the page `row` names is not this run's to write, or None: a person moved it out of `dest`, or ticked its
+    Draft or Archive box."""
+    if row.get("moved"):
+        return f"{row.get('path')}: moved out of dest by a person, left alone"
+    if row.get("draft") or row.get("archive"):
+        return f"{row.get('path')}: held (Draft or Archive), left alone"
+    return None
+
+
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def write_page(dest, title, front, body, slug=None, known=(), held=()):
+    """The day's ledger under `dest`, through the front door: `(<wiki-relative path>, None)` written, or `(None,
+    <why>)` left alone. Raises `PageRefused` where nothing could be written.
+
+    The day directory is the source of truth and the page is regenerated whole
+    from it every run, found by its identity — `resource=LEDGER_RESOURCE`,
+    `resource_id=<LEDGER_DAY><day>` (`identity_match`) — so a ledger a person
+    renamed is edited at the path that lookup found, never made twice. No page: `page
+    create`, with the identity; its refusal of the title is a ledger an earlier
+    pull left before ledgers carried one, stamped with it the one time — unless
+    the page there names another `resource`, which is never written over. The
+    arguments are an argv LIST and never a shell line: every value on one
+    started as the venue's text, and a venue that can type onto a Bash line can
+    run a command.
 
     The wiki is the cwd: `llm-wiki-ops run` starts this script at the wiki
     root, and that is what binds the front door to THIS wiki."""
@@ -782,30 +848,56 @@ def write_page(dest, title, front, body):
     if not door:
         raise PageRefused(f"`{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing \u2014 the front door is how this unit writes a page; install the ops plugin on this machine")
     where = {"cwd": os.getcwd(), "env": _front_door_env()}
+
+    def ops(*argv, stdin=""):
+        done = subprocess.run([*door, "--json", *argv], input=stdin, capture_output=True, text=True, **where)
+        try:
+            answer = json.loads(done.stdout or "")
+        except ValueError:
+            answer = None
+        return done, answer if isinstance(answer, dict) else {}, ((done.stdout or "") + (done.stderr or "")).strip()[-300:]
+
     keys = [f"{key}={value}" for key, value in front.items()]
-    # `status=` EMPTY, on create only. A ledger is outside the corpus and the
-    # lifecycle by location, and a `draft` here would put every day of every
-    # channel in curate's list. `page edit` REFUSES the same key (exit 2 —
-    # curate, revise and retire are what move a status) and does not need it:
-    # a page created without a status still has none after an edit.
-    created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "status=", "--stdin"],
-        input=body, capture_output=True, text=True, **where,
-    )
+    ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{title}"]
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    listed, answer, said = ops("page", "ls", f"filter=under:{dest}", *ident)
+    if listed.returncode != 0 or not isinstance(answer.get("pages"), list):
+        raise PageRefused(f"`page ls` did not answer (exit {listed.returncode}): {said}")
+    # A ledger a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
+    row, why = identity_match(answer["pages"] + moved_rows(known, LEDGER_RESOURCE, slug, f"{LEDGER_DAY}{title}"), slug, dest)
+    if why:
+        raise PageRefused(why)
     rel = f"{dest}/{title}.md"
-    if created.returncode == 0:
-        return rel
-    said = ((created.stdout or "") + (created.stderr or "")).strip()
-    if EXISTS not in said:
-        raise PageRefused(f"`page create` refused (exit {created.returncode}): {said[-300:]}")
-    edited = subprocess.run(
-        [*door, "--json", "page", "edit", rel, *keys, "--stdin"],
-        input=body, capture_output=True, text=True, **where,
-    )
+    why = (left_alone(row) if row is not None else None) or held_reason(held, LEDGER_RESOURCE, row and row["path"], f"{LEDGER_DAY}{title}")
+    if why:
+        return None, why
+    if row is not None:
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+        # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+        target, rel = row["path"], row["path"]
+    else:
+        # `status=` EMPTY, on create only. A ledger is outside the corpus and the
+        # lifecycle by location, and a `draft` here would put every day of every
+        # channel in curate's list. `page edit` REFUSES the same key (exit 2 —
+        # curate, revise and retire are what move a status) and does not need it:
+        # a page created without a status still has none after an edit.
+        created, _, said = ops("page", "create", f"title={title}", f"dest={dest}", *keys, *ident, "status=", "--stdin", stdin=body)
+        if created.returncode == 0:
+            return rel, None
+        if EXISTS not in said:
+            raise PageRefused(f"`page create` refused (exit {created.returncode}): {said}")
+        read, answer, _ = ops("page", "read", rel, "--frontmatter")
+        legacy = answer.get("frontmatter")
+        if read.returncode != 0 or not isinstance(legacy, dict) or legacy.get("resource"):
+            raise PageRefused(f"{rel} is not this ledger's, and is not written over: {said}")
+        why = held_reason(held, None, rel)
+        if why:
+            return None, why
+        target, keys = rel, [*keys, *ident]
+    edited, _, said = ops("page", "edit", target, *keys, "--stdin", stdin=body)
     if edited.returncode != 0:
-        said = ((edited.stdout or "") + (edited.stderr or "")).strip()
-        raise PageRefused(f"`page edit` refused (exit {edited.returncode}) over {rel}: {said[-300:]}")
-    return rel
+        raise PageRefused(f"`page edit` refused (exit {edited.returncode}) over {rel}: {said}")
+    return rel, None
 
 
 def ledger(directory, args, *, now=None):
@@ -869,9 +961,12 @@ def ledger(directory, args, *, now=None):
         "extracted": EXTRACTED,
     }
     try:
-        written = [write_page(dest, directory.name, front, body)]
+        rel, left = write_page(dest, directory.name, front, body, slug=job.get("slug"), known=ticket.get("known"), held=ticket.get("held"))
     except PageRefused as exc:
         return finish("failed", str(exc), counts=counts)
+    if left:
+        return finish("ok", left, counts=counts)
+    written = [rel]
 
     reasons = [one for one in (args.partial, no_lines) if one]
     if counts["unlined"]:

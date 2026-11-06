@@ -78,7 +78,8 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
     defaulted off `capture.json`'s presence there, exactly as the host's own
     default does (A-3). `page create`/`page edit` are recorded to
     `page-calls.jsonl` with the body on stdin, and exit `create_code`/
-    `edit_code`."""
+    `edit_code`. `page ls`/`page read` answer `pages.json`/`held.json` in the
+    cwd (none, and a page with no `resource`), recorded to `lookup-calls.jsonl`."""
     stub = root / "ops_stub.py"
     stub.write_text(
         "import json, os, pathlib, sys\n"
@@ -111,6 +112,13 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
         "    (cap_dir / ('report.' + tid + '.json')).write_text(json.dumps(body))\n"
         "    with pathlib.Path('update-calls.jsonl').open('a') as f:\n"
         "        f.write(json.dumps(argv) + chr(10))\n"
+        "    sys.exit(0)\n"
+        "if argv[:2] in (['page', 'ls'], ['page', 'read']):\n"
+        "    with pathlib.Path('lookup-calls.jsonl').open('a') as f:\n"
+        "        f.write(json.dumps(argv) + chr(10))\n"
+        "    seeded = pathlib.Path('pages.json' if argv[1] == 'ls' else 'held.json')\n"
+        "    found = json.loads(seeded.read_text()) if seeded.exists() else ([] if argv[1] == 'ls' else {})\n"
+        "    print(json.dumps({'pages': found} if argv[1] == 'ls' else {'frontmatter': found}))\n"
         "    sys.exit(0)\n"
         "if argv[:2] == ['page', 'create'] or argv[:2] == ['page', 'edit']:\n"
         "    body = sys.stdin.read() if '--stdin' in argv else ''\n"
@@ -664,7 +672,8 @@ def test_the_process_step_builds_the_page_as_an_argv_list_with_the_body_on_stdin
     assert r.returncode == 0, r.stderr
     (call,) = page_calls(root)
     assert call["argv"] == ["page", "create", f"title={DAY}", "dest=research/channels/mail", "type=ledger",
-                            "channel=mail", f"date={DAY}", "items=2", "extracted=true", "status=", "--stdin"]
+                            "channel=mail", f"date={DAY}", "items=2", "extracted=true",
+                            "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}", "status=", "--stdin"]
     assert call["body"].startswith("- Person 1 asks about thing 1 — gmail:m1\n")
     assert call["body"].endswith("discarded: 0 (junk rules)\n")
 
@@ -689,9 +698,89 @@ def test_a_second_pull_of_the_day_edits_the_page_the_first_one_left(tmp_path):
     create, edit = page_calls(root)
     assert create["argv"][1] == "create"
     assert edit["argv"] == ["page", "edit", f"research/channels/mail/{DAY}.md", "type=ledger", "channel=mail",
-                            f"date={DAY}", "items=1", "extracted=true", "--stdin"]
+                            f"date={DAY}", "items=1", "extracted=true",
+                            "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}", "--stdin"]
     assert "status=" not in edit["argv"]  # `page curate`, `revise` and `retire` are what move a status
     assert edit["body"] == create["body"]
+
+
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits_not_made_twice(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    renamed = "research/channels/mail/Monday mail.md"
+    (root / "pages.json").write_text(json.dumps([{"path": renamed, "document_id": "doc-1", "job": "mail"}]))
+    r = ledger(directory, ticket, [line_for(1)])
+    assert r.returncode == 0, r.stderr
+    assert json.loads((root / "lookup-calls.jsonl").read_text().splitlines()[0]) == [
+        "page", "ls", "filter=under:research/channels/mail", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
+    (edit,) = page_calls(root)
+    assert edit["argv"][:3] == ["page", "edit", renamed] and "status=" not in edit["argv"]
+    assert report(directory)["written"] == [renamed]
+
+
+def test_two_ledgers_for_one_day_fail_naming_both(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    rows = [{"path": f"research/channels/mail/{n}.md", "document_id": n, "job": "mail"} for n in ("A", "B")]
+    (root / "pages.json").write_text(json.dumps(rows))
+    r = ledger(directory, ticket, [line_for(1)])
+    rep = report(directory)
+    assert r.returncode == 1 and not page_calls(root)
+    assert rep["status"] == "failed" and "mail/A.md" in rep["reason"] and "mail/B.md" in rep["reason"]
+
+
+def test_a_ledger_a_person_moved_is_left_alone(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    (root / "pages.json").write_text(json.dumps([{"path": "wiki/mail.md", "document_id": "doc-1", "job": "mail", "moved": True}]))
+    assert ledger(directory, ticket, [line_for(1)]).returncode == 0
+    rep = report(directory)
+    assert not page_calls(root) and rep["status"] == "ok" and rep["written"] == [] and "left alone" in rep["reason"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    mine = f"research/channels/mail/{DAY}.md"
+    (root / "pages.json").write_text(json.dumps([{"path": mine, "document_id": "doc-1", "job": "mail"}]))
+    held = [{"path": mine, "resource": "gmail:ledger", "resource_id": f"gmail:day:{DAY}", "document_id": "doc-1", "status": status}]
+    assert ledger(directory, {**ticket, "held": held}, [line_for(1)]).returncode == 0
+    rep = report(directory)
+    assert not page_calls(root) and rep["status"] == "ok" and rep["written"] == []
+    assert rep["reason"] == f"{mine}: held ({status}), left alone"
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone_and_another_days_is_not(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    other = {"resource": "gmail:ledger", "resource_id": "gmail:day:2020-01-01", "document_id": "doc-0", "path": "wiki/old.md", "reason": "moved"}
+    assert ledger(directory, {**ticket, "known": [other]}, [line_for(1)]).returncode == 0
+    assert [c["argv"][1] for c in page_calls(root)] == ["create"]
+    moved = {**other, "resource_id": f"gmail:day:{DAY}", "path": "wiki/mail.md"}
+    assert ledger(directory, {**ticket, "known": [other, moved]}, [line_for(1)]).returncode == 0
+    rep = report(directory)
+    assert [c["argv"][1] for c in page_calls(root)] == ["create"] and "wiki/mail.md: moved" in rep["reason"]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    held = [{"path": f"research/channels/mail/{DAY}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    r = ledger(directory, {**ticket, "held": held}, [line_for(1)], create_code=2)
+    rep = report(directory)
+    assert r.returncode == 0 and [c["argv"][1] for c in page_calls(root)] == ["create"]
+    assert rep["status"] == "ok" and "held (unstamped)" in rep["reason"]
+
+
+def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    (root / "held.json").write_text(json.dumps({"resource": "https://example.com/other"}))
+    r = ledger(directory, ticket, [line_for(1)], create_code=2)
+    rep = report(directory)
+    assert r.returncode == 1 and [c["argv"][1] for c in page_calls(root)] == ["create"]
+    assert rep["status"] == "failed" and "not this ledger's" in rep["reason"]
 
 
 def test_a_page_that_could_not_be_written_is_a_failed_report_naming_both_refusals(tmp_path):
