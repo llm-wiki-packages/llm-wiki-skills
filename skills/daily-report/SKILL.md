@@ -98,8 +98,8 @@ A failed input is a one-line note in the report, never an abort.
   pulled here, which has no ledger for the gap days — note and skip. A
   scheduled run cannot list jobs, so it reports the ledgers it found.
 - **This wiki's ops digest** — the newest `research/reports/` page inside the
-  window, read with `{{@brain-cli-ops}} page read <path>`. The `ops-morning` job
-  `requires` a `wiki-report` run within the day, so under the schedule there
+  window, read with `{{@brain-cli-ops}} page read <path>`. The morning job that
+  runs this skill `requires` a `wiki-report` run within the day, so under the schedule there
   is always one to read; a by-hand run may find none — note the gap and
   continue. Take it as given, never re-derive it.
 - **What the wiki did** — `op since` is the runs, `git changed` the files.
