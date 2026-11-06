@@ -511,16 +511,17 @@ def test_a_list_page_the_tickets_held_names_is_left_alone(tmp_path, monkeypatch,
     mine = "research/github/lists/My stars.md"
     calls = _lists_with(monkeypatch, tmp_path, [{"path": mine, "document_id": "doc-1", "job": "gh-lists"}],
                         ticket_rows={"held": [{"path": mine, "resource": "github:lists", "resource_id": "x", "status": status}]})
-    lists.main(["--only", "Stars", "ticket=t1"])
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
     assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
-    assert any(f"held ({status})" in " ".join(c) for c in calls if c[:2] == ("op", "close"))
+    (closed,) = [c for c in calls if c[:2] == ("op", "close")]
+    assert closed[3] == "outcome=ok" and f"held ({status})" in closed[4], "left alone is not a refusal"
 
 
 def test_a_list_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch):
     calls = _lists_with(monkeypatch, tmp_path)
     moved = {"resource": "github:lists", "resource_id": f"github:list:{_stars_title(tmp_path)}", "path": "wiki/stars.md", "reason": "moved"}
     calls = _lists_with(monkeypatch, tmp_path, ticket_rows={"known": [moved]})
-    lists.main(["--only", "Stars", "ticket=t1"])
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
     assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
 
 

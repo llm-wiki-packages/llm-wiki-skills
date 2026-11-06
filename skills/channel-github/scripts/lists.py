@@ -93,8 +93,9 @@ def held_reason(held, resource, path=None, resource_id=None):
 
 def write_list_page(
     dest: str, title: str, description: str, body: str, slug: str | None = None, known=(), held=()
-) -> tuple[str | None, str | None]:
-    """`(path, None)` once the page is written, `(None, why)` when the verb refused or the page is left alone.
+) -> tuple[str | None, str | None, bool]:
+    """`(path, None, False)` once the page is written, `(None, why, True)` when the page is left alone, `(None, why,
+    False)` when the verb refused.
 
     A list is found by its identity — `resource=LISTS`, `resource_id=<LIST><title>` — so a list page a person
     renamed is regenerated at the path that lookup found, never made twice. A list page from before lists carried one sits
@@ -105,15 +106,15 @@ def write_list_page(
     # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
     rc, answer = ops_json("page", "ls", f"filter=under:{dest}", *ident)
     if rc != 0 or not isinstance(answer.get("pages"), list):
-        return None, f"{title}: `page ls` did not answer: {answer.get('error') or answer}"
+        return None, f"{title}: `page ls` did not answer: {answer.get('error') or answer}", False
     # A list page a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
     row, why = identity_match(answer["pages"] + moved_rows(known, LISTS, slug, f"{LIST}{title}"), slug, dest)
     if why:
-        return None, f"{title}: {why}"
+        return None, f"{title}: {why}", False
     path = f"{dest.rstrip('/')}/{title}.md"
     why = (left_alone(row) if row is not None else None) or held_reason(held, LISTS, row["path"] if row else path, f"{LIST}{title}")
     if why:
-        return None, f"{title}: {why}"
+        return None, f"{title}: {why}", True
     if row is not None:
         path = row["path"]
         # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
@@ -123,13 +124,13 @@ def write_list_page(
         rc, legacy = ops_json("page", "read", path, "--frontmatter")
         front = legacy.get("frontmatter") if rc == 0 else None
         if not isinstance(front, dict) or front.get("resource"):
-            return None, f"{title}: {path} is not this list's, and is not written over"
+            return None, f"{title}: {path} is not this list's, and is not written over", False
         rc, answer = ops_json("page", "edit", path, *pairs, *ident, "--stdin", stdin=body)
     else:
         rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, *ident, "--stdin", stdin=body)
     if rc != 0:
-        return None, f"{title}: {answer.get('error') or answer}"
-    return answer.get("path") or path, None
+        return None, f"{title}: {answer.get('error') or answer}", False
+    return answer.get("path") or path, None, False
 
 
 def close(outcome: str, summary: str) -> int:
@@ -154,18 +155,21 @@ def run(ticket_id: str, only: str | None) -> int:
     built = build_lists(cfg, records, today_utc())
     if only:
         built = [b for b in built if only.lower() in b[0].lower()]
-    written, refused = [], []
+    written, refused, left = [], [], []
     for title, description, body in built:
-        path, why = write_list_page(dest, title, description, body, ticket.get("slug"), ticket.get("known"), ticket.get("held"))
+        path, why, alone = write_list_page(dest, title, description, body, ticket.get("slug"), ticket.get("known"), ticket.get("held"))
         if path:
             written.append(path)
         else:
-            refused.append(why)
+            # A page a person moved or the host holds is left alone, and that is not a refusal.
+            (left if alone else refused).append(why)
     outcome = "failed" if refused and not written else "partial" if refused else "ok"
     summary = f"channel-github lists: {len(written)} list pages from {len(records)} repo pages"
     if refused:
         summary += f"; {len(refused)} refused, first: {refused[0][:200]}"
-    print(json.dumps({"outcome": outcome, "written": written, "refused": refused, "repo_pages": len(records)}, indent=1))
+    if left:
+        summary += f"; {len(left)} left alone, first: {left[0][:200]}"
+    print(json.dumps({"outcome": outcome, "written": written, "refused": refused, "left": left, "repo_pages": len(records)}, indent=1))
     return 0 if close(outcome, summary) == 0 and outcome != "failed" else 1
 
 
