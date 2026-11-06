@@ -783,6 +783,36 @@ def test_a_ledger_a_person_archived_is_left_alone(tmp_path, door):
     assert r.returncode == 0 and not door.calls() and rep["status"] == "ok" and "left alone" in rep["reason"]
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, door, status):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    mine = f"research/channels/tasks/{DAY}.md"
+    held = [{"path": mine, "resource": "notion:ledger", "resource_id": f"notion:day:{DAY}", "status": status}]
+    r = landed(directory, {**ticket, "held": held}, door, pages=[{"path": mine, "document_id": "d", "job": "tasks"}])
+    rep = report(directory)
+    assert r.returncode == 0 and not door.calls() and rep["status"] == "ok"
+    assert rep["reason"] == f"{mine}: held ({status}), left alone"
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    moved = {"resource": "notion:ledger", "resource_id": f"notion:day:{DAY}", "document_id": "d", "path": "wiki/tasks.md", "reason": "moved"}
+    r = landed(directory, {**ticket, "known": [moved]}, door)
+    rep = report(directory)
+    assert r.returncode == 0 and not door.calls() and "wiki/tasks.md: moved" in rep["reason"]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    held = [{"path": f"research/channels/tasks/{DAY}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    r = landed(directory, {**ticket, "held": held}, door, (2, EXISTS), (0, {"frontmatter": {"type": "ledger"}}))
+    rep = report(directory)
+    assert r.returncode == 0 and [c["argv"][2] for c in door.calls()] == ["create"] and "held (unstamped)" in rep["reason"]
+
+
 def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path, door):
     directory, ticket = day_dir(tmp_path)
     assert write(directory, ticket, [task(1)]).returncode == 0

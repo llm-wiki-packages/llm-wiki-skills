@@ -795,6 +795,35 @@ def left_alone(row):
     return None
 
 
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
 def _answer(done):
     """A `--json` verb's answer object, or `{}`."""
     try:
@@ -804,7 +833,7 @@ def _answer(done):
     return answer if isinstance(answer, dict) else {}
 
 
-def write_page(dest, day, keys, body, slug=None):
+def write_page(dest, day, keys, body, slug=None, known=(), held=()):
     """`(<wiki-relative path>, None, False)` written, `(None, <why>, True)` left alone, or `(None, <why>, False)`.
 
     The day's ledger is regenerated whole on every pull of that day, and found
@@ -826,14 +855,16 @@ def write_page(dest, day, keys, body, slug=None):
     rows = _answer(listed).get("pages")
     if listed.returncode != 0 or not isinstance(rows, list):
         return None, f"`page ls` said {_said(listed)!r}", False
-    row, why = identity_match(rows, slug, dest)
+    # A ledger a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
+    row, why = identity_match(rows + moved_rows(known, LEDGER_RESOURCE, slug, f"{LEDGER_DAY}{day}"), slug, dest)
     if why:
         return None, why, False
+    why = (left_alone(row) if row is not None else None) or held_reason(held, LEDGER_RESOURCE, row and row["path"], f"{LEDGER_DAY}{day}")
+    if why:
+        return None, why, True
     if row is not None:
-        why = left_alone(row)
-        if why:
-            return None, why, True
-        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+        # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
         edited = _ops(["page", "edit", row["path"], *keys, "--stdin"], body)
         return (row["path"], None, False) if edited.returncode == 0 else (None, f"`page edit` said {_said(edited)!r}", False)
     rel = f"{dest.rstrip('/')}/{day}.md"
@@ -841,9 +872,12 @@ def write_page(dest, day, keys, body, slug=None):
     if made.returncode == 0:
         return rel, None, False
     read = _ops(["--json", "page", "read", rel, "--frontmatter"], "")
-    held = _answer(read).get("frontmatter")
-    if read.returncode != 0 or not isinstance(held, dict) or held.get("resource"):
+    front = _answer(read).get("frontmatter")
+    if read.returncode != 0 or not isinstance(front, dict) or front.get("resource"):
         return None, f"`page create` said {_said(made)!r}; {rel} is not this ledger's, and is not written over", False
+    why = held_reason(held, None, rel)
+    if why:
+        return None, why, True
     edited = _ops(["page", "edit", rel, *keys, *ident, "--stdin"], body)
     return (rel, None, False) if edited.returncode == 0 else (None, f"`page create` said {_said(made)!r}; `page edit` said {_said(edited)!r}", False)
 
@@ -888,7 +922,7 @@ def ledger(directory, args, *, now=None):
     body, kept, discarded, unjudged = ledger_body(items, verdicts_in(rows))
     counts = {"items": len(items), "kept": kept, "discarded": discarded, "unjudged": unjudged}
     keys = [f"type={LEDGER_TYPE}", f"channel={job.get('slug') or day}", f"date={day}", f"items={kept}", "extracted=true"]
-    rel, why, left = write_page(dest, day, keys, body, slug=job.get("slug"))
+    rel, why, left = write_page(dest, day, keys, body, slug=job.get("slug"), known=ticket.get("known"), held=ticket.get("held"))
     if left:
         return finish("ok", why, counts=counts)
     if rel is None:

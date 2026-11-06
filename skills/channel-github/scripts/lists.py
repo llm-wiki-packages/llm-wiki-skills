@@ -62,7 +62,38 @@ def left_alone(row):
     return None
 
 
-def write_list_page(dest: str, title: str, description: str, body: str, slug: str | None = None) -> tuple[str | None, str | None]:
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def write_list_page(
+    dest: str, title: str, description: str, body: str, slug: str | None = None, known=(), held=()
+) -> tuple[str | None, str | None]:
     """`(path, None)` once the page is written, `(None, why)` when the verb refused or the page is left alone.
 
     A list is found by its identity — `resource=LISTS`, `resource_id=<LIST><title>` — so a list page a person
@@ -75,20 +106,22 @@ def write_list_page(dest: str, title: str, description: str, body: str, slug: st
     rc, answer = ops_json("page", "ls", f"filter=under:{dest}", *ident)
     if rc != 0 or not isinstance(answer.get("pages"), list):
         return None, f"{title}: `page ls` did not answer: {answer.get('error') or answer}"
-    row, why = identity_match(answer["pages"], slug, dest)
+    # A list page a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
+    row, why = identity_match(answer["pages"] + moved_rows(known, LISTS, slug, f"{LIST}{title}"), slug, dest)
     if why:
         return None, f"{title}: {why}"
     path = f"{dest.rstrip('/')}/{title}.md"
+    why = (left_alone(row) if row is not None else None) or held_reason(held, LISTS, row["path"] if row else path, f"{LIST}{title}")
+    if why:
+        return None, f"{title}: {why}"
     if row is not None:
-        why = left_alone(row)
-        if why:
-            return None, f"{title}: {why}"
         path = row["path"]
-        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+        # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
         rc, answer = ops_json("page", "edit", path, *pairs, "--stdin", stdin=body)
     elif Path(path).is_file():
-        rc, held = ops_json("page", "read", path, "--frontmatter")
-        front = held.get("frontmatter") if rc == 0 else None
+        rc, legacy = ops_json("page", "read", path, "--frontmatter")
+        front = legacy.get("frontmatter") if rc == 0 else None
         if not isinstance(front, dict) or front.get("resource"):
             return None, f"{title}: {path} is not this list's, and is not written over"
         rc, answer = ops_json("page", "edit", path, *pairs, *ident, "--stdin", stdin=body)
@@ -123,7 +156,7 @@ def run(ticket_id: str, only: str | None) -> int:
         built = [b for b in built if only.lower() in b[0].lower()]
     written, refused = [], []
     for title, description, body in built:
-        path, why = write_list_page(dest, title, description, body, ticket.get("slug"))
+        path, why = write_list_page(dest, title, description, body, ticket.get("slug"), ticket.get("known"), ticket.get("held"))
         if path:
             written.append(path)
         else:

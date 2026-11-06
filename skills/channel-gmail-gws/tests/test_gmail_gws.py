@@ -732,6 +732,41 @@ def test_a_ledger_a_person_moved_is_left_alone(tmp_path):
     assert not page_calls(root) and rep["status"] == "ok" and rep["written"] == [] and "left alone" in rep["reason"]
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    mine = f"research/channels/mail/{DAY}.md"
+    (root / "pages.json").write_text(json.dumps([{"path": mine, "document_id": "doc-1", "job": "mail"}]))
+    held = [{"path": mine, "resource": "gmail:ledger", "resource_id": f"gmail:day:{DAY}", "document_id": "doc-1", "status": status}]
+    assert ledger(directory, {**ticket, "held": held}, [line_for(1)]).returncode == 0
+    rep = report(directory)
+    assert not page_calls(root) and rep["status"] == "ok" and rep["written"] == []
+    assert rep["reason"] == f"{mine}: held ({status}), left alone"
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone_and_another_days_is_not(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    other = {"resource": "gmail:ledger", "resource_id": "gmail:day:2020-01-01", "document_id": "doc-0", "path": "wiki/old.md", "reason": "moved"}
+    assert ledger(directory, {**ticket, "known": [other]}, [line_for(1)]).returncode == 0
+    assert [c["argv"][1] for c in page_calls(root)] == ["create"]
+    moved = {**other, "resource_id": f"gmail:day:{DAY}", "path": "wiki/mail.md"}
+    assert ledger(directory, {**ticket, "known": [other, moved]}, [line_for(1)]).returncode == 0
+    rep = report(directory)
+    assert [c["argv"][1] for c in page_calls(root)] == ["create"] and "wiki/mail.md: moved" in rep["reason"]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path):
+    directory, ticket = pulled(tmp_path, msg(1))
+    root = directory.parents[2]
+    held = [{"path": f"research/channels/mail/{DAY}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    r = ledger(directory, {**ticket, "held": held}, [line_for(1)], create_code=2)
+    rep = report(directory)
+    assert r.returncode == 0 and [c["argv"][1] for c in page_calls(root)] == ["create"]
+    assert rep["status"] == "ok" and "held (unstamped)" in rep["reason"]
+
+
 def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path):
     directory, ticket = pulled(tmp_path, msg(1))
     root = directory.parents[2]

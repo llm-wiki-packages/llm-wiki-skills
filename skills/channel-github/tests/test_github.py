@@ -451,7 +451,7 @@ def test_the_routine_opens_its_op_writes_each_list_into_dest_and_closes(tmp_path
     assert calls[-1][:4] == ("op", "close", "channel-github", "outcome=ok") and len(calls) == 4
 
 
-def _lists_with(monkeypatch, tmp_path, rows=(), held=None):
+def _lists_with(monkeypatch, tmp_path, rows=(), held=None, ticket_rows=None):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LLM_WIKI_ROOT", str(tmp_path))
     repo_page(tmp_path, "a/one", "github, gh-starred")
@@ -465,7 +465,8 @@ def _lists_with(monkeypatch, tmp_path, rows=(), held=None):
             return 0, {"frontmatter": held or {}}
         return 0, {"path": "p.md"}
 
-    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: {"dest": "research/github/lists", "slug": "gh-lists"})
+    ticket = {"dest": "research/github/lists", "slug": "gh-lists", **(ticket_rows or {})}
+    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: ticket)
     monkeypatch.setattr(lists, "ops_json", ops)
     return calls
 
@@ -498,6 +499,39 @@ def test_a_list_page_from_before_its_identity_is_stamped_and_another_is_never_wr
     calls = _lists_with(monkeypatch, tmp_path, held={"resource": "https://example.com/x"})
     assert lists.main(["--only", "Stars", "ticket=t1"]) == 1
     assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+
+
+def _stars_title(tmp_path):
+    built = lists.build_lists(lists.load_config(), lists.load_catalog(tmp_path, *[lists.load_config()[k] for k in ("repos", "also")]), lists.today_utc())
+    return next(b[0] for b in built if "Stars" in b[0])
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_list_page_the_tickets_held_names_is_left_alone(tmp_path, monkeypatch, status):
+    mine = "research/github/lists/My stars.md"
+    calls = _lists_with(monkeypatch, tmp_path, [{"path": mine, "document_id": "doc-1", "job": "gh-lists"}],
+                        ticket_rows={"held": [{"path": mine, "resource": "github:lists", "resource_id": "x", "status": status}]})
+    lists.main(["--only", "Stars", "ticket=t1"])
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+    assert any(f"held ({status})" in " ".join(c) for c in calls if c[:2] == ("op", "close"))
+
+
+def test_a_list_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path)
+    moved = {"resource": "github:lists", "resource_id": f"github:list:{_stars_title(tmp_path)}", "path": "wiki/stars.md", "reason": "moved"}
+    calls = _lists_with(monkeypatch, tmp_path, ticket_rows={"known": [moved]})
+    lists.main(["--only", "Stars", "ticket=t1"])
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+
+
+def test_a_list_page_from_before_its_identity_that_held_names_is_not_stamped(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path)
+    path = f"research/github/lists/{_stars_title(tmp_path)}.md"
+    (tmp_path / path).parent.mkdir(parents=True)
+    (tmp_path / path).write_text("---\ntype: list\n---\n")
+    calls = _lists_with(monkeypatch, tmp_path, ticket_rows={"held": [{"path": path, "resource": None, "status": "unstamped"}]})
+    lists.main(["--only", "Stars", "ticket=t1"])
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"), ("page", "read"))]
 
 
 def test_a_routines_job_with_no_dest_closes_failed_naming_the_fix(tmp_path, monkeypatch):

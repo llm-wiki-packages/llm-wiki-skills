@@ -161,13 +161,14 @@ def test_no_shell_block_in_the_body_carries_served_text():
 LEDGER = UNIT / "scripts" / "ledger.py"
 DAY = "_raw/ps/2026-10-03"
 DEST = "research/channels/ps"
+DATE = DAY.rsplit("/", 1)[-1]
 
 
-def _stub(tmp_path, *, page_exists=False, capture_dir=DAY, pages=(), held=None):
+def _stub(tmp_path, *, page_exists=False, capture_dir=DAY, pages=(), held=None, ticket_rows=None):
     """A recording front door: `tickets open` answers the process ticket; `page ls` answers `pages`, `page read` the
     frontmatter `held` (none: a page with no `resource`); `page create` refuses where the day's page exists."""
     stub = tmp_path / "ops_stub.py"
-    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST}
+    ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST, **(ticket_rows or {})}
     stub.write_text(
         "import json, os, sys\n"
         "argv = sys.argv[1:]; verb = [a for a in argv if not a.startswith('--')]\n"
@@ -187,8 +188,8 @@ def _item(tmp_path, name, **doc):
     path.write_text(json.dumps({"v": 1, "attachments": [], "body": "x", **doc}), encoding="utf-8")
 
 
-def _ledger(tmp_path, *args, page_exists=False, pages=(), held=None):
-    stub = _stub(tmp_path, page_exists=page_exists, pages=pages, held=held)
+def _ledger(tmp_path, *args, page_exists=False, pages=(), held=None, ticket_rows=None):
+    stub = _stub(tmp_path, page_exists=page_exists, pages=pages, held=held, ticket_rows=ticket_rows)
     env = {**__import__("os").environ, "LLM_WIKI_OPS": stub, "FAKE_CALLS": str(tmp_path / "calls.log")}
     done = subprocess.run([sys.executable, str(LEDGER), DAY, "--ticket", "t1", *args], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
     calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()] if (tmp_path / "calls.log").exists() else []
@@ -270,6 +271,34 @@ def test_a_ledger_a_person_holds_is_left_alone(tmp_path):
     done, calls = _ledger(tmp_path, pages=[{"path": f"{DEST}/x.md", "document_id": "doc-1", "job": "ps", "draft": True}])
     (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
     assert done.returncode == 0 and "status=ok" in update["argv"] and not [c for c in calls if c["argv"][0] == "page"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
+    _day(tmp_path)
+    mine = f"{DEST}/{DATE}.md"
+    held = [{"path": mine, "resource": "parentsquare:ledger", "resource_id": f"parentsquare:day:{DATE}", "status": status}]
+    done, calls = _ledger(tmp_path, pages=[{"path": mine, "document_id": "doc-1", "job": "ps"}], ticket_rows={"held": held})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"] and f"reason={mine}: held ({status}), left alone" in update["argv"]
+    assert not [c for c in calls if c["argv"][:2] in (["page", "edit"], ["page", "create"])]
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone(tmp_path):
+    _day(tmp_path)
+    moved = {"resource": "parentsquare:ledger", "resource_id": f"parentsquare:day:{DATE}", "path": "wiki/ps.md", "reason": "moved"}
+    done, calls = _ledger(tmp_path, ticket_rows={"known": [moved]})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"]
+    assert not [c for c in calls if c["argv"][:2] in (["page", "edit"], ["page", "create"])]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path):
+    _day(tmp_path)
+    held = [{"path": f"{DEST}/{DATE}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    done, calls = _ledger(tmp_path, page_exists=True, ticket_rows={"held": held})
+    (update,) = [c for c in calls if c["argv"][1:3] == ["tickets", "update"]]
+    assert done.returncode == 0 and "status=ok" in update["argv"] and not [c for c in calls if c["argv"][:2] == ["page", "edit"]]
 
 
 def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path):
