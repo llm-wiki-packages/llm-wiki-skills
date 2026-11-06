@@ -355,6 +355,18 @@ def test_process_writes_nothing_for_a_held_page(tmp_path):
     assert not [c for c in calls if c["argv"][1] == "page"] and "status=ok" in updates[0]
 
 
+def test_a_held_page_names_its_status_in_the_reason(tmp_path):
+    _captures(tmp_path)
+    for status, words in [("unstamped", "doctor --fix"), ("conflict", "page resolve"), ("settling", "a later pull writes it"),
+                          ("edited", "edited this page"), ("someday", "(someday)"), (None, "a person holds this page")]:
+        t = {"ticket": "t4", "stage": "process", "slug": "psy", "capture_dir": "_raw/psy/course/items/item-3_1", "dest": "sources/courses/psy",
+             "known": [], "held": [{"resource": "blackboard:_42_1/item-3_1", "status": status}], "options": {}}
+        _, calls, updates = run_stage(tmp_path, "process.py", t)
+        (tmp_path / "calls.log").unlink()
+        assert not [c for c in calls if c["argv"][1] == "page"] and "status=ok" in updates[0]
+        assert any(a.startswith("reason=") and words in a for a in updates[0]), (status, updates[0])
+
+
 def test_process_of_a_video_with_no_words_is_partial(tmp_path):
     items = _captures(tmp_path)
     video = next(d for d in items.iterdir() if d.name.startswith("video-"))
@@ -424,6 +436,8 @@ def test_a_title_holds_no_link_marker_and_venue_text_stays_on_its_line(tmp_path,
     for d in bb.split(h, tmp_path / "items"):
         for page in bb.render(d):
             lines = page["body"].splitlines()
+            assert lines[-1] == "---"
+            lines = lines[:-1]
             assert "---" not in lines and not [ln for ln in lines if ln.startswith("## two") or ln == "# Activity"], page["title"]
     overview = next(p for d in (tmp_path / "items").iterdir() if d.name == "course" for p in bb.render(d))["body"]
     assert "| Paper ¦ one ## two |" in overview
@@ -1018,3 +1032,27 @@ def test_a_long_boards_continued_in_link_names_where_part_two_is(tmp_path, bb):
     bb.split(h, placed, options={"layout": "modules"})
     pages = bb.render(placed / "discussion-d1_1", {"discussion-d1_1": "notes/moved/Board", "discussion-d1_1#base": "sources/c/discussions/Board"})
     assert "Continued in [[sources/c/discussions/Board (part 2)|" in pages[0]["body"]
+
+
+def test_every_page_ends_on_the_same_closing_line(pages):
+    assert pages and all(p["body"].endswith("\n\n---\n") and not p["body"].endswith("---\n\n---\n") for p in pages.values())
+
+
+def test_closing_is_added_once(bb):
+    assert bb.closed("# T\n\ntext\n") == "# T\n\ntext\n\n---\n"
+    assert bb.closed(bb.closed("# T\n\ntext\n")) == "# T\n\ntext\n\n---\n"
+    assert bb.closed("") == "---\n"
+
+
+def test_a_held_later_part_is_left_alone_and_the_rest_written(tmp_path):
+    items = _modules_captures(tmp_path)
+    board = items / "discussion-d1_1"
+    cap = json.loads((board / "capture.json").read_text())
+    record = json.loads((board / cap["body"]).read_text())
+    record["posts"] = [{**record["posts"][0], "id": f"_p{i}_1", "text": "word " * 2000} for i in range(40)]
+    (board / cap["body"]).write_text(json.dumps(record))
+    held = [{"resource": cap["item"] + "#part-2", "path": "sources/courses/psy/discussions/Board (part 2).md", "status": "settling"}]
+    _, calls, updates = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "discussion-d1_1", held=held))
+    written = [c for c in calls if c["argv"][1:3] in (["page", "create"], ["page", "edit"])]
+    assert written and not [c for c in written if "part 2)" in " ".join(c["argv"])]
+    assert any("(part 2).md: a person touched this page" in a for a in updates[0]), updates[0]

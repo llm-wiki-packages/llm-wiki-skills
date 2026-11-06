@@ -9,8 +9,11 @@ item's text and due date, a pdf, slide deck or Word file's text, a video's
 transcript, an announcement, a discussion board's posts (in parts past
 60 KB), or the course overview. Each page is written through `page create`
 where no page holds its `resource`, or `page edit` of the page `known[]`
-names for it. A page a person moved (`reason: moved`) or holds (`held[]`) is
-left alone: `ok`, nothing written. A page at the title's path that is another
+names for it; a page a person edited comes as a staged `known[]` row, and
+the same `page edit` stages the render for the landing to merge. A page a
+person moved (`reason: moved`) or one `held[]` names (held, archived,
+edited outside `dest`, settling, unstamped or in conflict) is left alone:
+`ok`, nothing written, the reason naming its status. A page at the title's path that is another
 item's, or no item's, is never written over: `partial`, naming it. A
 discussion's later parts are their own resources, `<item>#part-<n>`.
 Every page carries an `abstract` built from the capture's facts, and the
@@ -159,6 +162,23 @@ def link_paths(cap: dict, dest: str, known: dict[str, dict], folders: dict[str, 
         out[f"{own}#base"] = f"{dest.rstrip('/')}/{where}"
     out[f"{own}#dir"] = dest.rstrip("/")
     return out
+
+
+# Why `held[]` names a page, by its `status`: each is left alone, and the person's next step where there is one.
+HELD = {
+    "draft": "a person holds this page",
+    "deprecated": "a person archived this page",
+    "edited": "a person edited this page, and this pull cannot merge into it",
+    "settling": "a person touched this page in the last few minutes: a later pull writes it",
+    "unstamped": "this page has no `rendered` stamp yet: `doctor --fix` stamps it",
+    "conflict": "this page has a merge conflict: `page resolve` settles it",
+}
+
+
+def held_why(row: dict) -> str:
+    """What one `held[]` row means, in words; a status this unit does not know is named as it is."""
+    status = row.get("status")
+    return HELD.get(status) or (f"a person holds this page ({status})" if status else HELD["draft"])
 
 
 def write_page(page: dict, resource: str, dest: str, known_path: str | None, place: str | None = None,
@@ -317,8 +337,9 @@ def main(argv: list[str]) -> int:
         post_update(ticket_id, "process", "failed", reason=f"{capture} holds no {bbnotes.CAPTURE}, or the job names no dest")
         return 0
     cap = json.loads((capture / bbnotes.CAPTURE).read_text(encoding="utf-8"))
-    if any(h.get("resource") == cap["item"] for h in t.get("held") or []):
-        post_update(ticket_id, "process", "ok", reason="a person holds this page: nothing written")
+    held = {h["resource"]: h for h in t.get("held") or [] if h.get("resource")}
+    if cap["item"] in held:
+        post_update(ticket_id, "process", "ok", reason=f"{held_why(held[cap['item']])}: nothing written")
         return 0
     zone = (t.get("options") or {}).get("timezone") or None
     try:
@@ -360,6 +381,10 @@ def main(argv: list[str]) -> int:
         row = known.get(resource) or {}
         if row.get("reason") == "moved":
             left.append(f"{row['path']}: moved by a person, left alone")
+            continue
+        if resource in held:
+            # A later part a person holds: left as it stands, where a write at its place would land on it.
+            left.append(f"{held[resource].get('path') or resource}: {held_why(held[resource])}, left alone")
             continue
         here = place if n == 1 or not place else f"{place} (part {n})"
         path, why, clash = write_page(page, resource, dest, row.get("path"), here, fields)
