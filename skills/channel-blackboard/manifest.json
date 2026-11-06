@@ -29,7 +29,7 @@
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.11.0"
+    "ops": ">=0.15.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
   "stages": {
@@ -42,7 +42,7 @@
   },
   "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "watch": {
     "dest": "sources/courses/{slug}",
     "defaults": {
@@ -52,12 +52,23 @@
           "when": "if-no-captions",
           "diarize": false
         }
+      },
+      "options": {
+        "layout": "modules",
+        "prefix": "position",
+        "backfill": "changed",
+        "announcements_dir": "announcements",
+        "discussions_dir": "discussions"
       }
     },
     "inputs": {
       "timezone": {
         "prompt": "The time zone due dates read in, an IANA name (America/Chicago); blank keeps UTC",
         "required": false
+      },
+      "layout": {
+        "prompt": "How the course's pages are laid out: modules (a numbered folder per module, in course order) or flat (one folder, module-ordered names)",
+        "default": "modules"
       },
       "files": {
         "prompt": "Fetch attachments, pdfs and videos (download), or only the course's own text (skip)",
@@ -72,6 +83,6 @@
         "default": "true"
       }
     },
-    "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine."
+    "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine. Pages go in a folder per top-level module with outline-ordered names (`options.layout=modules`, the default a new job takes; `flat` keeps one folder): `reference channel-blackboard/references/layout.md`."
   }
 }

@@ -5,10 +5,13 @@ module loads once (pytest loads `conftest` itself as a plugin, and a
 `from conftest import` under importlib mode would load a second copy).
 
     LLM_WIKI_OPS   the ops CLI to run (a command line; default: `llm-wiki-ops`
-                   on PATH). Absent → the install tests skip, saying so.
+                   on PATH). Absent, or an installed CLI, which never
+                   honors the scratch machine home → the install tests
+                   skip, saying so. A plugins checkout's CLI does, once the
+                   checkout carries its `checkout` record.
 
-The checkout is symlinked as `marketplaces/<owner>/<repo>` under a tmp
-packages home, which the CLI treats as a developer's clone: `latest` is
+The checkout is symlinked as `marketplaces/<owner>/<repo>` under the scratch
+machine home's package store, which the CLI treats as a developer's clone: `latest` is
 this checkout's HEAD — commit before you run — and nothing fetches.
 `LLM_WIKI_PACKAGES_OFFLINE` is set, so nothing here touches the network.
 """
@@ -226,6 +229,10 @@ _TOOLCHAIN = """
 import json, os, sys, llm_wiki_ops
 roots = [sys.prefix, sys.base_prefix, os.path.dirname(os.path.dirname(llm_wiki_ops.__file__)), os.path.dirname(os.path.realpath(sys.executable))]
 roots += [p for p in sys.path if p and os.path.isdir(p)]
+# The record the CLI resolves its machine home by, before anything else: a
+# checkout's sits at the checkout's root, outside every tree above.
+from llm_wiki_machine import paths
+roots.append(str(paths.record().path))
 from llm_wiki_ops.lib.errors import Refused
 from llm_wiki_ops.lib.plugin_root import plugin_root  # the plugin's own scripts, which a slice runs; an ImportError is loud
 try:
@@ -357,10 +364,6 @@ def installed_sandbox(ops: list, env: dict, wiki: Path, unit: str) -> dict:
     return jsonc((wiki / ops_dir / "skills" / unit / "sandbox.jsonc").read_text(encoding="utf-8"))
 
 
-# What `skills enable` asks beyond the ordinary yes, per unit: the dangerous
-# tokens the unit's sandbox names, which `accept=` answers in an attended session.
-ACCEPT = {"daily-report": ".git"}
-
 # A unit whose sandbox probe spends a mapped route at enable: the route's name
 # and the one host its value may be spent at. The probe runs in the composed
 # jail, where the route's variable holds the phantom only once it is mapped.
@@ -376,7 +379,7 @@ def enabled(ops: list, env: dict, wiki: Path, name: str) -> None:
     r = run(ops, rooted(env, wiki), "--json", "skills", "install", name)
     assert r.returncode == 0, r.stdout + r.stderr
     attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
-    argv = ["--json", "skills", "enable", name, "--confirm", *([f"accept={ACCEPT[name]}"] if name in ACCEPT else [])]
+    argv = ["--json", "skills", "enable", name]
     with contextlib.ExitStack() as stack:
         if name in PROBE_SPENDS:
             route, host = PROBE_SPENDS[name]
@@ -406,8 +409,8 @@ def bound_credential(ops: list, env: dict, wiki: Path, slug: str, name: str | No
     `bind` refuses a name not set here first. The VALUE is unread by
     everything, so any placeholder does (enable.md). Returns `name`."""
     name = name or f"{slug}-cred"
-    # Both are protected writes: nobody is at a terminal for this harness
-    # process, so each asks and refuses unless the session is marked attended.
+    # Both are protected writes, their rows in `conftest.SILENCED`; marked
+    # attended, as the operator walking the enable notes runs them.
     attended_env = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
     r = run(ops, attended_env, "--json", "credentials", "set", name, input=value)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -424,7 +427,7 @@ def local_vault(ops: list, env: dict):
     value through it, at bind, at spawn and on each request, so a case holds
     it across all three. The config is put back as it was found, so no case
     leans on another having named the vault."""
-    config = Path(env["LLM_WIKI_MACHINE_CONFIG"])
+    config = Path(env["LLM_WIKI_TEST_HOME"]) / "config.toml"
     before = config.read_bytes()
     r = run(_cli(ops), {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}, "--json", "machine", "wikis", "vault", "harness", "local")
     assert r.returncode == 0, r.stdout + r.stderr

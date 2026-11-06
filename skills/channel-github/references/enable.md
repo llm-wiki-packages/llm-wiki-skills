@@ -30,7 +30,7 @@
    {{@brain-cli-ops}} credentials bind skill channel-github github=github
    ```
 
-   `skills enable --confirm`, which `/{{@brain-plugin}}:enable` runs, maps nothing:
+   `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps nothing:
    it lists `github` as unmapped, with that line. The binding is
    `"optional"`, so an unmapped machine still harvests, keyless.
 
