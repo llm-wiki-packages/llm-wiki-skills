@@ -277,6 +277,18 @@ def test_find_held_falls_back_to_a_clip_and_never_to_the_title(tmp_path, monkeyp
     assert page.find_held("sources/github", "https://github.com/a/one", "s") == (clip, None, None)
 
 
+def test_find_held_never_falls_back_to_another_jobs_clip(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(page, "ops_json", listing())
+    dest = tmp_path / "sources/github"
+    dest.mkdir(parents=True)
+    (dest / "Theirs.md").write_text('---\ntype: repo\njob: other\nresource: "https://github.com/a/one"\n---\n')
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
+    mine = Path("sources/github/Mine.md")
+    mine.write_text('---\ntype: repo\njob: "s"\nresource: "https://github.com/a/one"\n---\n')
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (mine, None, None)
+
+
 def test_find_held_refuses_two_pages_naming_both(monkeypatch):
     rows = [{"path": f"sources/github/{n}.md", "document_id": n, "job": "s"} for n in ("A", "B")]
     monkeypatch.setattr(page, "ops_json", listing(*rows))
