@@ -36,6 +36,8 @@ and enable once they say yes:
    {{@brain-cli-ops}} jobs resume <slug>
    ```
 
+   Find the row whose `routines=` names `daily-report`.
+
    Dream and wiki-report run under a job of their own, which must be on too;
    `jobs ls --verbose` shows each job's state and routines. A scheduled run
    never asks questions: it follows the overlay and writes what it could not

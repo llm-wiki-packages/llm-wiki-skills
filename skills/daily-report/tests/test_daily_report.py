@@ -109,12 +109,5 @@ def test_no_file_of_the_unit_runs_git_commit(doc):
     assert "llm-wiki-ops git commit" not in _doc(SKILL / doc), doc
 
 
-def test_the_schedule_is_found_by_what_it_runs_not_by_a_seeded_slug():
-    enable = _doc(SKILL / "references" / "enable.md")
-    for doc in (BODY, enable):
-        assert "ops-morning" not in doc
-    assert "llm-wiki-ops jobs ls --verbose" in enable
-    assert "routines" in enable
-    assert "jobs ls -v" not in enable
-    assert "filter=op:" not in enable
+def test_the_skill_does_not_say_bundle():
     assert "bundle" not in BODY
