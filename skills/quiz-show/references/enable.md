@@ -7,8 +7,9 @@
    ```
 
    It writes the episode under `wiki/podcasts/` and says where it put it.
-   The script is in the page: read it, and edit a line before the audio is
-   made. The show finds weak spots in what `/{{@brain-plugin}}:quiz` logs,
+   The script is in the page: read it, and edit a line. Once the audio is
+   made, an edit takes `{{@brain-cli-ops}} page edit "<episode>"
+   audio_refresh=podcast` to make it again. The show finds weak spots in what `/{{@brain-plugin}}:quiz` logs,
    so it is review only until the learner has taken a quiz.
 
 2. Give the hosts voices. The episode asks for its audio with

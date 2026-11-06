@@ -78,8 +78,9 @@ date -u +%Y-%m-%d
 {{@brain-cli-ops}} page read "<episode path>" fields=window_since,window_until
 ```
 
-Episode titles open with their date: read the newest first, and the first
-that carries `window_until` opens the window at that date. None does: the
+Episode titles open with their date: read the newest first, skip any
+dated today (an earlier run today, which §5 replaces), and the first that
+carries `window_until` opens the window at that date. None does: the
 window is the last seven days. A window may overlap the last one by a day;
 it never leaves a gap.
 
@@ -192,10 +193,12 @@ page. In a session where the person asked to hear the episode now:
 ```
 
 It renders on this machine and embeds the player at the top of the page. A
-refusal (no engine on this machine, too few voices for the hosts, a voice
-this machine does not have) is relayed as it reads, never worked around: the page still
-asks for its audio, and any machine with the engine renders it on its next
-pass.
+refusal is relayed as it reads, never worked around. With no engine on this
+machine the page still asks for its audio, and a machine with one renders
+it on its next pass. A render that failed here (too few voices for the
+hosts, a voice this machine does not have) is not tried again by itself:
+once the voices are mapped, ask again with
+`{{@brain-cli-ops}} page edit "<episode path>" audio_refresh=podcast`.
 
 ## 7. Close
 

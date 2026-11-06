@@ -8,7 +8,8 @@
 
    It writes the episode under `wiki/podcasts/` and says where it put it.
    The script is in the page: read it, and edit a line you would say
-   differently before the audio is made.
+   differently. Once the audio is made, an edit takes
+   `{{@brain-cli-ops}} page edit "<episode>" audio_refresh=podcast` to make it again.
 
 2. Give the hosts voices. The episode asks for its audio with
    `audio: podcast`; the plugin's `narrate` engine renders it on a machine
