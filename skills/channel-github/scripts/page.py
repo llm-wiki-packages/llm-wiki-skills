@@ -74,6 +74,7 @@ def norm_url(url: str) -> str:
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*(.+?)\s*$", re.M)
+JOB_LINE = re.compile(r"^job:[ \t]*(.*)$", re.M)
 
 
 def frontmatter_text(text: str) -> tuple[str, str]:
@@ -143,10 +144,11 @@ def held_reason(held, resource, path=None, resource_id=None):
     return None
 
 
-def find_clip(dest: Path, url: str) -> Path | None:
+def find_clip(dest: Path, url: str, slug: str | None = None) -> Path | None:
     """The first page under `dest` whose `resource` is this repo's URL however
     it is spelled — a clip under the clipper's own name, with the URL as the
-    clipper wrote it. `_versions/` is history, never a candidate."""
+    clipper wrote it. `_versions/` is history, never a candidate, and neither
+    is a page stamped with another job (`identity_match` already left it)."""
     want = norm_url(url)
     if not dest.is_dir():
         return None
@@ -159,6 +161,9 @@ def find_clip(dest: Path, url: str) -> Path | None:
             continue
         fm, _ = frontmatter_text(head)
         m = RESOURCE_LINE.search(fm)
+        job = JOB_LINE.search(fm)
+        if job and job.group(1).strip().strip("'\"") not in ("", slug):
+            continue
         if m and norm_url(m.group(1)) == want:
             return path
     return None
@@ -181,7 +186,7 @@ def find_held(dest: str, url: str, slug: str | None, known=(), held=()) -> tuple
     if row is not None:
         # Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
         return Path(row["path"]), row.get("document_id"), left_alone(row) or held_reason(held, url, row["path"])
-    clip = find_clip(Path(dest), url)
+    clip = find_clip(Path(dest), url, slug)
     return clip, None, held_reason(held, url, clip.as_posix() if clip else None)
 
 

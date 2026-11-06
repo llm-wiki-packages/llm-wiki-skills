@@ -1,0 +1,33 @@
+{
+  "argument_hint": "[focus] [ticket=<id> stage=routine]",
+  "description": "Turns the wiki's practice questions, the learner's recent misses first, into one audio quiz show episode page: a quizmaster, a contestant who makes the learner's mistakes, and the answer and why, asking the plugin's narrate engine for its audio. Runs on a schedule or by hand.",
+  "keywords": [
+    "quiz",
+    "show",
+    "audio",
+    "podcast",
+    "narrate",
+    "tts",
+    "revision",
+    "weak",
+    "questions",
+    "listen"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
+  "name": "quiz-show",
+  "requires": {
+    "ops": ">=0.11.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:quiz-show",
+  "stages": {
+    "routine": {
+      "model": "frontier"
+    }
+  },
+  "usage": "/quiz-show [focus]",
+  "v": 1,
+  "version": "0.1.0"
+}
