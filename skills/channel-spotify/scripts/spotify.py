@@ -1095,13 +1095,17 @@ def left_alone(row):
     return None
 
 
-def moved_rows(known, resource, slug):
+def moved_rows(known, resource, slug, resource_id=None):
     """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
-    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named."""
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
     return [
         {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
         for row in known or ()
-        if isinstance(row, dict) and row.get("resource") == resource and row.get("reason") == "moved"
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
     ]
 
 
