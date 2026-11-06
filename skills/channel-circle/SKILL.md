@@ -143,20 +143,20 @@ nothing written.
    filename, already settled against the run, and not yours to pick:
 
 ```
+{{@brain-cli-ops}} --json page ls filter=under:<dest> resource='<item>'
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
-cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<dest>/<title>.md' resource='<item>' type=lesson extracted=true --stdin
-echo '["<dest>/<title>.md"]' > <capture_dir>/written.json
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<the row's path>' resource='<item>' type=lesson extracted=true --stdin
+echo '["<the path the verb answered>"]' > <capture_dir>/written.json
 {{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
 ```
 
    Every venue value on those lines — `<title>`, `<item>` — is copied VERBATIM
    from `capture.json` and SINGLE-QUOTED, never retyped or cleaned; one still
    carrying a single quote is refused, not run (`safe_title` maps `'` and `"`
-   to `’`, so a title never does). `create` is the first pull; it exits 2 with
-   `<path> already exists — the filename is the title` on a second, and then
-   `edit` writes that same page. Report LAST: write the page path(s) into
-   `written.json` inside the capture dir (a JSON list, wiki-relative) and
-   pass `--written-from written.json`.
+   to `’`, so a title never does). The job's `page ls` row (`job` the `slug`,
+   or none) takes `edit` at its path as the row spells it, wherever it was renamed; left
+   alone if `draft`, `archive`, `known[]` says `moved`, or `held[]` names it (say its `status`). No row: `create` (exit 2 is `failed`); two
+   rows: `failed`. Report LAST, `written.json` the wiki-relative path(s).
 
 ## Auth (one-time, per domain)
 

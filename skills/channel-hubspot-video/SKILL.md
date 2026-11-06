@@ -120,10 +120,10 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
    `page`), `venue=hubspot-cms`, `published` (the leaf's `published.txt`, or
    left out), `mux_playback_id`, `video_url`, `player_url`, `external_url` and
    `source_title` where the venue's title and the capture's differ; every
-   value lands as a string. `page create` makes `dest` on demand, mints the
-   page's identity, and refuses a title that already names a page (exit 2,
-   `already exists — the filename is the title`) — the same keys then go to
-   `{{@brain-cli-ops}} page edit '<dest>/<title>.md' --stdin` instead.
+   value lands as a string. First `--json page ls 'filter=under:<dest>'
+   'resource=<item>'`: the job's row (`job` the `slug`, or none) takes the keys by `page
+   edit '<its path, as spelled>' --stdin`, none `page create` (its exit 2, or two rows:
+   `--failed`); left alone if `draft`, `archive`, `known[]` `moved` or `held[]` (say its `status`).
 5. **The transcript's own page**, where the leaf holds `media.<ext>`, empty
    body: the transcribe stage's queue is exactly the pages under `dest`
    flagged `extracted: queued` naming a `media` file, so a lesson with a video

@@ -187,6 +187,9 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         "    sys.exit(0)\n"
         "if verb[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
+        "if verb[:2] == ['page', 'ls']:\n"
+        "    print(json.dumps({'pages': []}))\n"
+        "    sys.exit(0)\n"
         "if verb[:1] == ['page']:\n"
         "    pairs = dict(a.split('=', 1) for a in argv if '=' in a and not a.startswith('--'))\n"
         "    rel = pairs['dest'].rstrip('/') + '/' + pairs['title'] + '.md' if verb[1] == 'create' else verb[2]\n"
@@ -263,7 +266,8 @@ def test_the_process_arm_writes_the_page_under_dest_and_the_body_beside_the_byte
     assert res["written"] == [PAGE]
     assert res["page"] == f"{cap.relative_to(tmp_path)}/page.md"
     assert (tmp_path / PAGE).is_file()
-    create = _page_calls(seen)[0]["argv"]
+    assert _page_calls(seen)[0]["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
+    create = _page_calls(seen)[1]["argv"]
     assert create[:3] == ["--json", "page", "create"], create
     assert "title=A Video About Things" in create and f"dest={DEST}" in create
     assert "extracted=true" in create and f"resource={ITEM}" in create
@@ -271,17 +275,15 @@ def test_the_process_arm_writes_the_page_under_dest_and_the_body_beside_the_byte
     assert not [a for a in create if a.split("=")[0] in {"status", "document_id", "document_revision", "harvested"}]
 
 
-def test_a_title_dest_already_holds_is_edited_not_created_twice(tmp_path):
-    """A job pulls the same video again. `page create` refuses the title, and
-    the refusal is the signal to replace the page rather than to fail."""
+def test_a_title_dest_already_holds_that_is_not_this_videos_is_never_written_over(tmp_path):
+    """No page of this job holds the video, yet the title is taken: the page there is another's."""
     cap = _capture(tmp_path)
     _processed(tmp_path, cap)
     path, seen = _stub_front_door(tmp_path, interpreter=_ops_interpreter())
-    res = _run(tmp_path, cap, extra_env=path)
+    cp = _run(tmp_path, cap, extra_env=path, check=False)
     verbs = [[a for a in c["argv"] if not a.startswith("--")] for c in _page_calls(seen)]
-    assert verbs[0][:2] == ["page", "create"] and verbs[1][:2] == ["page", "edit"], verbs
-    assert verbs[1][2] == PAGE
-    assert res["written"] == [PAGE]
+    assert [v[:2] for v in verbs] == [["page", "ls"], ["page", "create"]], verbs
+    assert cp.returncode != 0 and "already exists" in cp.stderr
 
 
 def test_the_page_verbs_are_reached_without_the_harness_project_dir(tmp_path):
@@ -403,7 +405,7 @@ def test_a_refused_page_write_is_a_failure_not_a_silent_success(tmp_path):
     _need_formatter()
     cap = _capture(tmp_path)
     path, _seen = _stub_front_door(
-        tmp_path, "\nif 'page' in argv:\n    sys.exit('page create: dest is outside this wiki')\n",
+        tmp_path, "\nif 'create' in argv:\n    sys.exit('page create: dest is outside this wiki')\n",
         interpreter=_ops_interpreter())
     cp = _run(tmp_path, cap, check=False, extra_env=path)
     assert cp.returncode != 0

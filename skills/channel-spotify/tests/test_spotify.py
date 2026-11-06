@@ -549,11 +549,19 @@ def captured(spotify, cap: Path, name: str = "playlist", **plan) -> dict:
     return meta
 
 
-def recording_ops(spotify, monkeypatch, *answers) -> list:
-    """`_ops`, replaced: one answer per call, and every argv kept."""
-    calls = []
+class Calls(list):
+    lookups: list
+
+
+def recording_ops(spotify, monkeypatch, *answers, pages=()) -> list:
+    """`_ops`, replaced: one answer per call, and every argv kept. `page ls` answers `pages`, kept in `.lookups`."""
+    calls = Calls()
+    calls.lookups = []
 
     def fake(root, *args, **kw):
+        if args[:2] == ("page", "ls"):
+            calls.lookups.append(args)
+            return 0, {"pages": list(pages)}
         calls.append((args, kw.get("input")))
         return answers[len(calls) - 1]
 
@@ -593,17 +601,74 @@ def test_the_builder_hands_the_front_door_an_argv_list_never_a_shell_line(spotif
     assert not [a for a in args if "Ignore all previous" in a]
 
 
-def test_a_page_that_already_exists_is_edited_not_created_twice(spotify, tmp_path, monkeypatch):
+RENAMED = "sources/podcasts/money-models/Our money show.md"
+
+
+def test_the_jobs_page_for_the_entity_is_edited_wherever_it_was_renamed(spotify, tmp_path, monkeypatch, capsys):
     cap = tmp_path / "cap"
     process_ticket(cap, "sources/podcasts/money-models")
     captured(spotify, cap)
-    refused = (2, {"error": "sources/podcasts/money-models/Fixture Money Models.md already exists — the filename is the title"})
-    calls = recording_ops(spotify, monkeypatch, refused, WROTE)
+    row = {"path": RENAMED, "document_id": "doc-1", "job": "money-models", "resource": PLAYLIST_URL}
+    calls = recording_ops(spotify, monkeypatch, (0, {"path": RENAMED}), pages=[row])
     process(spotify, cap, monkeypatch)
 
-    assert calls[1][0][:3] == ("page", "edit", "sources/podcasts/money-models/Fixture Money Models.md")
-    assert not [a for a in calls[1][0] if a.startswith(("dest=", "title="))]  # `edit` names the path, not the title
-    assert calls[1][1] == calls[0][1] and calls[1][0][-1] == "--stdin"
+    assert calls.lookups == [("page", "ls", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
+    (args, _body), = calls
+    assert args[:3] == ("page", "edit", RENAMED) and args[-1] == "--stdin"
+    assert not [a for a in args if a.startswith(("dest=", "title="))]
+    assert json.loads(capsys.readouterr().out)["written"] == [RENAMED]
+
+
+def test_two_pages_for_one_entity_refuse_naming_both(spotify, tmp_path, monkeypatch, capsys):
+    cap = tmp_path / "cap"
+    process_ticket(cap, "sources/podcasts/money-models")
+    captured(spotify, cap)
+    rows = [{"path": f"sources/podcasts/money-models/{n}.md", "document_id": n, "job": "money-models"} for n in ("A", "B")]
+    calls = recording_ops(spotify, monkeypatch, pages=rows)
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    said = capsys.readouterr().err
+    assert caught.value.code == 2 and "money-models/A.md" in said and "money-models/B.md" in said
+    assert not calls and not (cap / "verdict.json").exists()
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(spotify, tmp_path, monkeypatch):
+    cap = tmp_path / "cap"
+    moved = {"resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "path": "wiki/shows/Money.md", "reason": "moved"}
+    process_ticket(cap, "sources/podcasts/money-models", known=[moved])
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch)
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls and "wiki/shows/Money.md: moved" in read(cap, "verdict.json")["reason"]
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_a_page_a_person_moved_or_holds_is_left_alone(spotify, tmp_path, monkeypatch, held):
+    cap = tmp_path / "cap"
+    process_ticket(cap, "sources/podcasts/money-models")
+    captured(spotify, cap)
+    row = {"path": "wiki/shows/Money.md", "document_id": "doc-1", "job": "money-models", **held}
+    calls = recording_ops(spotify, monkeypatch, pages=[row])
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls
+    verdict = read(cap, "verdict.json")
+    assert verdict["status"] == "ok" and "left alone" in verdict["reason"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(spotify, tmp_path, monkeypatch, status):
+    cap = tmp_path / "cap"
+    path = "sources/podcasts/money-models/Money.md"
+    held = [{"path": path, "resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "status": status}]
+    process_ticket(cap, "sources/podcasts/money-models", held=held)
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch, pages=[{"path": path, "document_id": "doc-1", "job": "money-models"}])
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls
+    assert read(cap, "verdict.json")["reason"] == f"{path}: held ({status}), left alone"
 
 
 def test_a_refusal_the_builder_does_not_know_is_not_swallowed(spotify, tmp_path, monkeypatch):
