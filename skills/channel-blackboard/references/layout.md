@@ -159,7 +159,9 @@ alone, and says why in its reason, a page a person holds (`draft: true`)
 or archived, one edited outside `dest`, one touched in the last few
 minutes (a later pull writes it), one in conflict, and one with no
 `rendered` stamp yet (pages written before the plugin's edit merging;
-`{{@brain-cli-ops}} doctor --fix` stamps them once).
+`{{@brain-cli-ops}} doctor --fix` stamps them once). A note typed at the
+very end of a page written before the closing line existed conflicts once,
+on the first pull that adds the line; resolve it and later pulls merge.
 
 ## Pages made by hand do not join a job's layout.
 

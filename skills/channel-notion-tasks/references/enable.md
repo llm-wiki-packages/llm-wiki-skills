@@ -23,12 +23,16 @@
    channel harvest leaves. The skill cannot detect it: a harvest ticket's
    `dest` is null. Check each job with `{{@brain-cli-ops}} jobs show <slug>` (it
    names `dest` and the target), and re-point any that is not under
-   `research/channels/`. Move it with its pages:
-   `{{@brain-cli-ops}} jobs edit <slug> dest=research/channels/<slug>
-   --move-folder` renames the old folder and re-points the job in one
-   commit. It asks for confirmation: re-run the command it prints, which
-   carries `--confirm`. A job with no pages yet takes the same command
-   without `--move-folder`.
+   `research/channels/`. `jobs edit dest=` refuses this move (a re-pointed `dest` keeps its
+   route, and this one leaves `sources/` for the ledger route), so
+   declare the job again around the folder: note its keys
+   (`jobs show <slug>`), take it off the list
+   (`{{@brain-cli-ops}} jobs rm <slug>`), move its pages with git
+   (`git mv <old dest> research/channels/<slug>`, then commit), and add it
+   back with the same target, slug and options:
+   `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-notion-tasks
+   dest=research/channels/<slug> …`. Moving the pages first matters: a
+   job whose pages all sit outside its `dest` is skipped until re-pointed.
 2. **The vault, the token and the mapping, before the enable.** Harvest
    reaches Notion through the `notion` route on the harvest stage of the
    unit's sandbox (the sandbox's `## Credential` section spells it out), and
