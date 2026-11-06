@@ -339,6 +339,29 @@ def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path):
     assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
+    """`held[]` names pages `page ls` shows nothing odd about — edited, settling, unstamped — so the ticket decides."""
+    cap = _ticketed(tmp_path)
+    mine = f"{DEST}/Mine.md"
+    _seed(tmp_path, {"path": mine, "document_id": "doc-1"})
+    held = [{"path": mine, "resource": ITEM, "resource_id": None, "document_id": "doc-1", "status": status}]
+    stub = _stub_ops(tmp_path, ticket=_default_ticket(cap, tmp_path, "process", held=held))
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), ops=stub).stdout)
+    assert out["written"] == [] and out["left"] == f"{mine}: held ({status}), left alone"
+    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+    assert (tmp_path / mine).read_text() == "a person's text\n"
+
+
+def test_a_held_page_of_another_item_does_not_stop_this_one(tmp_path):
+    cap = _ticketed(tmp_path)
+    held = [{"path": f"{DEST}/Other.md", "resource": "https://www.youtube.com/watch?v=other", "resource_id": None,
+             "document_id": "doc-9", "status": "edited"}]
+    stub = _stub_ops(tmp_path, ticket=_default_ticket(cap, tmp_path, "process", held=held))
+    out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), ops=stub).stdout)
+    assert out["written"] == [f"{DEST}/{META['title']}.md"] and "left" not in out
+
+
 def test_another_jobs_page_of_the_video_is_not_this_jobs(tmp_path):
     cap = _ticketed(tmp_path)
     _seed(tmp_path, {"path": "sources/youtube/other/Theirs.md", "document_id": "doc-1", "job": "other-job"})

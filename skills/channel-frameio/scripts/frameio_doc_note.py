@@ -35,7 +35,7 @@ command:
 with the body on stdin — or, where `page ls resource=<view url>` finds the
 job's page for the leaf, `page edit <its path>` with the same keys,
 wherever in `dest` a person renamed it. A page a person moved out of `dest` or
-holds (Draft, Archive) is left alone: `ok`, nothing written, the reason
+holds (Draft, Archive), or the ticket's `held[]` names, is left alone: `ok`, nothing written, the reason
 naming it. Two pages for one leaf, or a page at the title's path that is
 another item's, ABORT before `tickets update` is posted, as any refusal does:
 an update claiming a page nobody wrote would be read as work done.
@@ -293,11 +293,26 @@ def moved_rows(known, resource, slug):
     ]
 
 
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
 def _said(cp):
     return ((cp.stderr or "") + (cp.stdout or "")).strip()[-500:]
 
 
-def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, known=()):
+def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, known=(), held=()):
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
     The page is found by identity first — `page ls resource=<view url>`, the job's rows of it (`identity_match`) —
@@ -331,11 +346,12 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, kn
         row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
         if why:
             sys.exit(f"frameio_doc_note: {why}")
+        why = (left_alone(row) if row is not None else None) or held_reason(held, resource, row and row["path"])
+        if why:
+            return None, why
         if row is not None:
-            why = left_alone(row)
-            if why:
-                return None, why
-        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+            # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+            # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
             target, rel = [row["path"]], row["path"]
     if target is None:
         created = subprocess.run(
@@ -441,6 +457,7 @@ def main() -> int:
         written, left = write_page(
             args.wiki, args.dest, title,
             [f"resource={item}", f"type={TYPE_VIDEO}", f"{FLAG}={QUEUED}", f"{MEDIA}={media_rel}"], "", slug=ticket.get("slug"), known=ticket.get("known"),
+            held=ticket.get("held"),
         )
         written = [written] if written else []
         write_json(cap_dir / WRITTEN_NAME, written)
@@ -487,7 +504,7 @@ def main() -> int:
     (cap_dir / BODY_NAME).write_text(body, encoding="utf-8")
     written, left = write_page(
         args.wiki, args.dest, title, [f"resource={item}", f"type={TYPE_DOC}", f"{FLAG}={EXTRACTED}"], body, slug=ticket.get("slug"),
-        known=ticket.get("known"),
+        known=ticket.get("known"), held=ticket.get("held"),
     )
     written = [written] if written else []
     write_json(cap_dir / WRITTEN_NAME, written)

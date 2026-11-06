@@ -296,6 +296,20 @@ def test_find_held_says_why_a_page_a_person_moved_or_holds_is_left(monkeypatch, 
     assert "left alone" in page.find_held("sources/github", "https://github.com/a/one", "s")[2]
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_find_held_says_a_page_the_tickets_held_names_is_left(monkeypatch, status):
+    monkeypatch.setattr(page, "ops_json", listing({"path": "sources/github/one.md", "document_id": "doc-1", "job": "s"}))
+    held = [{"path": "sources/github/one.md", "resource": "https://github.com/a/one", "resource_id": None, "status": status}]
+    found = page.find_held("sources/github", "https://github.com/a/one", "s", (), held)
+    assert found == (Path("sources/github/one.md"), "doc-1", f"sources/github/one.md: held ({status}), left alone")
+
+
+def test_find_held_leaves_alone_an_item_held_names_even_with_no_page_found(monkeypatch):
+    monkeypatch.setattr(page, "ops_json", listing())
+    held = [{"path": "sources/github/one.md", "resource": "https://github.com/a/one", "resource_id": None, "status": "edited"}]
+    assert "held (edited)" in page.find_held("sources/github", "https://github.com/a/one", "s", (), held)[2]
+
+
 # ------------------------------------------------------------------ credential
 
 

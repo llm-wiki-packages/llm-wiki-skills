@@ -91,7 +91,8 @@ It writes the body as `page.md` beside the bytes, then the page under `dest`:
 `page edit` of the job's page for the video (`page ls resource=`), wherever
 a person renamed it, else `page create`. It leaves the paths in `written.json`.
 One JSON line out — `written`, `page`, `has_transcript`, `chapters`,
-`description`, and `left` where a page a person moved or holds was left alone
+`description`, and `left` where a page a person moved or holds, or the ticket's
+`held[]` names, was left alone
 (`written` empty: post `ok` with `reason=left_alone`). A non-zero exit means
 NOTHING landed: post `failed` with its last stderr line. The page's shape is
 `{{@brain-cli-ops}} reference channel-youtube/note-shape`.

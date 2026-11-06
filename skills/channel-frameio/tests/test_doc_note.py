@@ -228,6 +228,21 @@ def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch, cap
     assert "wiki/decks/Deck.md: moved" in json.loads(capsys.readouterr().out)["left"] and not _page_calls(seen)
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(tmp_path, monkeypatch, capsys, status):
+    root = tmp_path / "wiki"
+    _capture(root)
+    row = {"path": f"{DEST}/Deck.md", "document_id": "doc-1", "job": "next-frame-io", "resource": URL}
+    held = [{**row, "status": status}]  # the stub embeds this as Python: no `resource_id: null`
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io", "held": held}, pages=[row])
+    assert _run(monkeypatch, root) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["written"] == [] and out["left"] == f"{DEST}/Deck.md: held ({status}), left alone"
+    assert not _page_calls(seen)
+    _, kv = _read(root, seen)
+    assert kv["status"] == "ok" and f"held ({status})" in kv["reason"]
+
+
 def test_a_page_at_the_title_that_is_not_the_leafs_is_never_written_over(tmp_path, monkeypatch):
     root = tmp_path / "wiki"
     _capture(root)

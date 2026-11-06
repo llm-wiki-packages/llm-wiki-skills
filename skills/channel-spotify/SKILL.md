@@ -108,7 +108,7 @@ It renders `meta.json` into the page
 the item table with each item's audio route — and writes it under the ticket's `dest`
 itself: `page edit` of the job's page for the entity (`page ls resource=`),
 wherever a person renamed it, else `page create`. A page a person moved out of
-`dest` or holds (Draft, Archive) is left alone, handed to the report step as a
+`dest` or holds (Draft, Archive), or the ticket's `held[]` names, is left alone, handed to the report step as a
 verdict like an excluded one. The entity's facts ride as frontmatter keys, plus `resource`
 (the ticket's `item`) and `extracted=true`.
 

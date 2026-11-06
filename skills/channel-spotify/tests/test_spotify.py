@@ -657,6 +657,20 @@ def test_a_page_a_person_moved_or_holds_is_left_alone(spotify, tmp_path, monkeyp
     assert verdict["status"] == "ok" and "left alone" in verdict["reason"]
 
 
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(spotify, tmp_path, monkeypatch, status):
+    cap = tmp_path / "cap"
+    path = "sources/podcasts/money-models/Money.md"
+    held = [{"path": path, "resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "status": status}]
+    process_ticket(cap, "sources/podcasts/money-models", held=held)
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch, pages=[{"path": path, "document_id": "doc-1", "job": "money-models"}])
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls
+    assert read(cap, "verdict.json")["reason"] == f"{path}: held ({status}), left alone"
+
+
 def test_a_refusal_the_builder_does_not_know_is_not_swallowed(spotify, tmp_path, monkeypatch):
     cap = tmp_path / "cap"
     process_ticket(cap, "sources/podcasts/money-models")

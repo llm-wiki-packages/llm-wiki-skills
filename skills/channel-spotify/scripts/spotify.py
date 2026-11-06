@@ -1105,7 +1105,22 @@ def moved_rows(known, resource, slug):
     ]
 
 
-def write_page(root, *, title, dest, body, keys, slug=None, known=()):
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def write_page(root, *, title, dest, body, keys, slug=None, known=(), held=()):
     """The page, through the front door as a SUBPROCESS with an argv list: `(<path>, None)` written, `(None, <why>)`
     left alone.
 
@@ -1126,11 +1141,12 @@ def write_page(root, *, title, dest, body, keys, slug=None, known=()):
     row, why = identity_match(answer["pages"] + moved_rows(known, keys["resource"], slug), slug, dest)
     if why:
         die(why)
+    why = (left_alone(row) if row is not None else None) or held_reason(held, keys["resource"], row and row["path"])
+    if why:
+        return None, why
     if row is not None:
-        why = left_alone(row)
-        if why:
-            return None, why
-        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root, which sees nothing.
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+        # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
         target = row["path"]
         rc, answer = _ops(root, "page", "edit", target, *pairs, "--stdin", input=body.encode())
     else:
@@ -1180,7 +1196,7 @@ def cmd_process(a):
     keys["extracted"] = "true"  # the string the host's pipeline reads as done
     path, left = write_page(
         wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys, slug=ticket.get("slug"),
-        known=ticket.get("known"),
+        known=ticket.get("known"), held=ticket.get("held"),
     )
     if left:
         verdict("ok", left, 0, left=True, written=[])

@@ -153,9 +153,9 @@ quotes, never retyped or "cleaned", and refuse a value still carrying a single
 quote rather than running the line** (`safe_title` maps `'` and `"` to `’`, so
 a title never does). `page ls` rows that are this job's (`job` the ticket's
 `slug`, or none and under `dest`): one is the page — `page edit
-'<its path>' … --stdin` rewrites it wherever a person renamed it, and one
-with `draft`/`archive` true — or a `known[]` row for the item with `reason:
-moved` — is left alone (`ok`, reason naming it);
+'<its path>' … --stdin`, spelled as the row has it, rewrites it wherever a person
+renamed it; one with `draft`/`archive` true, a `known[]` row for the item with `reason:
+moved`, or a `held[]` row for it, is left alone (`ok`, reason naming it and any `status`);
 none means `page create` (its answer names the `path`; exit 2 is
 another item's page at the title: `failed`); two or more is `failed`, naming them.
 

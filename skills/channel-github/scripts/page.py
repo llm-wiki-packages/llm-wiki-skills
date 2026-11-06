@@ -15,7 +15,7 @@ the ticket):
     page.py write <capture_dir> --ticket <id> --from <judgment.json> [--readme full|excerpt|none]
         Renders the page from the capture plus the session's judgment, writes
         it through `page create` (or `page edit` of the page already held;
-        one a person moved out of `dest` or holds is left alone),
+        one a person moved out of `dest` or holds, or `held[]` names, is left alone),
         merges with that page — its tags and its `## Notes` section survive —
         and posts `tickets update` with `written_from`.
 
@@ -124,6 +124,21 @@ def moved_rows(known, resource, slug):
     ]
 
 
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
 def find_clip(dest: Path, url: str) -> Path | None:
     """The first page under `dest` whose `resource` is this repo's URL however
     it is spelled — a clip under the clipper's own name, with the URL as the
@@ -145,7 +160,7 @@ def find_clip(dest: Path, url: str) -> Path | None:
     return None
 
 
-def find_held(dest: str, url: str, slug: str | None, known=()) -> tuple[Path | None, str | None, str | None]:
+def find_held(dest: str, url: str, slug: str | None, known=(), held=()) -> tuple[Path | None, str | None, str | None]:
     """`(path, document_id, left)`: the page the wiki already holds for this repo.
 
     The job's page of the repo's `resource` first (`page ls resource=`,
@@ -160,8 +175,10 @@ def find_held(dest: str, url: str, slug: str | None, known=()) -> tuple[Path | N
     if why:
         die(why)
     if row is not None:
-        return Path(row["path"]), row.get("document_id"), left_alone(row)
-    return find_clip(Path(dest), url), None, None
+        # Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+        return Path(row["path"]), row.get("document_id"), left_alone(row) or held_reason(held, url, row["path"])
+    clip = find_clip(Path(dest), url)
+    return clip, None, held_reason(held, url, clip.as_posix() if clip else None)
 
 
 def held_frontmatter(path: Path) -> dict:
@@ -401,7 +418,7 @@ def cmd_prepare(a) -> int:
     dest = ticket.get("dest") or die("the ticket names no dest")
     capture, repo, readme = load_capture(capture_dir)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"), ticket.get("held"))
     held_fm = held_frontmatter(held) if held else {}
     held_tags = as_list(held_fm.get("tags"))
     print(
@@ -447,7 +464,7 @@ def cmd_write(a) -> int:
     # directory its slice writes besides `dest`.
     judgment = load_judgment(capture_dir / source if len(source.parts) == 1 else source)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"))
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"), ticket.get("held"))
     if left:
         return 0 if post_update(a.ticket, "process", "ok", reason=f"{repo['full_name']}: {left}") == 0 else 2
     held_fm = held_frontmatter(held) if held else {}

@@ -154,8 +154,8 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
    from `capture.json` and SINGLE-QUOTED, never retyped or cleaned; one still
    carrying a single quote is refused, not run (`safe_title` maps `'` and `"`
    to `’`, so a title never does). The job's `page ls` row (`job` the `slug`,
-   or none) takes `edit` at its path, wherever it was renamed; left alone if `draft`,
-   `archive`, or `known[]` says `moved`. No row: `create` (exit 2 is `failed`); two
+   or none) takes `edit` at its path as the row spells it, wherever it was renamed; left
+   alone if `draft`, `archive`, `known[]` says `moved`, or `held[]` names it (say its `status`). No row: `create` (exit 2 is `failed`); two
    rows: `failed`. Report LAST, `written.json` the wiki-relative path(s).
 
 ## Auth (one-time, per domain)
