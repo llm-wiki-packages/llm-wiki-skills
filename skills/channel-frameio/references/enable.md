@@ -17,7 +17,8 @@
    and none of its media. **Scope MUST stay `domain`**: a
    share's leaves sit under the share host, not under the watched URL, so
    `page` and (for a FOLDER inside the share) `section` both exclude them.
-   Name `dest` for the content now: moving it later means re-running this
-   `add` with a new `dest=`, since `jobs edit` refuses that key.
+   Name `dest` for the content now. To move it later, move the job with its
+   folder: `{{@brain-cli-ops}} jobs edit <slug> dest=<new> --move-folder`,
+   then re-run the command it prints with `--confirm`.
    `dest` is also the one directory the skill's process step writes: it is
    handed to the page builder verbatim, off each process ticket.

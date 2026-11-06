@@ -1409,6 +1409,23 @@ def render(directory: Path, links: dict[str, str] | None = None) -> list[dict]:
 
     `links` maps a capture key to the target a link to its page names (process: the page's path); the capture's place, else its
     title, stands in for a key it does not name."""
+    return [{**page, "body": closed(page["body"])} for page in _render(directory, links)]
+
+
+# The line every page's course text ends on, the same each pull: a note a person types below it merges with the next
+# render instead of conflicting with it (a body merge sees the course's changes above it and the person's below).
+END = "---\n"
+
+
+def closed(body: str) -> str:
+    """`body` ending on `END`, once."""
+    text = body.rstrip()
+    if text.endswith("\n" + END.rstrip()) or text == END.rstrip():
+        return text + "\n"
+    return (text + "\n\n" if text else "") + END
+
+
+def _render(directory: Path, links: dict[str, str] | None) -> list[dict]:
     cap = json.loads((directory / CAPTURE).read_text(encoding="utf-8"))
     body = directory / cap["body"]
     kind = cap.get("kind")

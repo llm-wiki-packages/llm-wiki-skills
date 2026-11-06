@@ -25,10 +25,12 @@
    the job's answer, and a harvest ticket does not carry one at all. Check
    each job with `{{@brain-cli-ops}} jobs show <slug>` (it names `dest` and the
    target), and re-point any that is not under `research/channels/`.
-   `jobs edit` refuses `dest`, but re-running `add` with the same target
-   and slug moves it and keeps every other key:
-   `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-gmail
-   dest=research/channels/<slug>`.
+   Move it with its pages:
+   `{{@brain-cli-ops}} jobs edit <slug> dest=research/channels/<slug>
+   --move-folder` renames the old folder and re-points the job in one
+   commit. It asks for confirmation: re-run the command it prints, which
+   carries `--confirm`. A job with no pages yet takes the same command
+   without `--move-folder`.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
    not a secret. The skill declares `requires.credentials.file: "required"` and never
    reads the value: connector auth is the session's. What the binding does is
