@@ -1,4 +1,4 @@
-"""`export_cookies.py`, the helper `browser_python` runs over the bound browser
+"""`export_cookies.py`, the helper `capture_video.py` runs over the bound browser
 profile: a fake `playwright` package ahead on `sys.path` answers a canned
 cookie list, so no browser is launched."""
 

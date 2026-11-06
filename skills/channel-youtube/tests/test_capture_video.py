@@ -54,7 +54,11 @@ def front_door(tmp_path, ticket):
     return shlex.join([sys.executable, str(stub)])
 
 
-def harvest(tmp_path, *, fail="", meta="", **over):
+# Runs a script with `sys.executable` set to argv[1]: the cookie export runs on the script's own interpreter.
+ON_PYTHON = "import runpy, sys; sys.executable = sys.argv.pop(1); sys.argv.pop(0); runpy.run_path(sys.argv[0], run_name='__main__')"
+
+
+def harvest(tmp_path, *, fail="", meta="", python=None, **over):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     fake = bin_dir / "yt-dlp"
@@ -66,7 +70,8 @@ def harvest(tmp_path, *, fail="", meta="", **over):
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "LLM_WIKI_OPS": front_door(tmp_path, ticket),
            "FAKE_LOG": str(tmp_path / "yt.log"), "FAKE_UPDATES": str(tmp_path / "updates.log"),
            "FAKE_FIXTURES": str(FIXTURES), "FAKE_YT_FAIL": fail, "FAKE_YT_META": meta}
-    cp = subprocess.run([sys.executable, str(SCRIPT), f"ticket={TICKET_ID}"], cwd=tmp_path, env=env, capture_output=True, text=True)
+    on = ["-c", ON_PYTHON, python] if python else []
+    cp = subprocess.run([sys.executable, *on, str(SCRIPT), f"ticket={TICKET_ID}"], cwd=tmp_path, env=env, capture_output=True, text=True)
     read = lambda name: [json.loads(line) for line in (tmp_path / name).read_text().splitlines()] if (tmp_path / name).exists() else []  # noqa: E731
     return cp, read("yt.log"), read("updates.log")
 
@@ -125,15 +130,18 @@ def test_the_manifest_declares_the_script_beside_the_sandbox():
     manifest = json.loads((UNIT_DIR / "manifest.json").read_text())
     assert manifest["stages"]["harvest"]["script"] == "scripts/capture_video.py"
     assert (UNIT_DIR / "scripts" / "capture_video.py").is_file() and "sandbox_ref" in manifest and "sandbox_ref" not in manifest["stages"]["harvest"]
-    assert "# /// script" not in SCRIPT.read_text()  # a block in a script stage is refused at install
+    assert '# dependencies = ["playwright==' in SCRIPT.read_text()  # the env the cookie export runs on
 
 
 # --- a bound `dir` credential: the browser profile, and the cookie jar exported into it once ---
 
-# Stands in for `browser_python` running `export_cookies.py <profile> <jar>`: logs the argv it was
+# Stands in for the unit env's python running `export_cookies.py <profile> <jar>`: logs the argv it was
 # handed, then writes a jar (`FAKE_EXPORT_FAIL` set: exits 3 with one stderr line, writing nothing).
-FAKE_BROWSER_PYTHON = f"""#!{sys.executable}
+# Any other script (`youtube_note.py --record`) runs on the real interpreter.
+FAKE_ENV_PYTHON = f"""#!{sys.executable}
 import json, os, pathlib, sys
+if not sys.argv[1].endswith("export_cookies.py"):
+    os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
 pathlib.Path(os.environ["FAKE_EXPORT_LOG"]).open("a").write(json.dumps(sys.argv[1:]) + "\\n")
 if os.environ.get("FAKE_EXPORT_FAIL"):
     print("playwright: no cookies for youtube.com in the profile", file=sys.stderr)
@@ -146,8 +154,8 @@ if os.environ.get("FAKE_EXPORT_TOUCHES_DB"):
 
 
 def bound(tmp_path, *, jar=False, export_fails=False, db=None, touches_db=False, **over):
-    """A ticket bound to a browser `dir`: `credential_dir` is a profile the slice may write and
-    `browser_python` a stand-in that logs every invocation. `db` is the profile cookie DB's age
+    """A ticket bound to a browser `dir`: `credential_dir` is a profile the slice may write, and
+    the script runs on a stand-in env python that logs every export. `db` is the profile cookie DB's age
     relative to the jar: "older" or "newer". Returns (cp, calls, updates, exports, jar)."""
     profile = tmp_path / "profile"
     profile.mkdir(exist_ok=True)
@@ -160,14 +168,14 @@ def bound(tmp_path, *, jar=False, export_fails=False, db=None, touches_db=False,
         cookie_db.parent.mkdir(parents=True, exist_ok=True)
         cookie_db.write_text("sqlite")
         os.utime(cookie_db, ns=((1_700_000_000 + (3600 if db == "newer" else -3600)) * 10**9,) * 2)
-    python = tmp_path / "browser_python"
-    python.write_text(FAKE_BROWSER_PYTHON, encoding="utf-8")
+    python = tmp_path / "env_python"
+    python.write_text(FAKE_ENV_PYTHON, encoding="utf-8")
     python.chmod(0o755)
     os.environ["FAKE_EXPORT_LOG"] = str(tmp_path / "export.log")
     os.environ["FAKE_EXPORT_FAIL"] = "1" if export_fails else ""
     os.environ["FAKE_EXPORT_TOUCHES_DB"] = "1" if touches_db else ""
     try:
-        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), browser_python=str(python), **over)
+        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), python=str(python), **over)
     finally:
         del os.environ["FAKE_EXPORT_LOG"], os.environ["FAKE_EXPORT_FAIL"], os.environ["FAKE_EXPORT_TOUCHES_DB"]
     log = tmp_path / "export.log"
@@ -188,7 +196,7 @@ def test_a_jar_already_in_the_profile_rides_both_calls_and_is_not_re_exported(tm
     assert exports == [] and "status=ok" in updates[0]
 
 
-def test_a_profile_with_no_jar_exports_one_through_browser_python_then_spends_it(tmp_path):
+def test_a_profile_with_no_jar_exports_one_on_the_script_s_own_python_then_spends_it(tmp_path):
     cp, calls, updates, exports, jar = bound(tmp_path)
     assert cp.returncode == 0, cp.stderr
     assert len(exports) == 1 and exports[0][0].endswith("scripts/export_cookies.py") and exports[0][1:] == [str(jar.parent), str(jar)]
@@ -206,14 +214,6 @@ def test_an_export_that_fails_is_a_credential_store_error_and_no_yt_dlp_call(tmp
     assert reason.startswith("reason=credential_store_error: ") and "no cookies for youtube.com" in reason
     assert f"missing=www.youtube.com,{ITEM},error" in updates[0]
     assert not any("auth" in a for a in updates[0] if a.startswith("missing="))
-
-
-def test_a_bound_dir_with_no_jar_and_no_browser_python_is_a_credential_store_error(tmp_path):
-    profile = tmp_path / "profile"
-    profile.mkdir()
-    cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile))
-    assert cp.returncode == 0 and calls == []
-    assert "status=failed" in updates[0] and any(a.startswith("reason=credential_store_error") for a in updates[0])
 
 
 def test_an_auth_wall_with_a_jar_present_keeps_the_jar_and_reports_auth(tmp_path):
@@ -287,7 +287,7 @@ def test_a_jar_that_cannot_be_read_is_a_credential_store_error_not_a_traceback(t
     jar.write_text("# Netscape HTTP Cookie File\n")
     jar.chmod(0)
     try:
-        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), browser_python=sys.executable)
+        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile))
     finally:
         jar.chmod(0o600)
     assert cp.returncode == 0 and "Traceback" not in cp.stderr and calls == []

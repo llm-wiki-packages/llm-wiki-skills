@@ -63,7 +63,7 @@ def test_the_setup_marker_is_retired_only_when_it_was_found():
     assert MARKER_GUARD in BODY, "the skill body's §8 clause carries no condition"
 
 
-# The `ops-morning` job runs this unit as `/daily-report ticket=<id>
+# The morning job runs this unit as `/daily-report ticket=<id>
 # stage=routine`; the claim gate admits that job only where the enabled
 # manifest serves `routine`.
 MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
@@ -109,6 +109,5 @@ def test_no_file_of_the_unit_runs_git_commit(doc):
     assert "llm-wiki-ops git commit" not in _doc(SKILL / doc), doc
 
 
-def test_the_schedule_it_names_is_the_ops_morning_job():
-    assert "`ops-morning` job" in BODY
+def test_the_skill_does_not_say_bundle():
     assert "bundle" not in BODY

@@ -13,12 +13,12 @@ Each runs as `{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/<script>
 | :--- | :--- | :--- |
 | `capture_video.py` | harvest | `ticket=<id>`, as the runner starts it; the whole worker, posting its own update |
 | `youtube_note.py` | process | `. --capture-dir <capture_dir> --dest <dest> --ticket <id> [--format-transcript PATH]`; the `.` is the wiki root, `<capture_dir>` the ticket's own, wiki-relative; `--record` is the harvest arm `capture_video.py` runs |
-| `export_cookies.py` | harvest | `<profile_dir> <out_file>`; run by `capture_video.py` under `browser_python`, not by hand |
+| `export_cookies.py` | harvest | `<profile_dir> <out_file>`; run by `capture_video.py` on its own interpreter, not by hand |
 
 ## Knobs
 
 - No `watch.inputs`. The harvest script reads `item`, `capture_dir`, `known[]`,
-  `refresh`, `credential_dir` and `browser_python` off the ticket.
+  `refresh` and `credential_dir` off the ticket.
 - `process.exclude_rules`, `options` and `min_date` are applied first at
   process; `process.embeds` (default on) controls the embed in the page body.
 - `requires.credentials.dir` is `optional`: a `login: browser` credential adds a cookie jar
