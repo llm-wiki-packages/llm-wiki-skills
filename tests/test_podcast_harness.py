@@ -32,7 +32,7 @@ BODY = (
     "Two lectures on how light becomes sugar.\n\n"
     "## Show notes\n- [[Lecture 1 — Light]]: where the energy comes from.\n- [[Lecture 2 — Sugar]]: where it goes.\n\n"
     "## Script\n\n"
-    "```narrate\n"
+    "```webvtt\n"
     "<v Alex>Welcome to The Margin. Two lectures, one trick: light into sugar.\n"
     "<v Sam>The cell runs on sunshine, slowly.\n"
     "```\n"
@@ -119,7 +119,7 @@ def test_the_routine_runs_in_its_sandbox_and_lands_the_episode(ops, env, wiki, r
 
 def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_covers(ops, env, wiki, ran):
     """The page `narrate` renders: `audio: podcast`, a refresh asked for on
-    the rewrite, the script in its `narrate` block, and `covers` rows that
+    the rewrite, the script in its `webvtt` block, and `covers` rows that
     resolve to the lectures, so each lecture's backlinks lead to it."""
     page = run(ops, rooted(env, wiki), "--json", "page", "read", EPISODE, "--frontmatter")
     assert page.returncode == 0, page.stdout + page.stderr
@@ -131,7 +131,7 @@ def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_covers(ops, en
     assert "audio_render" not in front, front
     assert front["covers"] == ["[[Lecture 1 — Light]]", "[[Lecture 2 — Sugar]]"], front["covers"]
     body = (wiki / EPISODE).read_text(encoding="utf-8")
-    assert "```narrate\n<v Alex>Welcome to The Margin." in body, body
+    assert "```webvtt\n<v Alex>Welcome to The Margin." in body, body
 
     links = run(ops, rooted(env, wiki), "--json", "page", "links", EPISODE)
     assert links.returncode == 0, links.stdout + links.stderr

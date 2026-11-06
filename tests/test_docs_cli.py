@@ -24,11 +24,7 @@ DOCS = sorted([*ROOT.glob("skills/*/*.md"), *ROOT.glob("skills/*/references/*.md
 # Groups the docs still name that the CLI at hand does not have. Each is
 # ASSERTED absent below, so the day one is ported this file says to drop it
 # from here — and its verbs start being checked like any other.
-UNPORTED: dict = {
-    # The text-to-speech engine, landing in the plugins (simple10/llm-wiki-plugins#4102).
-    # `podcast` and `quiz-show` tell a session to run `narrate <page>` for audio now.
-    "narrate": "simple10/llm-wiki-plugins#4102",
-}
+UNPORTED: dict = {}
 
 # Groups the CLI does not have, whose verbs live elsewhere: a span that
 # opens with one is stale wherever it appears, prefixed by `llm-wiki-ops` or

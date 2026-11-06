@@ -149,18 +149,21 @@ Write for the ear, because nobody sees this text:
 - Never a made-up fact, number or name: the questions, their answers and
   the concepts read in §3 are the whole of what the show may claim.
 
-The script is ONE fenced block with the info string `narrate`, one turn per
+The script is ONE fenced block with the info string `webvtt`, one turn per
 line, each line `<v Name>` and then the words, with no blank lines inside:
 
 ````md
-```narrate
+```webvtt
 <v Alex>Welcome to Pop Quiz. Five questions, one lightning round, no pressure.
 <v Sam>Some pressure.
 ```
 ````
 
-`narrate` reads that block and nothing else for the episode; a name that is
-not a host is a voice nobody mapped.
+`narrate` voices the page's first `webvtt` block and nothing else; the
+lead and show notes are for the eye. A `<v Name>` line opens a turn, so a
+line never starts with anything else and never holds `<`, `>` or `-->`
+(a cue tag, or a timing line, to the parser). A name that is not a host is
+a voice nobody mapped.
 
 ## 5. Write the episode page
 
@@ -189,7 +192,7 @@ one's backlinks lead to the episode. The body arrives on stdin:
   link `[[<question>]]`, its concept `[[<concept>]]`, and `weak` where the
   logs made it one. Then the show's own questions, marked as not wiki
   questions, and any open questions.
-- **`## Script`** — the `narrate` block from §4, and nothing after it.
+- **`## Script`** — the `webvtt` block from §4, and nothing after it.
 
 A `page edit` refused because a person is still editing the episode leaves
 that episode as it is: no new episode landed, so the run closes `failed`
@@ -201,12 +204,12 @@ Under `ticket=`, skip this section: the host's `narrate` pass renders the
 page. In a session where the person asked to hear the quiz now:
 
 ```sh
-{{@brain-cli-ops}} narrate "<episode path>"
+{{@brain-cli-ops}} narrate "<episode path>" mode=podcast
 ```
 
 It renders on this machine and embeds the player at the top of the page. A
-refusal (no engine on this machine, no `narrate` in this release, a voice
-not mapped) is relayed as it reads, never worked around: the page still
+refusal (no engine on this machine, too few voices for the hosts, a voice
+this machine does not have) is relayed as it reads, never worked around: the page still
 asks for its audio, and any machine with the engine renders it on its next
 pass.
 

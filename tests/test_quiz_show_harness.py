@@ -30,7 +30,7 @@ BODY = (
     "One question the last quiz missed.\n\n"
     "## Show notes\n- [[Harness show question]] — [[Harness show idea]], weak\n\n"
     "## Script\n\n"
-    "```narrate\n"
+    "```webvtt\n"
     "<v Alex>Welcome to Pop Quiz. One question, no pressure.\n"
     "<v Sam>Some pressure.\n"
     "```\n"
@@ -141,7 +141,7 @@ def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_asks(ops, env,
     assert front["audio"] in ("podcast", ["podcast"]) and front["audio_refresh"] in ("podcast", ["podcast"]), front
     assert "audio_render" not in front, front
     body = (wiki / EPISODE).read_text(encoding="utf-8")
-    assert "```narrate\n<v Alex>Welcome to Pop Quiz." in body, body
+    assert "```webvtt\n<v Alex>Welcome to Pop Quiz." in body, body
     links = run(ops, rooted(env, wiki), "--json", "page", "links", EPISODE)
     assert links.returncode == 0, links.stdout + links.stderr
     covered = {link["path"] for link in links.data["links"] if link["relation"] == "covers"}

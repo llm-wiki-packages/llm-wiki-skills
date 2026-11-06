@@ -23,8 +23,8 @@ BODY = _doc(SKILL / "SKILL.md")
 MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
 LOCAL = sorted(p.name for p in (SKILL / "references").glob("*"))
 COMMANDS = re.findall(r"^llm-wiki-ops [a-z]+ [a-z]+", BODY, re.M)
-# The `narrate` engine's script contract: the page's first ```narrate block,
-# one turn per line, `<v Name>` then the words (simple10/llm-wiki-plugins#4102).
+# The `narrate` engine's script contract: the page's first ```webvtt block,
+# one turn per line, `<v Name>` then the words (simple10/llm-wiki-plugins#4108).
 TURN = re.compile(r"^<v ([^>]+)>(\S.*)$")
 
 
@@ -105,7 +105,7 @@ def test_the_episode_is_one_page_written_through_the_page_verbs_asking_for_audio
 
 def test_narrate_runs_in_one_session_only_section():
     calls = re.findall(r"^llm-wiki-ops narrate .*$", BODY, re.M)
-    assert calls == ['llm-wiki-ops narrate "<episode path>"'], calls
+    assert calls == ['llm-wiki-ops narrate "<episode path>" mode=podcast'], calls
     six = _section(6)
     assert "llm-wiki-ops narrate" in six and "Under `ticket=`, skip this section" in six
     assert "Run `narrate` under `ticket=`." in BODY.split("## Never", 1)[1]
@@ -117,13 +117,15 @@ def test_the_skill_never_writes_what_narrate_owns():
 
 
 def test_every_example_script_block_is_one_the_engine_parses():
-    blocks = re.findall(r"^```narrate\n(.*?)^```", BODY, re.M | re.S)
-    assert blocks, "the body shows no narrate block"
+    blocks = re.findall(r"^```webvtt\n(.*?)^```", BODY, re.M | re.S)
+    assert blocks, "the body shows no webvtt script block"
     for block in blocks:
         lines = block.rstrip("\n").split("\n")
         assert all(TURN.match(line) for line in lines), lines
         assert {TURN.match(line)[1] for line in lines} <= {"Alex", "Sam"}, lines
         assert not any(re.search(r"[*_`\[\]#|]", TURN.match(line)[2]) for line in lines), "markdown inside a spoken line"
+        # The engine's parser reads `<…>` as a cue tag and `-->` as a timing line.
+        assert not any(re.search(r"[<>]|-->", TURN.match(line)[2]) for line in lines), "a cue tag or timing inside a spoken line"
 
 
 @pytest.mark.parametrize("doc", ["SKILL.md", *(f"references/{n}" for n in LOCAL if n.endswith(".md"))])
