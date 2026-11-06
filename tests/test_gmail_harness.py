@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 
 import pytest
 
@@ -160,7 +161,13 @@ def test_a_ledger_a_person_renamed_is_regenerated_where_it_now_sits(ops, env, wi
     made = wiki / job.dest / f"{cap.name}.md"
     renamed = made.with_name("Monday mail.md")
     for argv in (["mv", str(made.relative_to(wiki)), str(renamed.relative_to(wiki))], ["commit", "-q", "-m", "a person renames the ledger"]):
-        done = subprocess.run(["git", "-C", str(wiki), *argv], capture_output=True, text=True, env=rooted(env, wiki))
+        # A landing's own commit, or another case's in this wiki, may hold the index for a moment: a person would retry.
+        deadline = time.monotonic() + 60
+        while True:
+            done = subprocess.run(["git", "-C", str(wiki), *argv], capture_output=True, text=True, env=rooted(env, wiki))
+            if done.returncode == 0 or "index.lock" not in done.stderr or time.monotonic() > deadline:
+                break
+            time.sleep(0.5)
         assert done.returncode == 0, done.stderr
 
     _ticket_id, cap = pulled(ops, env, wiki, job, [msg(2), msg(1)])
