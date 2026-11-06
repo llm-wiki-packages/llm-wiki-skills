@@ -561,6 +561,9 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=(), he
                 f"youtube_note: `page create` refused (exit {created.returncode}) — "
                 f"no page was written.\n{_said(created)}"
             )
+        why = held_reason(held, None, rel)
+        if why:
+            return None, why
         target = [rel]
     edited = subprocess.run(
         [*door, "--json", "page", "edit", *target, *keys, "--stdin"],
