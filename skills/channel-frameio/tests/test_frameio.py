@@ -870,7 +870,7 @@ def _run_script(name, *argv, cwd, env=None):
 def _stub_front_door(tmp, ticket_dict=None):
     """A recording `llm-wiki-ops` on PATH, for a case with no wiki behind it.
     Answers `tickets open`/`tickets update` for real; a `page` call is
-    recorded and answered `{"ok": true}`. Returns `(env, seen)`; `seen` holds
+    recorded and answered `{"ok": true}`, `page ls` with no pages. Returns `(env, seen)`; `seen` holds
     one JSON line per call."""
     bin_dir = Path(tempfile.mkdtemp(prefix="stub-door-", dir=tmp))
     seen = bin_dir / "seen.jsonl"
@@ -886,6 +886,9 @@ def _stub_front_door(tmp, ticket_dict=None):
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
         "if argv[:2] == ['tickets', 'update']:\n"
+        "    sys.exit(0)\n"
+        "if argv[:2] == ['page', 'ls']:\n"
+        "    print(json.dumps({'pages': []}))\n"
         "    sys.exit(0)\n"
         "print(json.dumps({'ok': True}))\n"
     )
@@ -1048,6 +1051,6 @@ def test_the_real_argv_chain_carries_a_file_named_like_an_option(tmp_path):
     assert "- **Author:** -Ada" in body
     assert "Quarterly roadmap for the fixture share" in body, "and the PDF's text is inlined, run as production runs it"
     page_calls = [json.loads(line) for line in seen2.read_text().splitlines() if json.loads(line)["argv"][1:2] == ["page"]]
-    (call,) = page_calls
+    (_lookup, call) = page_calls
     assert call["argv"][:4] == ["--json", "page", "create", "title=-rf.pdf"], "a title opening with `-` is no option"
     assert "dest=sources/decks" in call["argv"] and call["stdin"] == body

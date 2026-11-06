@@ -25,8 +25,9 @@ Subcommands:
                 object. Reads the URL, slug, min_date and asset policy off
                 `tickets open`: --ticket is required.
   process       PROCESS: meta.json -> the page, written under the ticket's dest through
-                `llm-wiki-ops page create` (or `page edit` when it is already
-                there), as a subprocess with an argv list. Prints the pages it
+                `llm-wiki-ops page edit` of the job's page for the entity
+                (`page ls resource=`), else `page create`, as a subprocess with
+                an argv list. Prints the pages it
                 wrote; the caller passes them to `report --written-from`.
   report        posts `tickets update` from what --capture-dir holds — the
                 last thing either worker runs.
@@ -1066,27 +1067,97 @@ def excluded_by(meta, rules):
     return None
 
 
-def write_page(root, *, title, dest, body, keys):
-    """The page, through the front door as a SUBPROCESS with an argv list.
+def identity_match(rows, slug, dest):
+    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    `(None, <why>)` where there are several — never one picked.
+
+    A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
+    page written before it carries none. A row from another job is that job's page, not this one's."""
+    folder = str(dest or "").strip("/")
+    mine = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("job") == slug or (row.get("job") is None and folder and str(row.get("path") or "").startswith(folder + "/")))
+    ]
+    if len(mine) > 1:
+        return None, "pages " + ", ".join(sorted(str(row.get("path")) for row in mine)) + " all hold this item: none was written"
+    return (mine[0] if mine else None), None
+
+
+def left_alone(row):
+    """Why the page `row` names is not this run's to write, or None: a person moved it out of `dest`, or ticked its
+    Draft or Archive box."""
+    if row.get("moved"):
+        return f"{row.get('path')}: moved out of dest by a person, left alone"
+    if row.get("draft") or row.get("archive"):
+        return f"{row.get('path')}: held (Draft or Archive), left alone"
+    return None
+
+
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def write_page(root, *, title, dest, body, keys, slug=None, known=(), held=()):
+    """The page, through the front door as a SUBPROCESS with an argv list: `(<path>, None)` written, `(None, <why>)`
+    left alone.
 
     Never a shell line: every value here is venue text — the entity's name, its
     creator, its description — and a description on a Bash line is a command.
-    `page create` refuses a title it already holds (exit 2, naming the path it
-    would have written), and the filename is exactly the title, so the second
-    call edits that path rather than inventing a name of its own.
+    The job's page for the entity is found by `resource` first
+    (`identity_match`) and edited at the path it found, wherever in `dest` a
+    person renamed it. No page: `page create`, which refuses a title it already
+    holds — another item's page, never written over.
     """
     # `key=value` carries text, so a bool is spelled the way YAML reads it and
     # the host's own `extracted=true` already is — never Python's `False`.
     pairs = [f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in keys.items()]
-    rc, answer = _ops(root, "page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", input=body.encode())
-    said = str(answer.get("error") or "")
-    if rc == 2 and "already exists" in said:
-        path = f"{str(dest).rstrip('/')}/{title}.md"
-        rc, answer = _ops(root, "page", "edit", path, *pairs, "--stdin", input=body.encode())
-        said = str(answer.get("error") or "")
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = _ops(root, "page", "ls", f"filter=under:{dest}", f"resource={keys['resource']}")
+    if rc != 0 or not isinstance(answer.get("pages"), list):
+        die(f"`page ls resource=` did not answer ({rc}): no page was written: {answer.get('error') or answer}")
+    row, why = identity_match(answer["pages"] + moved_rows(known, keys["resource"], slug), slug, dest)
+    if why:
+        die(why)
+    why = (left_alone(row) if row is not None else None) or held_reason(held, keys["resource"], row and row["path"])
+    if why:
+        return None, why
+    if row is not None:
+        # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+        # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+        target = row["path"]
+        rc, answer = _ops(root, "page", "edit", target, *pairs, "--stdin", input=body.encode())
+    else:
+        rc, answer = _ops(root, "page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", input=body.encode())
     if rc != 0 or not answer.get("path"):
-        die(f"the page was not written ({rc}): {said or answer}")
-    return answer["path"]
+        die(f"the page was not written ({rc}): {answer.get('error') or answer}")
+    return answer["path"], None
 
 
 def cmd_process(a):
@@ -1127,7 +1198,12 @@ def cmd_process(a):
     keys = page_frontmatter(meta)
     keys["resource"] = ticket.get("item") or meta["url"]  # what `known[]` matches on
     keys["extracted"] = "true"  # the string the host's pipeline reads as done
-    path = write_page(wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys)
+    path, left = write_page(
+        wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys, slug=ticket.get("slug"),
+        known=ticket.get("known"), held=ticket.get("held"),
+    )
+    if left:
+        verdict("ok", left, 0, left=True, written=[])
     print(
         json.dumps(
             {

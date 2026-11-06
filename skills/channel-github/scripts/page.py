@@ -7,13 +7,15 @@ the ticket):
 
     page.py prepare <capture_dir> --ticket <id>
         What the session needs to judge the repo: its facts, where its README
-        is, and the page the wiki ALREADY holds for it — by title, else by
-        `resource` anywhere under `dest` (a Web Clipper clip lands there under
-        whatever name the clipper gave it). Prints JSON.
+        is, and the page the wiki ALREADY holds for it — the job's page of its
+        `resource` (`page ls`), wherever in `dest` a person renamed it, else a
+        clip of it under `dest` (a Web Clipper clip lands there under whatever
+        name the clipper gave it). Prints JSON.
 
     page.py write <capture_dir> --ticket <id> --from <judgment.json> [--readme full|excerpt|none]
         Renders the page from the capture plus the session's judgment, writes
-        it through `page create` (or `page edit` over the page already held),
+        it through `page create` (or `page edit` of the page already held;
+        one a person moved out of `dest` or holds, or `held[]` names, is left alone),
         merges with that page — its tags and its `## Notes` section survive —
         and posts `tickets update` with `written_from`.
 
@@ -72,6 +74,7 @@ def norm_url(url: str) -> str:
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*(.+?)\s*$", re.M)
+JOB_LINE = re.compile(r"^job:[ \t]*(.*)$", re.M)
 
 
 def frontmatter_text(text: str) -> tuple[str, str]:
@@ -84,13 +87,68 @@ def frontmatter_text(text: str) -> tuple[str, str]:
     return "", text
 
 
-def find_held(dest: Path, title: str, url: str) -> Path | None:
-    """The page `dest` already holds for this repo: `<title>.md`, else the
-    first page whose `resource` is this repo's URL (a clip under the
-    clipper's own name). `_versions/` is history, never a candidate."""
-    direct = dest / f"{title}.md"
-    if direct.is_file():
-        return direct
+def identity_match(rows, slug, dest):
+    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    `(None, <why>)` where there are several — never one picked.
+
+    A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
+    page written before it carries none. A row from another job is that job's page, not this one's."""
+    folder = str(dest or "").strip("/")
+    mine = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("job") == slug or (row.get("job") is None and folder and str(row.get("path") or "").startswith(folder + "/")))
+    ]
+    if len(mine) > 1:
+        return None, "pages " + ", ".join(sorted(str(row.get("path")) for row in mine)) + " all hold this item: none was written"
+    return (mine[0] if mine else None), None
+
+
+def left_alone(row):
+    """Why the page `row` names is not this run's to write, or None: a person moved it out of `dest`, or ticked its
+    Draft or Archive box."""
+    if row.get("moved"):
+        return f"{row.get('path')}: moved out of dest by a person, left alone"
+    if row.get("draft") or row.get("archive"):
+        return f"{row.get('path')}: held (Draft or Archive), left alone"
+    return None
+
+
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def find_clip(dest: Path, url: str, slug: str | None = None) -> Path | None:
+    """The first page under `dest` whose `resource` is this repo's URL however
+    it is spelled — a clip under the clipper's own name, with the URL as the
+    clipper wrote it. `_versions/` is history, never a candidate, and neither
+    is a page stamped with another job (`identity_match` already left it)."""
     want = norm_url(url)
     if not dest.is_dir():
         return None
@@ -103,9 +161,33 @@ def find_held(dest: Path, title: str, url: str) -> Path | None:
             continue
         fm, _ = frontmatter_text(head)
         m = RESOURCE_LINE.search(fm)
+        job = JOB_LINE.search(fm)
+        if job and job.group(1).strip().strip("'\"") not in ("", slug):
+            continue
         if m and norm_url(m.group(1)) == want:
             return path
     return None
+
+
+def find_held(dest: str, url: str, slug: str | None, known=(), held=()) -> tuple[Path | None, str | None, str | None]:
+    """`(path, document_id, left)`: the page the wiki already holds for this repo.
+
+    The job's page of the repo's `resource` first (`page ls resource=`,
+    `identity_match`), wherever in `dest` a person renamed it; else a clip
+    (`find_clip`). `left` says why a page a person moved or holds is not this
+    run's to write. Two pages for the repo refuse, naming both."""
+    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = ops_json("page", "ls", f"filter=under:{dest}", f"resource={url}")
+    if rc != 0 or not isinstance(answer.get("pages"), list):
+        die(f"`page ls resource=` did not answer ({rc}): {answer.get('error') or answer}")
+    row, why = identity_match(answer["pages"] + moved_rows(known, url, slug), slug, dest)
+    if why:
+        die(why)
+    if row is not None:
+        # Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+        return Path(row["path"]), row.get("document_id"), left_alone(row) or held_reason(held, url, row["path"])
+    clip = find_clip(Path(dest), url, slug)
+    return clip, None, held_reason(held, url, clip.as_posix() if clip else None)
 
 
 def held_frontmatter(path: Path) -> dict:
@@ -322,15 +404,14 @@ def load_judgment(path: Path) -> dict:
 
 
 def write_page(dest: str, title: str, held: Path | None, keys: dict, body: str) -> str:
+    """The held page edited at the path `find_held` found, else `page create`, which refuses a title already a page:
+    another repo's, or no repo's, and never written over."""
     pairs = [f"{k}={v}" for k, v in keys.items()]
     if held is None:
         rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, "--stdin", stdin=body)
-        if rc == 2 and "already exists" in str(answer.get("error") or ""):
-            held = Path(dest) / f"{title}.md"
-        elif rc != 0 or not answer.get("path"):
+        if rc != 0 or not answer.get("path"):
             die(f"`page create` refused ({rc}): {answer.get('error') or answer}")
-        else:
-            return answer["path"]
+        return answer["path"]
     rc, answer = ops_json("page", "edit", held.as_posix(), *pairs, "--stdin", stdin=body)
     if rc != 0:
         die(f"`page edit {held}` refused ({rc}): {answer.get('error') or answer}")
@@ -346,7 +427,7 @@ def cmd_prepare(a) -> int:
     dest = ticket.get("dest") or die("the ticket names no dest")
     capture, repo, readme = load_capture(capture_dir)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held = find_held(Path(dest), title, repo["url"])
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"), ticket.get("held"))
     held_fm = held_frontmatter(held) if held else {}
     held_tags = as_list(held_fm.get("tags"))
     print(
@@ -368,6 +449,7 @@ def cmd_prepare(a) -> int:
                     "path": held.as_posix(),
                     "clipped": "gh-clipped" in held_tags or held_fm.get("type") == "clip" or not held_fm.get("harvested"),
                     "categories": [t for t in held_tags if t not in SIGNAL_TAGS and t != "clip"],
+                    "left": left,
                 }
                 if held
                 else None,
@@ -391,7 +473,9 @@ def cmd_write(a) -> int:
     # directory its slice writes besides `dest`.
     judgment = load_judgment(capture_dir / source if len(source.parts) == 1 else source)
     title = capture.get("title") or repo["full_name"].replace("/", "--")
-    held = find_held(Path(dest), title, repo["url"])
+    held, _document_id, left = find_held(dest, repo["url"], ticket.get("slug"), ticket.get("known"), ticket.get("held"))
+    if left:
+        return 0 if post_update(a.ticket, "process", "ok", reason=f"{repo['full_name']}: {left}") == 0 else 2
     held_fm = held_frontmatter(held) if held else {}
     clipped = bool(held) and ("gh-clipped" in as_list(held_fm.get("tags")) or held_fm.get("type") == "clip" or not held_fm.get("harvested"))
 
