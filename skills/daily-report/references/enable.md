@@ -28,15 +28,13 @@ and enable once they say yes:
 
 3. The morning job runs it once a day as its routine, once dream and
    wiki-report have each run within the day (the job's `requires`). It
-   ships paused. Find the job whose routines include `daily-report`, then
-   resume it by the slug you found:
+   ships paused. Find the row of `jobs ls --verbose` whose `routines=` names
+   `daily-report`, then resume it by its slug:
 
    ```sh
    {{@brain-cli-ops}} jobs ls --verbose
    {{@brain-cli-ops}} jobs resume <slug>
    ```
-
-   Find the row whose `routines=` names `daily-report`.
 
    Dream and wiki-report run under a job of their own, which must be on too;
    `jobs ls --verbose` shows each job's state and routines. A scheduled run
