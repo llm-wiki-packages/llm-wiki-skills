@@ -56,8 +56,8 @@ step last "$OPS" --json page read "{EARLIER}" fields=window_since,window_until
 step changed "$OPS" --json git changed sources filter=since:2026-01-01
 step lecture1 "$OPS" --json page read "{LECTURE_1}"
 step lecture2 "$OPS" --json page read "{LECTURE_2}"
-step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=Two lectures on light and sugar." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" audio=podcast --stdin < "$FIX/episode.md"'
-step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=Two lectures on light and sugar, refreshed." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" audio=podcast audio_refresh=podcast --stdin < "$FIX/episode.md"'
+step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=Two lectures on light and sugar." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" narrate.modes=podcast --stdin < "$FIX/episode.md"'
+step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=Two lectures on light and sugar, refreshed." focus=none window_since=2026-01-01 window_until=2026-01-08 "covers={COVERS}" narrate.modes=podcast narrate.refresh=podcast --stdin < "$FIX/episode.md"'
 step write-sources sh -c 'printf x >> "{LECTURE_1}"'
 step commit "$OPS" --json git commit message=harness
 step op-close "$OPS" --json op close podcast outcome=ok "summary={SUMMARY}"
@@ -118,7 +118,7 @@ def test_the_routine_runs_in_its_sandbox_and_lands_the_episode(ops, env, wiki, r
 
 
 def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_covers(ops, env, wiki, ran):
-    """The page `narrate` renders: `audio: podcast`, a refresh asked for on
+    """The page `narrate` renders: `narrate: {modes: podcast}`, a refresh asked for on
     the rewrite, the script in its `webvtt` block, and `covers` rows that
     resolve to the lectures, so each lecture's backlinks lead to it."""
     page = run(ops, rooted(env, wiki), "--json", "page", "read", EPISODE, "--frontmatter")
@@ -126,9 +126,10 @@ def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_covers(ops, en
     front = page.data["frontmatter"]
     assert front["type"] == "podcast" and front["description"].endswith("refreshed."), front
     assert (front["focus"], front["window_since"], front["window_until"]) == ("none", "2026-01-01", "2026-01-08"), front
-    # A string until the plugins declare `audio` a list field (#4102); then a list.
-    assert front["audio"] in ("podcast", ["podcast"]) and front["audio_refresh"] in ("podcast", ["podcast"]), front
-    assert "audio_render" not in front, front
+    # A string until the plugins declare `narrate.modes` a list field (#4102); then a list.
+    narrate = front["narrate"]
+    assert narrate["modes"] in ("podcast", ["podcast"]) and narrate["refresh"] in ("podcast", ["podcast"]), front
+    assert "render" not in narrate, front
     assert front["covers"] == ["[[Lecture 1 — Light]]", "[[Lecture 2 — Sugar]]"], front["covers"]
     body = (wiki / EPISODE).read_text(encoding="utf-8")
     assert "```webvtt\n<v Alex>Welcome to The Margin." in body, body

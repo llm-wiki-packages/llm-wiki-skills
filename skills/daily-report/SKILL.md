@@ -105,7 +105,7 @@ A failed input is a one-line note in the report, never an abort.
 - **What the wiki did** — `op since` is the runs, `git changed` the files.
 - **Lint delta** — `page lint wiki sources` against the previous report's
   `lint:` frontmatter. The delta jumps once when lint's rules change —
-  STALE and PAST_SHELF_LIFE leave, the guard's description, `job` and
+  STALE and PAST_SHELF_LIFE leave, the guard's description, `ops.job` and
   `generated` checks join; say so rather than reading it as a trend.
 - **Operator profile** — `wiki/profile/`, the lens for everything else.
   Absent: proceed impersonally and note that `/{{@brain-plugin}}:grill` would

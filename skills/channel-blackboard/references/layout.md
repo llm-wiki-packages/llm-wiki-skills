@@ -66,7 +66,7 @@ sources/courses/<slug>/
 ## Each root lends its keys to the pages below it.
 
 The course root (`README.md` in `dest`) is made by the first pull, once,
-and is the person's after: `root`, `current`, `term` (the course's dates,
+and is the person's after: `ops.root`, `current`, `term` (the course's dates,
 never a name derived from them), `term_start`, `term_end`, `course`
 (`PSY 2301`), `course_title`, `course_id`, `section`, `group`,
 `group_type: course`, `channel: blackboard`, `source_host`, `course_url`, and
@@ -152,13 +152,13 @@ Every page's course text ends on a `---` line, the same each pull. Type
 notes below it, or change anything above it: a pull that finds the page
 edited merges the course's changes into the person's copy instead of
 writing over it. A frontmatter key the person changed keeps their value
-(`updates_waiting` marks the page where the course changed that key too);
+(`ops.updates_waiting` marks the page where the course changed that key too);
 a change both sides made to the same lines is a conflict, held until
 `{{@brain-cli-ops}} page resolve <page> mine|theirs|merged`. A pull leaves
 alone, and says why in its reason, a page a person holds (`draft: true`)
 or archived, one edited outside `dest`, one touched in the last few
 minutes (a later pull writes it), one in conflict, and one with no
-`rendered` stamp yet (pages written before the plugin's edit merging;
+`ops.rendered` stamp yet (pages written before the plugin's edit merging;
 `{{@brain-cli-ops}} doctor --fix` stamps them once). A note typed at the
 very end of a page written before the closing line existed conflicts once,
 on the first pull that adds the line; resolve it and later pulls merge.

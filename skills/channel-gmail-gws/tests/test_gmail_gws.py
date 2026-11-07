@@ -666,8 +666,8 @@ def test_the_process_step_builds_the_page_as_an_argv_list_with_the_body_on_stdin
     assert r.returncode == 0, r.stderr
     (call,) = page_calls(root)
     assert call["argv"] == ["page", "create", f"title={DAY}", "dest=research/channels/mail", "type=ledger",
-                            "channel=mail", f"date={DAY}", "items=2", "needs_reply=0", "actions=0", "extracted=true",
-                            "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}", "status=", "--stdin"]
+                            "channel=mail", f"date={DAY}", "items=2", "needs_reply=0", "actions=0", "ops.extracted=true",
+                            "resource=gmail:ledger", f"ops.resource_id=gmail:day:{DAY}", "status=", "--stdin"]
     assert call["body"].startswith("- Person 1 asks about thing 1 — gmail:m1\n")
     assert call["body"].endswith("discarded: 0 (junk rules)\n")
 
@@ -692,8 +692,8 @@ def test_a_second_pull_of_the_day_edits_the_page_the_first_one_left(tmp_path):
     create, edit = page_calls(root)
     assert create["argv"][1] == "create"
     assert edit["argv"] == ["page", "edit", f"research/channels/mail/{DAY}.md", "type=ledger", "channel=mail",
-                            f"date={DAY}", "items=1", "needs_reply=0", "actions=0", "extracted=true",
-                            "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}", "--stdin"]
+                            f"date={DAY}", "items=1", "needs_reply=0", "actions=0", "ops.extracted=true",
+                            "resource=gmail:ledger", f"ops.resource_id=gmail:day:{DAY}", "--stdin"]
     assert "status=" not in edit["argv"]  # `page curate`, `revise` and `retire` are what move a status
     assert edit["body"] == create["body"]
 

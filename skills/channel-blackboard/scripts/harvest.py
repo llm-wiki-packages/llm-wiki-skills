@@ -22,7 +22,7 @@ or `<base url>#<course id>`: the host is the site, the `_N_1` id the course.
 An item is posted again when its capture's fingerprint moved or no page holds
 its resource yet (`known[]`); one a person moved (`reason: moved`) is never
 posted. An item `known[]` cannot list though its page was written — the
-landing stamps no `harvested` on a page whose file the plugin's extractor
+landing stamps no `ops.harvested` on a page whose file the plugin's extractor
 cannot read, a slide deck — is held back on its last process step's
 `written.json` while its fingerprint stands. A `course.json` naming no course
 id is `failed`: every page's `resource` is built on it. Exit 2 from `bb.py` is an expired session: `failed` with

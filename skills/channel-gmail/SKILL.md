@@ -141,14 +141,14 @@ is the rule's name where a rule discards it, and `line` may then be null:
 
 `--partial "<why>"` when you judged only part of the day. The script builds
 the page from the whole day, writes it through `page create` or `page edit`
-of the day's page (`resource_id=gmail:day:<day>`), then posts `tickets update` naming it in
+of the day's page (`ops.resource_id=gmail:day:<day>`), then posts `tickets update` naming it in
 `written_from=`; values go as an argument list, never on a shell line. A message you left unjudged
 keeps its bullet with the sender's subject standing in; a day with no items
 is `status=ok`, with a reason naming it.
 
 **What it writes** (the contract — do not drift): `<dest>/<YYYY-MM-DD>.md`,
 frontmatter `title` (the day), `type: ledger`, `channel: <the job's slug>`,
-`date`, `items: <kept count>`, `extracted: true`, no `status`; body one
+`date`, `items: <kept count>`, `ops.extracted: true`, no `status`; body one
 bullet per kept item, `- <line> — gmail:<msg-id>`, oldest first, then
 `discarded: N (junk rules)`, the discarded content itself nowhere. `channel:`
 is the JOB's slug, so two mailboxes make two ledgers on the same day.

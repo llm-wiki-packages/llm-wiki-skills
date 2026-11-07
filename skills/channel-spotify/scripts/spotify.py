@@ -732,7 +732,7 @@ VERDICT_NAME = "verdict.json"
 # Frontmatter keys another verb owns — never among the `key=value` words the
 # process step hands `page create`, whatever the entity is called. `type` is
 # the HOST's page type; this venue's kind of entity rides as `entity_type`.
-FRONTMATTER_RESERVED = ("status", "document_id", "document_revision", "harvested", "extracted", "title", "resource", "type")
+FRONTMATTER_RESERVED = ("status", "document_id", "document_revision", "harvested", "extracted", "ops", "narrate", "title", "resource", "type")
 
 ASSET_POLICIES = ("reference", "download", "download-audio")
 
@@ -1136,7 +1136,7 @@ def write_page(root, *, title, dest, body, keys, slug=None, known=(), held=()):
     holds — another item's page, never written over.
     """
     # `key=value` carries text, so a bool is spelled the way YAML reads it and
-    # the host's own `extracted=true` already is — never Python's `False`.
+    # the host's own `ops.extracted=true` already is — never Python's `False`.
     pairs = [f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in keys.items()]
     # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
     rc, answer = _ops(root, "page", "ls", f"filter=under:{dest}", f"resource={keys['resource']}")
@@ -1197,7 +1197,7 @@ def cmd_process(a):
 
     keys = page_frontmatter(meta)
     keys["resource"] = ticket.get("item") or meta["url"]  # what `known[]` matches on
-    keys["extracted"] = "true"  # the string the host's pipeline reads as done
+    keys["ops.extracted"] = "true"  # the string the host's pipeline reads as done
     path, left = write_page(
         wiki_root() or Path.cwd(), title=page_title(meta), dest=dest, body=render_page_md(meta), keys=keys, slug=ticket.get("slug"),
         known=ticket.get("known"), held=ticket.get("held"),

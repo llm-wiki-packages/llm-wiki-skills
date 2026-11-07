@@ -32,12 +32,12 @@ module's pages or flattens its folder is followed. Every link a page makes
 names the target's path: `known[]`'s where it was written, else its place.
 
 The course overview's capture also makes the course's bundle root, once:
-`README.md` in `dest` with `root: true`, `current` (the job's `current`
+`README.md` in `dest` with `ops.root: true`, `current` (the job's `current`
 option: true, false, yes or no; default true), `term`, `term_start`,
 `term_end`, `course`, `course_title`, `course_id`, `section`, `group`,
 `group_type: course`, `channel: blackboard`, `source_host` and `course_url`,
 and the job record's own `root` keys over them, which every page below
-inherits. A root already there (`page ls filter=prop:root`) is left
+inherits. A root already there (`page ls filter=prop:ops.root`) is left
 alone, and `root-made.json` in the course capture records that the question
 was settled, so a root a person deleted is never made again. Each released
 module's folder root (`module`, `module_order`, `module_position`,
@@ -70,7 +70,7 @@ import bbnotes  # noqa: E402
 from door import open_ticket, ops_json, post_update  # noqa: E402
 
 WRITTEN = "written.json"
-# The course's bundle root in the job's dest (the note format's Bundle roots): `root: true`, and the keys its pages inherit.
+# The course's bundle root in the job's dest (the note format's Bundle roots): `ops.root: true`, and the keys its pages inherit.
 ROOT = "README.md"
 # In the course capture's own directory: the root was made (or found) once, so a pull never makes it again.
 ROOT_MADE = "root-made.json"
@@ -170,7 +170,7 @@ HELD = {
     "deprecated": "a person archived this page",
     "edited": "a person edited this page, and this pull cannot merge into it",
     "settling": "a person touched this page in the last few minutes: a later pull writes it",
-    "unstamped": "this page has no `rendered` stamp yet: `doctor --fix` stamps it",
+    "unstamped": "this page has no `ops.rendered` stamp yet: `doctor --fix` stamps it",
     "conflict": "this page has a merge conflict: `page resolve` settles it",
 }
 
@@ -185,7 +185,7 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
                fields: dict | None = None) -> tuple[str | None, str | None, bool]:
     """`(path, None, False)` written; `(None, why, True)` a page that is not this item's stood at the path; `(None, why, False)` refused.
     `place` is where a new page goes under `dest` (`<folder>/<stem>`); its filename is the stem, its `title` the page's."""
-    pairs = [f"type={page['type']}", f"resource={resource}", "extracted=true"]
+    pairs = [f"type={page['type']}", f"resource={resource}", "ops.extracted=true"]
     # An edit names the title too: an item the instructor renamed keeps its filename (its place) and takes its new title.
     titled = [f"title={page['title']}"]
     if page.get("abstract"):
@@ -216,8 +216,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
 
 
 def has_root(dest: str) -> bool | None:
-    """Whether `dest` holds its bundle root, by the plugin's own root rule (`page ls filter=prop:root`); None where it cannot say."""
-    rc, answer = ops_json("page", "ls", "filter=prop:root", f"filter=under:{dest}")
+    """Whether `dest` holds its bundle root, by the plugin's own root rule (`page ls filter=prop:ops.root`); None where it cannot say."""
+    rc, answer = ops_json("page", "ls", "filter=prop:ops.root", f"filter=under:{dest}")
     if rc != 0 or not isinstance(answer.get("pages"), list):
         return None
     folder = dest.strip("/")
@@ -225,6 +225,14 @@ def has_root(dest: str) -> bool | None:
 
 
 CURRENT = {"true": "true", "yes": "true", "false": "false", "no": "false"}
+
+
+# The job record's `root` keys that are pipeline settings: they land under `ops`, where a bundle root lends them.
+OPS_SETTINGS = ("extract", "ingest", "refresh", "edits")
+
+
+def root_key(key: str) -> str:
+    return f"ops.{key}" if key in OPS_SETTINGS else key
 
 
 def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | None = None, overview: str | None = None) -> str | None:
@@ -239,10 +247,10 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
         return f"{ROOT}: options.current={word!r} is not one of true, false, yes, no: no root made"
     found = has_root(dest)
     if found is None:
-        return f"{ROOT}: `page ls filter=prop:root` did not answer, so no root was made"
+        return f"{ROOT}: `page ls filter=prop:ops.root` did not answer, so no root was made"
     if not found:
         made = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current == "true", overview)
-        keys = {**made["fields"], **{k: ("true" if v is True else "false" if v is False else str(v)) for k, v in (root or {}).items()}}
+        keys = {**made["fields"], **{root_key(k): ("true" if v is True else "false" if v is False else str(v)) for k, v in (root or {}).items()}}
         why = create_root(dest, made, keys)
         if why:
             return why
@@ -277,7 +285,7 @@ def write_module_roots(capture: Path, cap: dict, dest: str, record: dict, folder
         if mid not in folders:
             found = has_root(f"{dest.rstrip('/')}/{folder}")
             if found is None:
-                refused.append(f"{folder}/{ROOT}: `page ls filter=prop:root` did not answer, so no module root was made")
+                refused.append(f"{folder}/{ROOT}: `page ls filter=prop:ops.root` did not answer, so no module root was made")
                 continue
             if not found:
                 made_root = bbnotes.module_root(cap, module, overview)

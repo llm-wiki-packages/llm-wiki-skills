@@ -78,7 +78,7 @@ which is committed and pushed to the wiki's remote;
 `options.current` (`true`, `false`, `yes`, `no`; default `true`): is this a
 course you're taking now? The first pull writes it, with the course's code,
 title, ids and dates, onto the course's root, `<dest>/README.md`
-(`root: true`), whose keys every page below inherits; the root is then the
+(`ops.root: true`), whose keys every page below inherits; the root is then the
 person's (`page edit <dest>/README.md current=false` when the course ends),
 and is made once, ever. Pages go in a folder per module, named in course
 order (`04 Unit IV/02 Unit IV Journal.md`, `options.layout=modules`), and

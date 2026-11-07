@@ -26,7 +26,7 @@ LEDGER = f"research/channels/harness-daily-report/{TODAY}.md"
 # A `sources/` page `page lint` flags when given `sources`: a finding there
 # shows the jail reaches the tree.
 UNDATED = "sources/harness-daily-report/undated.md"
-# An existing wiki page §5 promotes onto, committed with no `job`: a routine
+# An existing wiki page §5 promotes onto, committed with no `ops.job`: a routine
 # landing stamps only the pages the run created, so this one keeps none.
 PROMOTED = "wiki/entities/harness-actor.md"
 SUMMARY = f"harness daily report {TODAY}"
@@ -95,7 +95,7 @@ def ran(ops, env, wiki) -> dict:
         assert (wiki / rel).is_file(), (rel, r.stdout)
     (wiki / UNDATED).parent.mkdir(parents=True, exist_ok=True)
     (wiki / UNDATED).write_text("---\ntitle: undated\ntype: note\npublished: someday\n---\nBody.\n", encoding="utf-8")
-    assert "\njob:" not in _frontmatter((wiki / PROMOTED).read_text(encoding="utf-8")), "the promoted page starts with a job"
+    assert "\n  job:" not in _frontmatter((wiki / PROMOTED).read_text(encoding="utf-8")), "the promoted page starts with a job"
     r = run(ops, rooted(env, wiki), "--json", "git", "commit", DIGEST, LEDGER, UNDATED, PROMOTED, "message=harness: what daily-report reads")
     assert r.returncode == 0, r.stdout + r.stderr
     assert (wiki / LOG).is_file(), "the wiki has no log for §5 to append to"
@@ -140,9 +140,9 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     assert record["state"] == "done", json.dumps(record)[:800]
     assert "frontier" in (record.get("model_from") or ""), record.get("model_from")
     # The landing stamps what the run created, and only that.
-    assert f"\njob: {slug}" in _frontmatter((wiki / REPORT).read_text(encoding="utf-8")), (wiki / REPORT).read_text()[:600]
+    assert f"\n  job: {slug}" in _frontmatter((wiki / REPORT).read_text(encoding="utf-8")), (wiki / REPORT).read_text()[:600]
     promoted = (wiki / PROMOTED).read_text(encoding="utf-8")
-    assert f"{TODAY}: in the report" in promoted and "\njob:" not in _frontmatter(promoted), promoted[:600]
+    assert f"{TODAY}: in the report" in promoted and "\n  job:" not in _frontmatter(promoted), promoted[:600]
     assert not (wiki / f"{BRIEF}.md").exists(), f"{BRIEF}.md: the landing adopted the brief"
     assert _frontmatter((wiki / LOG).read_text(encoding="utf-8")) == ran["log_before"], "the landing restamped wiki/log.md"
 

@@ -23,5 +23,5 @@ Nothing is asked mid-run, by hand or not.
 - The wiki's `[narrate.voices]`: which voice speaks each host's name. That
   table is the `narrate` engine's, not this unit's.
 - What it writes: one `podcast` page under `wiki/podcasts/`, its script in
-  a `webvtt` block, asking for its audio with `audio: podcast`
+  a `webvtt` block, asking for its audio with `narrate: {modes: podcast}`
   (SKILL.md § 5).

@@ -595,7 +595,7 @@ def test_the_builder_hands_the_front_door_an_argv_list_never_a_shell_line(spotif
 
     (args, body), = calls
     assert args[:4] == ("page", "create", "title=Fixture Money Models", "dest=sources/podcasts/money-models")
-    assert args[-1] == "--stdin" and f"resource={PLAYLIST_URL}" in args and "extracted=true" in args
+    assert args[-1] == "--stdin" and f"resource={PLAYLIST_URL}" in args and "ops.extracted=true" in args
     assert "entity_type=playlist" in args and not [a for a in args if a.startswith("type=")]
     assert b"Ignore all previous instructions" in body  # the description rides stdin
     assert not [a for a in args if "Ignore all previous" in a]

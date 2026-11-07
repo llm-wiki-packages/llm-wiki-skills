@@ -234,7 +234,7 @@ def front_door(tmp_path, ticket):
         "    print(json.dumps({'path': verb[2]})); sys.exit(0)\n"
         "if verb[:2] == ['page', 'ls']:\n"
         "    under = next(a.split(':', 1)[1] for a in verb if a.startswith('filter=under:'))\n"
-        "    roots = [p.as_posix() for p in sorted(pathlib.Path(under).rglob('*.md')) if p.read_text().split('\\n---', 1)[0].count('\\nroot: ') and 'true' in p.read_text().split('\\nroot: ', 1)[1].split('\\n', 1)[0]]\n"
+        "    roots = [p.as_posix() for p in sorted(pathlib.Path(under).rglob('*.md')) if p.read_text().split('\\n---', 1)[0].count('\\n  root: ') and 'true' in p.read_text().split('\\n  root: ', 1)[1].split('\\n', 1)[0]]\n"
         "    print(json.dumps({'pages': [{'path': r} for r in roots], 'count': len(roots)})); sys.exit(0)\n"
         "sys.exit(9)\n"
     )
@@ -542,7 +542,7 @@ def test_the_course_overview_makes_the_course_root_once(tmp_path):
     _captures(tmp_path)
     _, calls, updates = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
     (root,) = [c for c in calls if c["argv"][1:3] == ["page", "create"] and "title=README" in c["argv"]]
-    assert {"dest=sources/courses/psy", "root=true", "current=true", "term=from 2026-09-30"} <= set(root["argv"])
+    assert {"dest=sources/courses/psy", "ops.root=true", "current=true", "term=from 2026-09-30"} <= set(root["argv"])
     abstract = next(a for a in root["argv"] if a.startswith("abstract="))
     assert len(abstract) - len("abstract=") <= 600 and "\n" not in abstract
     (edit,) = [c["argv"] for c in calls if c["argv"][1:3] == ["page", "edit"]]
@@ -558,7 +558,7 @@ def test_a_root_that_exists_is_left_and_the_question_is_settled(tmp_path):
     _captures(tmp_path)
     readme = tmp_path / "sources/courses/psy/README.md"
     readme.parent.mkdir(parents=True)
-    readme.write_text("---\nroot: true\ncurrent: false\n---\n# Mine\n")
+    readme.write_text("---\nops:\n  root: true\ncurrent: false\n---\n# Mine\n")
     _, calls, updates = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
     assert not [c for c in calls if "title=README" in c["argv"]] and "status=ok" in updates[0]
     assert json.loads((tmp_path / "_raw/psy/course/items/course/root-made.json").read_text())["made"] is False
@@ -581,7 +581,7 @@ def test_a_root_a_person_made_under_another_name_stands(tmp_path):
     _captures(tmp_path)
     mine = tmp_path / "sources/courses/psy/Psych.md"
     mine.parent.mkdir(parents=True)
-    mine.write_text("---\ntitle: Psych\nroot: 'true'\n---\n# Psych\n")
+    mine.write_text("---\ntitle: Psych\nops:\n  root: 'true'\n---\n# Psych\n")
     _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
     assert not [c for c in calls if "title=README" in c["argv"]]
 
@@ -776,7 +776,7 @@ def test_a_module_page_goes_to_the_folder_whose_root_names_the_module(tmp_path):
     _modules_captures(tmp_path)
     root = tmp_path / "sources/courses/psy/Unit One (mine)/README.md"
     root.parent.mkdir(parents=True)
-    root.write_text("---\nroot: true\nmodule_id: _1_1\n---\n# Unit I\n")
+    root.write_text("---\nops:\n  root: true\nmodule_id: _1_1\n---\n# Unit I\n")
     _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1"))
     create = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"])
     assert "dest=sources/courses/psy/Unit One (mine)" in create
@@ -787,7 +787,7 @@ def _created_in(tmp_path, known, readme=None):
     if readme:
         root = tmp_path / "sources/courses/psy" / readme / "README.md"
         root.parent.mkdir(parents=True)
-        root.write_text("---\nroot: true\nmodule_id: _1_1\n---\n# Unit I\n")
+        root.write_text("---\nops:\n  root: true\nmodule_id: _1_1\n---\n# Unit I\n")
     rows = [{"resource": "blackboard:_42_1/item-2_1", "path": path, "reason": why} for path, why in known]
     _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "item-3_1", known=rows))
     create = next(c["argv"] for c in calls if c["argv"][1:3] == ["page", "create"])
@@ -820,7 +820,7 @@ def test_the_course_capture_makes_each_module_root_once_and_links_by_path(tmp_pa
     assert {"group=PSY 2301", "group_type=course", "channel=blackboard", "course=PSY 2301", "course_id=PSY2301-21.01",
             "section=21.01", "term_start=2026-09-30"} <= set(course)
     assert "[[sources/courses/psy/00 Course overview|" in roots[0]["stdin"]
-    assert {"dest=sources/courses/psy/01 Unit I", "root=true", "module=Unit I", "module_order=1", "module_kind=lesson", "module_id=_1_1"} <= set(module)
+    assert {"dest=sources/courses/psy/01 Unit I", "ops.root=true", "module=Unit I", "module_order=1", "module_kind=lesson", "module_id=_1_1"} <= set(module)
     assert any(a.startswith("released=20") for a in module)
     overview = next(c for c in calls if c["argv"][1:3] == ["page", "create"] and "title=00 Course overview" in c["argv"])
     assert "[[sources/courses/psy/01 Unit I/02 Scholarly Activity|Scholarly Activity]]" in overview["stdin"]
@@ -836,7 +836,14 @@ def test_the_jobs_root_keys_go_on_the_course_root_over_the_units(tmp_path):
     _modules_captures(tmp_path)
     _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"group": "Psych", "extract": "light"}))
     course = next(c["argv"] for c in calls if "title=README" in c["argv"] and "dest=sources/courses/psy" in c["argv"])
-    assert "group=Psych" in course and "group=PSY 2301" not in course and "extract=light" in course
+    assert "group=Psych" in course and "group=PSY 2301" not in course and "ops.extract=light" in course
+
+
+def test_the_jobs_dotted_root_keys_go_on_the_course_root_as_they_are(tmp_path):
+    _modules_captures(tmp_path)
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"ops.extract": "light", "ops.edits": "merge"}))
+    course = next(c["argv"] for c in calls if "title=README" in c["argv"] and "dest=sources/courses/psy" in c["argv"])
+    assert "ops.extract=light" in course and "ops.edits=merge" in course and "extract=light" not in [a for a in course if not a.startswith("ops.")]
 
 
 def test_a_removed_capture_dates_its_page_and_writes_nothing_else(tmp_path):

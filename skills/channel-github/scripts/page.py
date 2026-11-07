@@ -74,7 +74,6 @@ def norm_url(url: str) -> str:
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*(.+?)\s*$", re.M)
-JOB_LINE = re.compile(r"^job:[ \t]*(.*)$", re.M)
 
 
 def frontmatter_text(text: str) -> tuple[str, str]:
@@ -161,11 +160,12 @@ def find_clip(dest: Path, url: str, slug: str | None = None) -> Path | None:
             continue
         fm, _ = frontmatter_text(head)
         m = RESOURCE_LINE.search(fm)
-        job = JOB_LINE.search(fm)
-        if job and job.group(1).strip().strip("'\"") not in ("", slug):
+        if not (m and norm_url(m.group(1)) == want):
             continue
-        if m and norm_url(m.group(1)) == want:
-            return path
+        job = str((held_frontmatter(path).get("ops") or {}).get("job") or "").strip()
+        if job not in ("", slug):
+            continue
+        return path
     return None
 
 
@@ -358,7 +358,7 @@ def page_keys(repo: dict, judgment: dict, held_fm: dict, clipped: bool) -> dict:
         "source_host": "github.com",
         "published": repo.get("created"),
         "tags": ",".join(tags),
-        "extracted": "true",
+        "ops.extracted": "true",
         "gh_stars": repo["stars"],
         "gh_seen": repo["seen"],
         "gh_stars_prev": prev.get("stars"),
@@ -447,7 +447,7 @@ def cmd_prepare(a) -> int:
                 "readme_chars": len(readme or ""),
                 "held": {
                     "path": held.as_posix(),
-                    "clipped": "gh-clipped" in held_tags or held_fm.get("type") == "clip" or not held_fm.get("harvested"),
+                    "clipped": "gh-clipped" in held_tags or held_fm.get("type") == "clip" or not (held_fm.get("ops") or {}).get("harvested"),
                     "categories": [t for t in held_tags if t not in SIGNAL_TAGS and t != "clip"],
                     "left": left,
                 }
@@ -477,7 +477,7 @@ def cmd_write(a) -> int:
     if left:
         return 0 if post_update(a.ticket, "process", "ok", reason=f"{repo['full_name']}: {left}") == 0 else 2
     held_fm = held_frontmatter(held) if held else {}
-    clipped = bool(held) and ("gh-clipped" in as_list(held_fm.get("tags")) or held_fm.get("type") == "clip" or not held_fm.get("harvested"))
+    clipped = bool(held) and ("gh-clipped" in as_list(held_fm.get("tags")) or held_fm.get("type") == "clip" or not (held_fm.get("ops") or {}).get("harvested"))
 
     if judgment.get("keep") is False and not held:
         why = one_line(judgment.get("junk") or "junk", 120)

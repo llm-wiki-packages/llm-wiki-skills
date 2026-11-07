@@ -254,9 +254,30 @@ def test_readme_modes():
     assert page.readme_part("```\nopen", "excerpt").endswith("```")
 
 
+def _frontmatter_of(path):
+    """The fixtures' frontmatter: `key: value` lines, one level of nesting under `ops:`."""
+    out, nest = {}, None
+    for line in path.read_text().split("---\n")[1].splitlines():
+        key, _, value = line.strip().partition(":")
+        value = value.strip().strip("\"'")
+        if line.startswith(" ") and nest is not None:
+            nest[key] = value
+        elif value:
+            out[key], nest = value, None
+        else:
+            out[key] = nest = {}
+    return out
+
+
 def listing(*rows):
     """`ops_json` answering `page ls` with `rows`; every other call is refused."""
-    return lambda *a, stdin=None: (0, {"pages": list(rows)}) if a[:2] == ("page", "ls") else pytest.fail(f"called {a}")
+    def answer(*a, stdin=None):
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": list(rows)}
+        if a[:2] == ("page", "read"):  # the CLI's frontmatter answer, off the file
+            return 0, {"frontmatter": _frontmatter_of(Path(a[2]))}
+        return pytest.fail(f"called {a}")
+    return answer
 
 
 def test_find_held_takes_the_jobs_page_of_the_resource_wherever_it_was_renamed(monkeypatch):
@@ -282,10 +303,10 @@ def test_find_held_never_falls_back_to_another_jobs_clip(tmp_path, monkeypatch):
     monkeypatch.setattr(page, "ops_json", listing())
     dest = tmp_path / "sources/github"
     dest.mkdir(parents=True)
-    (dest / "Theirs.md").write_text('---\ntype: repo\njob: other\nresource: "https://github.com/a/one"\n---\n')
+    (dest / "Theirs.md").write_text('---\ntype: repo\nops:\n  job: other\nresource: "https://github.com/a/one"\n---\n')
     assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
     mine = Path("sources/github/Mine.md")
-    mine.write_text('---\ntype: repo\njob: "s"\nresource: "https://github.com/a/one"\n---\n')
+    mine.write_text('---\ntype: repo\nops:\n  job: "s"\nresource: "https://github.com/a/one"\n---\n')
     assert page.find_held("sources/github", "https://github.com/a/one", "s") == (mine, None, None)
 
 
@@ -459,7 +480,7 @@ def test_the_routine_opens_its_op_writes_each_list_into_dest_and_closes(tmp_path
     assert calls[1][:4] == ("page", "ls", "filter=under:research/github/lists", "resource=github:lists")
     assert calls[1][4].startswith("resource_id=github:list:")
     assert calls[2][:2] == ("page", "create") and "dest=research/github/lists" in calls[2] and "type=list" in calls[2]
-    assert "resource=github:lists" in calls[2] and calls[1][4] in calls[2]
+    assert "resource=github:lists" in calls[2] and "ops." + calls[1][4] in calls[2]
     assert calls[-1][:4] == ("op", "close", "channel-github", "outcome=ok") and len(calls) == 4
 
 

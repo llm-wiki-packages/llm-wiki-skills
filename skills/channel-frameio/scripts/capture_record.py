@@ -150,7 +150,7 @@ def post_update(
 #: Frontmatter keys another verb owns. A unit that sets one is asking a fetched
 #: page to decide a page's lifecycle, so they are dropped here rather than
 #: trusted to callers.
-OWNED_KEYS = frozenset({"status", "document_id", "document_revision", "harvested", "extracted", "title", "resource"})
+OWNED_KEYS = frozenset({"status", "document_id", "document_revision", "harvested", "extracted", "ops", "narrate", "title", "resource"})
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 _EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,5}$")
@@ -413,7 +413,7 @@ def content_type_for(ext: str) -> str:
 def is_media(content_type: str) -> bool:
     """A body the transcriber is owed rather than a reader: the process step
     writes no finished page for one, only the queued stub the transcribe
-    stage reads (empty body, `extracted=queued`, and the media it waits on)."""
+    stage reads (empty body, `ops.extracted=queued`, and the media it waits on)."""
     return str(content_type or "").startswith(("video/", "audio/"))
 
 

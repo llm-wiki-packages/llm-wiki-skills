@@ -1341,7 +1341,7 @@ def root_page(cap: dict, record: dict, current: bool, overview: str | None = Non
     section = (c.get("courseId") or "").replace(" ", "")
     lead = re.match(r"[A-Za-z]{2,5}\s?-?\d{3,4}[A-Za-z]?-?", section)
     fields = {
-        "root": "true", "current": "true" if current else "false", **({"term": term} if term else {}),
+        "ops.root": "true", "current": "true" if current else "false", **({"term": term} if term else {}),
         "course": code, "course_title": title, "course_id": c.get("courseId"),
         "section": section[lead.end():] if lead and section[lead.end():] else None,
         "term_start": day(span.get("start")), "term_end": day(span.get("end")),
@@ -1362,7 +1362,7 @@ def root_page(cap: dict, record: dict, current: bool, overview: str | None = Non
 def module_root(cap: dict, module: dict, overview: str | None = None) -> dict:
     """A module folder's bundle root (`README.md`): the module's keys, lent to every page in the folder over the course root's."""
     course = _course_of(cap)
-    fields = {"root": "true", "module": module["title"], "module_order": module.get("order"), "module_position": module.get("position"),
+    fields = {"ops.root": "true", "module": module["title"], "module_order": module.get("order"), "module_position": module.get("position"),
               "module_kind": module.get("kind"), "released": module.get("released"), "module_id": module["id"]}
     fields = {k: str(v) for k, v in fields.items() if v not in (None, "")}
     target = overview or cap["title"]

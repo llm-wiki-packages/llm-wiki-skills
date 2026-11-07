@@ -85,18 +85,18 @@ def test_search_is_a_sessions_only():
 def test_the_episode_is_one_page_written_through_the_page_verbs_asking_for_audio():
     creates = re.findall(r"^llm-wiki-ops page create (.*)$", BODY, re.M)
     assert len(creates) == 1, creates
-    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "audio=podcast", "focus=", "window_until="):
+    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "narrate.modes=podcast", "focus=", "window_until="):
         assert field in creates[0], (field, creates[0])
     edits = re.findall(r"^llm-wiki-ops page edit (.*)$", BODY, re.M)
     assert len(edits) == 1, edits
     # A rewritten script is stale audio, and stale audio never re-renders on
     # its own: the edit asks for the render again.
-    for field in ("covers=", "audio=podcast", "audio_refresh=podcast", "focus=", "window_until="):
+    for field in ("covers=", "narrate.modes=podcast", "narrate.refresh=podcast", "focus=", "window_until="):
         assert field in edits[0], (field, edits[0])
 
 
 # The engine is the host's: a scheduled run in its jail hands the page over
-# through `audio`, and only a session asked for the audio now runs it.
+# through `narrate.modes`, and only a session asked for the audio now runs it.
 def test_narrate_runs_in_one_session_only_section():
     calls = re.findall(r"^llm-wiki-ops narrate .*$", BODY, re.M)
     assert calls == ['llm-wiki-ops narrate "<episode path>" mode=podcast'], calls
@@ -107,9 +107,9 @@ def test_narrate_runs_in_one_session_only_section():
 
 def test_the_skill_never_writes_what_narrate_owns():
     never = BODY.split("## Never", 1)[1]
-    assert "audio_render" in never
+    assert "narrate.render" in never
     for line in re.findall(r"^llm-wiki-ops page (?:create|edit) (.*)$", BODY, re.M):
-        assert "audio_render" not in line, line
+        assert "narrate.render" not in line, line
 
 
 def test_every_example_script_block_is_one_the_engine_parses():

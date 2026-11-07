@@ -212,8 +212,8 @@ def test_the_ledger_is_built_from_the_items_with_rows_only_where_judged(tmp_path
     done, calls = _ledger(tmp_path)
     assert done.returncode == 0, done.stderr
     (create,) = [c for c in calls if c["argv"][:2] == ["page", "create"]]
-    assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "extracted=true", "status=",
-            "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(create["argv"])
+    assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "ops.extracted=true", "status=",
+            "resource=parentsquare:ledger", "ops.resource_id=parentsquare:day:2026-10-03"} <= set(create["argv"])
     (lookup,) = [c for c in calls if c["argv"][1:3] == ["page", "ls"]]
     assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
     assert create["stdin"] == (
@@ -244,7 +244,7 @@ def test_a_second_pull_of_the_day_edits_the_page_whole(tmp_path):
     assert done.returncode == 0, done.stderr
     (edit,) = [c for c in calls if c["argv"][:2] == ["page", "edit"]]
     assert edit["argv"][2] == f"{DEST}/2026-10-03.md" and "status=" not in edit["argv"] and edit["stdin"].startswith("- Lincoln")
-    assert {"resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"} <= set(edit["argv"])
+    assert {"resource=parentsquare:ledger", "ops.resource_id=parentsquare:day:2026-10-03"} <= set(edit["argv"])
 
 
 def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits(tmp_path):

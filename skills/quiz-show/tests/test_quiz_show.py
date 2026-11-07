@@ -92,11 +92,11 @@ def test_the_shows_answer_is_the_questions_own():
 def test_the_episode_is_one_page_written_through_the_page_verbs_asking_for_audio():
     creates = re.findall(r"^llm-wiki-ops page create (.*)$", BODY, re.M)
     assert len(creates) == 1, creates
-    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "audio=podcast"):
+    for field in ("type=podcast", "dest=wiki/podcasts", "covers=", "narrate.modes=podcast"):
         assert field in creates[0], (field, creates[0])
     edits = re.findall(r"^llm-wiki-ops page edit (.*)$", BODY, re.M)
     assert len(edits) == 1, edits
-    for field in ("covers=", "audio=podcast", "audio_refresh=podcast"):
+    for field in ("covers=", "narrate.modes=podcast", "narrate.refresh=podcast"):
         assert field in edits[0], (field, edits[0])
     for verb in ("page edit", "page append"):
         for line in re.findall(rf"^llm-wiki-ops {verb} (.*)$", BODY, re.M):
@@ -113,7 +113,7 @@ def test_narrate_runs_in_one_session_only_section():
 
 def test_the_skill_never_writes_what_narrate_owns():
     never = BODY.split("## Never", 1)[1]
-    assert "audio_render" in never and "Grade, regrade or annotate a quiz log." in never
+    assert "narrate.render" in never and "Grade, regrade or annotate a quiz log." in never
 
 
 def test_every_example_script_block_is_one_the_engine_parses():

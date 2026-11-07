@@ -8,7 +8,7 @@ platforms (Vimeo, Loom) can follow the same structure.
 The unit writes no page. The plugin's own extract
 takes `page.md` verbatim and writes the page under the job's `dest`, with
 frontmatter of its own — `title`, `status: draft`, `resource` (the capture's
-`item`), `harvested`. That is why neither file below carries any of those.
+`item`), `ops.harvested`. That is why neither file below carries any of those.
 
 ## `capture.json`
 
@@ -51,8 +51,8 @@ the body's H1, and `frontmatter.source_title` when the two differ.
 `frontmatter` is the video's exact facts, scalars and flat lists only. **The
 plugin's extract ignores it today** — it is accepted, not merged — so every fact in it
 is ALSO in the body's facts list, and nothing is lost in the meantime. It never
-carries a key a host verb owns: `title`, `resource`, `status`, `harvested`,
-`extracted`, `document_id`, `document_revision`.
+carries a key a host verb owns: `title`, `resource`, `status`, `ops.harvested`,
+`ops.extracted`, `document_id`, `document_revision`.
 
 **Every value is the venue's text, and is treated as such.** Strings are folded
 to one line. `video_id` is kept only when it matches `^[A-Za-z0-9_-]{6,20}$`;
