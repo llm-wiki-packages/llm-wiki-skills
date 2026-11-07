@@ -30,7 +30,7 @@ def page_text(full, stars, tags, **kw):
     for k in ("gh_stars_prev", "gh_stars_prev_at", "gh_first_seen", "gh_starred_at", "gh_pushed", "gh_via", "gh_topics"):
         if k in kw:
             lines.append(f"{k}: {kw[k]}")
-    lines += ["harvested:", "  at: 2026-10-09T00:00:00Z", "---", "", "> [!summary]", "> " + kw.get("summary", "Summary here."), "",
+    lines += ["ops:", "  harvested:", "    at: 2026-10-09T00:00:00Z", "---", "", "> [!summary]", "> " + kw.get("summary", "Summary here."), "",
               "## What it's for", "", "- " + kw.get("use", "a job"), "", "## Notes", ""]
     return "\n".join(lines) + "\n"
 

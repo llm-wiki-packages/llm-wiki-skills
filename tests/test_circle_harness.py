@@ -50,7 +50,7 @@ def page_lines(cap: Path, dest: str, verb: str = "create") -> str:
     has them, the body on stdin — so every content case is a quoting case."""
     record = json.loads((cap / "capture.json").read_text(encoding="utf-8"))
     where = f"'title={record['title']}' 'dest={dest}'" if verb == "create" else f"'{dest}/{record['title']}.md'"
-    return f"""cat "$CAP/page.md" | "$OPS" --json page {verb} {where} 'resource={record['item']}' type=lesson extracted=true --stdin"""
+    return f"""cat "$CAP/page.md" | "$OPS" --json page {verb} {where} 'resource={record['item']}' type=lesson ops.extracted=true --stdin"""
 
 
 def processed(ops, env, wiki, ticket: str, cap: Path, dest: str, again: bool = False):
@@ -154,7 +154,7 @@ step plan "$OPS" run {SCRIPT}/section_plan.py plan "$CAP" --ticket "$TICKET"
     assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first
     # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
     assert "\nstatus:" not in first and "\nverified:" not in first
-    assert "extracted: 'true'" in first
+    assert "ops:\n  extracted: 'true'" in first
     assert "marmalade-sandwich rule" in first and "> A frame is a promise about what matters." in first
     assert "Topic 1 of 2" in first and "heliotrope question" in second
     assert "https://assets-v2.circle.so/abc123def" in second  # the extensionless Resources link survives
@@ -177,7 +177,7 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=lesson' --stdin"
+            + f" 'ops.extracted=true' 'type=lesson' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr

@@ -880,6 +880,8 @@ def write_page(dest, day, keys, body, slug=None, known=(), held=()):
     it — `status=` is `page curate`'s, `revise`'s and `retire`'s — and does
     not need to: the page it edits was created without one."""
     ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{day}"]
+    # `page ls` filters `resource_id=`; a write puts it under `ops`.
+    write_ident = [ident[0], f"ops.{ident[1]}"]
     # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
     listed = _ops(["--json", "page", "ls", f"filter=under:{dest}", *ident], "")
     rows = _answer(listed).get("pages")
@@ -898,7 +900,7 @@ def write_page(dest, day, keys, body, slug=None, known=(), held=()):
         edited = _ops(["page", "edit", row["path"], *keys, "--stdin"], body)
         return (row["path"], None, False) if edited.returncode == 0 else (None, f"`page edit` said {_said(edited)!r}", False)
     rel = f"{dest.rstrip('/')}/{day}.md"
-    made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, *ident, "status=", "--stdin"], body)
+    made = _ops(["page", "create", f"title={day}", f"dest={dest}", *keys, *write_ident, "status=", "--stdin"], body)
     if made.returncode == 0:
         return rel, None, False
     read = _ops(["--json", "page", "read", rel, "--frontmatter"], "")
@@ -908,7 +910,7 @@ def write_page(dest, day, keys, body, slug=None, known=(), held=()):
     why = held_reason(held, None, rel)
     if why:
         return None, why, True
-    edited = _ops(["page", "edit", rel, *keys, *ident, "--stdin"], body)
+    edited = _ops(["page", "edit", rel, *keys, *write_ident, "--stdin"], body)
     return (rel, None, False) if edited.returncode == 0 else (None, f"`page create` said {_said(made)!r}; `page edit` said {_said(edited)!r}", False)
 
 
@@ -954,7 +956,7 @@ def ledger(directory, args, *, now=None):
     # The two attention counts ride the frontmatter so a report reads them
     # without parsing bullets.
     keys = [f"type={LEDGER_TYPE}", f"channel={job.get('slug') or day}", f"date={day}", f"items={kept}",
-            f"needs_reply={by_category['needs-reply']}", f"actions={by_category['action']}", "extracted=true"]
+            f"needs_reply={by_category['needs-reply']}", f"actions={by_category['action']}", "ops.extracted=true"]
     rel, why, left = write_page(dest, day, keys, body, slug=job.get("slug"), known=ticket.get("known"), held=ticket.get("held"))
     if left:
         return finish("ok", why, counts=counts)

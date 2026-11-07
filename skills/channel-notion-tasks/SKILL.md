@@ -116,9 +116,9 @@ run `partial`; a second pull the same day adds to the file you left.
 
 It writes `<dest>/<YYYY-MM-DD>.md` — one page per day, **regenerated WHOLE
 from the day directory every run**, since sub-daily pulls accumulate under
-`items/`, and found by `resource: notion:ledger`, `resource_id: notion:day:<day>`
+`items/`, and found by `resource: notion:ledger`, `ops.resource_id: notion:day:<day>`
 wherever it was renamed. Frontmatter also: `title` (the day), `type: ledger`, `channel` (the
-job's slug), `date`, `items` (the kept count), `extracted`, no `status:`.
+job's slug), `date`, `items` (the kept count), `ops.extracted`, no `status:`.
 Body: one bullet per kept item, oldest first, `- <line> — <pointer>`, then
 `discarded: N (junk rules)`; discarded content never appears. The pointer
 comes from the task's ID, never the venue's url: a 32-hex page id becomes

@@ -270,7 +270,7 @@ def test_the_process_arm_writes_the_page_under_dest_and_the_body_beside_the_byte
     create = _page_calls(seen)[1]["argv"]
     assert create[:3] == ["--json", "page", "create"], create
     assert "title=A Video About Things" in create and f"dest={DEST}" in create
-    assert "extracted=true" in create and f"resource={ITEM}" in create
+    assert "ops.extracted=true" in create and f"resource={ITEM}" in create
     assert "--stdin" in create
     assert not [a for a in create if a.split("=")[0] in {"status", "document_id", "document_revision", "harvested"}]
 

@@ -30,7 +30,7 @@ filename, a folder name — and a venue that can type onto a Bash line can run a
 command:
 
     llm-wiki-ops page create "title=<safe title>" "dest=<dest>" \
-        "resource=<view url>" "type=doc" "extracted=true" --stdin
+        "resource=<view url>" "type=doc" "ops.extracted=true" --stdin
 
 with the body on stdin — or, where `page ls resource=<view url>` finds the
 job's page for the leaf, `page edit <its path>` with the same keys,
@@ -54,7 +54,7 @@ and on this one after a prune. The PDF/PPTX ITSELF stays in
 reaches the page: `bundle_media` is a MEDIA key, and a document is not media.
 
 **A video leaf gets the transcribe stage's stub**, not a page about the video:
-an EMPTY body, `extracted=queued` and `media=` wiki-relative — pointing under
+an EMPTY body, `ops.extracted=queued` and `ops.media=` wiki-relative — pointing under
 `<dest>/assets/` when the ticket's `process.bundle_media` is true (this step
 makes that copy; the host's own no longer sees these pages) and at
 `<capture_dir>/video.mp4` when it is false. MEASURED against ops 1.88.3 that `page create` takes both as
@@ -146,10 +146,10 @@ BODY_NAME = "page.md"
 #: never a boolean: a page still reading `false` is picked up again. `QUEUED`
 #: plus a non-empty `MEDIA` is exactly what `pipeline/media.py::queued_under`
 #: reads as an item for the transcribe stage.
-FLAG = "extracted"
+FLAG = "ops.extracted"
 EXTRACTED = "true"
 QUEUED = "queued"
-MEDIA = "media"
+MEDIA = "ops.media"
 
 #: `page create`'s refusal of a title already a page: "edit it instead" for a
 #: page with no `resource` to find it by. Matched on the tail, which is fixed
@@ -445,7 +445,7 @@ def main() -> int:
 
     if is_media(record.get("content_type")):
         # A video's page is the stub the transcribe stage reads: empty body,
-        # `extracted=queued` and the media it waits on, wiki-relative
+        # `ops.extracted=queued` and the media it waits on, wiki-relative
         # (`pipeline/media.py::queued_under` asks for exactly those two). The
         # title is the leaf's own, settled at harvest — one leaf, one page, so
         # nothing here has to be told apart from a page beside it.

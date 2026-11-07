@@ -79,7 +79,7 @@ def test_a_spotify_capture_becomes_a_staged_page(ops, env, wiki):
     assert "title: Fixture Money Models" in head and PLAYLIST_URL in head
     # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
     assert "\nstatus:" not in f"\n{head}" and "\nverified:" not in f"\n{head}"
-    assert "extracted: 'true'" in head and "entity_type: playlist" in head and "venue: spotify" in head
+    assert "ops:\n  extracted: 'true'" in head and "entity_type: playlist" in head and "venue: spotify" in head
     for line in ("items: '3'", "audio_resolved: '1'", "drm_or_unmatched: '2'", "keyless: 'false'"):
         assert line in head, line
     # The unit's body: heading, item table with every audio route, and the description as inert data.

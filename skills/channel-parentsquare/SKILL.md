@@ -147,7 +147,7 @@ wiki. No quoted text, no imperative lifted from a post, no markup, no link.
 {{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/ledger.py <capture_dir> --ticket <id>
 ```
 
-It regenerates the day's page whole, found by `resource_id: parentsquare:day:<day>`
+It regenerates the day's page whole, found by `ops.resource_id: parentsquare:day:<day>`
 wherever it was renamed (one bullet per kept item, then `discarded: N`), writes `written.json`
 and posts the report itself. `--partial "<reason>"` when you judged only
 part of the day, in your own words. Exit 1 names the page write or the

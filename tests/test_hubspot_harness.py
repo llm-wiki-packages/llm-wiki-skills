@@ -58,7 +58,7 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=video' --stdin"
+            + f" 'ops.extracted=true' 'type=video' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr
@@ -111,7 +111,7 @@ step report "$OPS" run {LEAVES} report "$CAP" --ticket "$TICKET"
     # site's own selectors, then the REAL `page create` through the front door.
     expected = f"{job.dest}/Pricing the offer.md"
     create = (f"""cat "$CAP/page.md" | "$OPS" --json page create 'title=Pricing the offer' 'dest={job.dest}' """
-              f"""'resource={lesson}' 'extracted=true' 'type=video' 'venue=hubspot-cms' --stdin""")
+              f"""'resource={lesson}' 'ops.extracted=true' 'type=video' 'venue=hubspot-cms' --stdin""")
     session = staged(ops, env, wiki, process_id, f"""\
 step md "$OPS" run ops/skills/channel-hubspot-video/scripts/to_markdown.py "$CAP/page.html" --selector main#main-content \
     --drop-selector "main#main-content h1" --title-selector "main#main-content h2" --base-url {shlex.quote(lesson)}

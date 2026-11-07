@@ -103,6 +103,8 @@ def write_list_page(
     is never written over."""
     pairs = ["type=list", f"tags={LIST_TAGS}", f"description={description[:DESCRIPTION_MAX]}"]
     ident = [f"resource={LISTS}", f"resource_id={LIST}{title}"]
+    # `page ls` filters `resource_id=`; a write puts it under `ops`.
+    write_ident = [ident[0], f"ops.{ident[1]}"]
     # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
     rc, answer = ops_json("page", "ls", f"filter=under:{dest}", *ident)
     if rc != 0 or not isinstance(answer.get("pages"), list):
@@ -125,9 +127,9 @@ def write_list_page(
         front = legacy.get("frontmatter") if rc == 0 else None
         if not isinstance(front, dict) or front.get("resource"):
             return None, f"{title}: {path} is not this list's, and is not written over", False
-        rc, answer = ops_json("page", "edit", path, *pairs, *ident, "--stdin", stdin=body)
+        rc, answer = ops_json("page", "edit", path, *pairs, *write_ident, "--stdin", stdin=body)
     else:
-        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, *ident, "--stdin", stdin=body)
+        rc, answer = ops_json("page", "create", f"title={title}", f"dest={dest}", *pairs, *write_ident, "--stdin", stdin=body)
     if rc != 0:
         return None, f"{title}: {answer.get('error') or answer}", False
     return answer.get("path") or path, None, False

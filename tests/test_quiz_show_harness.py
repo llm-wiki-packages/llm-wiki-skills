@@ -62,8 +62,8 @@ step backlinks "$OPS" --json page backlinks "{CONCEPT}"
 step question "$OPS" --json page read "{QUESTION}"
 step concept "$OPS" --json page read "{CONCEPT}"
 step episodes "$OPS" --json page ls filter=under:wiki/podcasts
-step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=The question the last quiz missed." "covers={COVERS}" audio=podcast --stdin < "$FIX/episode.md"'
-step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=The question the last quiz missed, refreshed." "covers={COVERS}" audio=podcast audio_refresh=podcast --stdin < "$FIX/episode.md"'
+step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=The question the last quiz missed." "covers={COVERS}" narrate.modes=podcast --stdin < "$FIX/episode.md"'
+step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=The question the last quiz missed, refreshed." "covers={COVERS}" narrate.modes=podcast narrate.refresh=podcast --stdin < "$FIX/episode.md"'
 step write-research sh -c 'printf x >> "{LOG}"'
 step commit "$OPS" --json git commit message=harness
 step op-close "$OPS" --json op close quiz-show outcome=ok "summary={SUMMARY}"
@@ -137,9 +137,10 @@ def test_the_episode_asks_for_its_audio_and_links_back_to_what_it_asks(ops, env,
     assert page.returncode == 0, page.stdout + page.stderr
     front = page.data["frontmatter"]
     assert front["type"] == "podcast" and front["description"].endswith("refreshed."), front
-    # A string until the plugins declare `audio` a list field (#4102); then a list.
-    assert front["audio"] in ("podcast", ["podcast"]) and front["audio_refresh"] in ("podcast", ["podcast"]), front
-    assert "audio_render" not in front, front
+    # A string until the plugins declare `narrate.modes` a list field (#4102); then a list.
+    narrate = front["narrate"]
+    assert narrate["modes"] in ("podcast", ["podcast"]) and narrate["refresh"] in ("podcast", ["podcast"]), front
+    assert "render" not in narrate, front
     body = (wiki / EPISODE).read_text(encoding="utf-8")
     assert "```webvtt\n<v Alex>Welcome to Pop Quiz." in body, body
     links = run(ops, rooted(env, wiki), "--json", "page", "links", EPISODE)

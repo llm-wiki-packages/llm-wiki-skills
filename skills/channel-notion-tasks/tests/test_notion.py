@@ -726,8 +726,8 @@ def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on
     assert r.returncode == 0, r.stderr + r.stdout
     (call,) = door.calls()
     assert call["argv"] == ["--json", "page", "create", f"title={DAY}", "dest=research/channels/tasks",
-                            "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "extracted=true",
-                            "resource=notion:ledger", f"resource_id=notion:day:{DAY}", "status=", "--stdin"]
+                            "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "ops.extracted=true",
+                            "resource=notion:ledger", f"ops.resource_id=notion:day:{DAY}", "status=", "--stdin"]
     (lookup,) = door.lookups()
     assert lookup["argv"] == ["--json", "page", "ls", "filter=under:research/channels/tasks", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
     assert call["stdin"].startswith("- checklist moved to Doing — notion:0000aaaa-0001")
@@ -748,7 +748,7 @@ def test_a_day_whose_ledger_predates_its_identity_is_edited_and_stamped(tmp_path
     created, edited = door.calls()
     assert created["argv"][:3] == ["--json", "page", "create"]
     assert edited["argv"][:4] == ["--json", "page", "edit", f"research/channels/tasks/{DAY}.md"]
-    assert {"resource=notion:ledger", f"resource_id=notion:day:{DAY}"} <= set(edited["argv"])
+    assert {"resource=notion:ledger", f"ops.resource_id=notion:day:{DAY}"} <= set(edited["argv"])
     assert edited["stdin"] == created["stdin"] and "--stdin" in edited["argv"]
     # `page edit` REFUSES `status=` (exit 2); a page created without one keeps none.
     assert "status=" in created["argv"] and "status=" not in edited["argv"]

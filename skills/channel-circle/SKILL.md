@@ -144,8 +144,8 @@ nothing written.
 
 ```
 {{@brain-cli-ops}} --json page ls filter=under:<dest> resource='<item>'
-cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson extracted=true --stdin
-cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<the row's path>' resource='<item>' type=lesson extracted=true --stdin
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson ops.extracted=true --stdin
+cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<the row's path>' resource='<item>' type=lesson ops.extracted=true --stdin
 echo '["<the path the verb answered>"]' > <capture_dir>/written.json
 {{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
 ```

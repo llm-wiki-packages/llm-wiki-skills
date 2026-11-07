@@ -276,7 +276,7 @@ def test_process_writes_the_page_under_dest_through_the_page_verbs(tmp_path):
     assert lookup == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
     assert create[:3] == ["--json", "page", "create"] and "--stdin" in create
     assert f"title={META['title']}" in create and f"dest={DEST}" in create
-    assert "extracted=true" in create and f"resource={ITEM}" in create
+    assert "ops.extracted=true" in create and f"resource={ITEM}" in create
     assert "type=video" in create and "published=2026-06-18" in create
     assert not [a for a in create if a.split("=")[0] in HOST_OWNED - {"extracted", "resource", "title"}]
 

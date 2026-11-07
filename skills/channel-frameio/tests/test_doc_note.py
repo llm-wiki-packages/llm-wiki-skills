@@ -152,7 +152,7 @@ def test_the_page_is_written_by_the_front_door_from_the_wiki_root(tmp_path, monk
     (call,) = _page_calls(seen)
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
     assert f"dest={DEST}" in call["argv"] and f"resource={URL}" in call["argv"]
-    assert "extracted=true" in call["argv"], "the string, not a boolean: `pages.py` reads `true`"
+    assert "ops.extracted=true" in call["argv"], "the string, not a boolean: `pages.py` reads `true`"
     assert call["argv"][-1] == "--stdin" and call["stdin"].startswith("# Deck One - Big Share\n")
     assert Path(call["cwd"]) == root.resolve() and call["inherited"] == []
     assert json.loads(capsys.readouterr().out)["written"] == [PAGE]
@@ -284,7 +284,7 @@ def test_a_missing_front_door_says_so_and_posts_nothing(tmp_path, monkeypatch):
 
 
 def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypatch, capsys):
-    """An EMPTY body, `extracted=queued` and the media it waits on,
+    """An EMPTY body, `ops.extracted=queued` and the media it waits on,
     wiki-relative: `pipeline/media.py::queued_under` asks for exactly those
     two. A page ABOUT the video would be a finished page, and the recording
     would never be transcribed behind it."""
@@ -296,7 +296,7 @@ def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypat
 
     (call,) = _page_calls(seen)
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
-    assert "extracted=queued" in call["argv"], "the string `queued`, which is what the walker matches"
+    assert "ops.extracted=queued" in call["argv"], "the string `queued`, which is what the walker matches"
     assert f"media={CAP_REL}/video.mp4" in call["argv"], "wiki-relative: the queue is committed and read on any box"
     assert f"resource={URL}" in call["argv"] and call["argv"][-1] == "--stdin"
     assert call["stdin"] == "", "the transcriber fills the body; a page about the video would never be filled"
@@ -310,7 +310,7 @@ def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypat
 
 
 def test_a_video_stub_never_carries_the_flag_that_means_finished(tmp_path, monkeypatch, capsys):
-    """`extracted=true` on a stub is a page no stage comes back to, and the
+    """`ops.extracted=true` on a stub is a page no stage comes back to, and the
     recording is stranded with nothing saying so."""
     root = tmp_path / "wiki"
     _capture(root, capture={"body": "video.mp4", "content_type": "video/mp4"})
@@ -319,7 +319,7 @@ def test_a_video_stub_never_carries_the_flag_that_means_finished(tmp_path, monke
     assert _run(monkeypatch, root) == 0
     capsys.readouterr()
     (call,) = _page_calls(seen)
-    assert "extracted=true" not in call["argv"], call["argv"]
+    assert "ops.extracted=true" not in call["argv"], call["argv"]
 
 
 def test_skip_posts_ok_with_the_reason_and_no_page(tmp_path, monkeypatch, capsys):

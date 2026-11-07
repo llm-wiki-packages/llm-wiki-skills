@@ -101,8 +101,8 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
 
 ```sh
 {{@brain-cli-ops}} run ops/skills/channel-hubspot-video/scripts/to_markdown.py <capture_dir>/page.html --selector '<content_selector>' --drop-selector '<drop selector>' --title-selector '<title_selector>' --base-url '<item>'
-{{@brain-cli-ops}} page create 'title=<the capture title>' 'dest=<dest>' 'resource=<item>' 'extracted=true' '<key>=<value>' --stdin
-{{@brain-cli-ops}} page create 'title=<the capture title> (video)' 'dest=<dest>' 'resource=<stream_url>' 'extracted=queued' 'media=<capture_dir>/media.<ext>' --stdin
+{{@brain-cli-ops}} page create 'title=<the capture title>' 'dest=<dest>' 'resource=<item>' 'ops.extracted=true' '<key>=<value>' --stdin
+{{@brain-cli-ops}} page create 'title=<the capture title> (video)' 'dest=<dest>' 'resource=<stream_url>' 'ops.extracted=queued' 'ops.media=<capture_dir>/media.<ext>' --stdin
 {{@brain-cli-ops}} run ops/skills/channel-hubspot-video/scripts/leaves.py report <capture_dir> --ticket <id> --written-from written.json
 ```
 
@@ -126,7 +126,7 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
    `--failed`); left alone if `draft`, `archive`, `known[]` `moved` or `held[]` (say its `status`).
 5. **The transcript's own page**, where the leaf holds `media.<ext>`, empty
    body: the transcribe stage's queue is exactly the pages under `dest`
-   flagged `extracted: queued` naming a `media` file, so a lesson with a video
+   flagged `ops.extracted: queued` naming a `ops.media` file, so a lesson with a video
    is two pages and `assets: reference` yields neither.
 6. **`report`** LAST: write every page into `written.json` (a JSON list,
    wiki-relative) inside the capture dir, then `--written-from written.json`.

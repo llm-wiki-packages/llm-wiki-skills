@@ -117,9 +117,9 @@ page wherever it was renamed — and posts `tickets update` naming it. A day wit
 `ok`, with a reason naming it.
 
 **What it writes** (the contract — do not drift): `<dest>/<YYYY-MM-DD>.md`,
-frontmatter `resource: gmail:ledger`, `resource_id: gmail:day:<day>`, `type: ledger`, `channel: <the job's slug>`, `date`, `items`
+frontmatter `resource: gmail:ledger`, `ops.resource_id: gmail:day:<day>`, `type: ledger`, `channel: <the job's slug>`, `date`, `items`
 (kept), `needs_reply` and `actions` (those two categories' counts),
-`extracted: true`, no `status`; one bullet per kept message,
+`ops.extracted: true`, no `status`; one bullet per kept message,
 `- [<category>] <line> (due <day>) — gmail:<msg-id>`, needs-reply first, then
 action, waiting, fyi, oldest first within each; an unjudged message last,
 untagged, its sender's subject standing in; then `discarded: N (junk rules)`.

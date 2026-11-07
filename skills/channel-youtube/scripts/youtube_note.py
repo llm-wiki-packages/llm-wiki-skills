@@ -51,7 +51,7 @@ The process arm writes:
   turned into a list, hashtag soup collapsed), and the transcript as
   timestamped, chapter-headed sections, noise-stripped and de-duplicated.
   `frontmatter.source_title` is the true title, when the filename rule made
-  the page's differ from it. `extracted=true` is set, so the stage records
+  the page's differ from it. `ops.extracted=true` is set, so the stage records
   that it has been here. Identity and `status` are not this script's to write.
 
 Everything yt-dlp returns is the venue's text, and it reaches both the page
@@ -527,7 +527,7 @@ def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=(), he
     where = {"cwd": str(wiki), "env": _front_door_env()}
     keys = [f"{k}={v}" for k, v in front.items() if k not in HOST_OWNED and not isinstance(v, (list, dict))]
     keys += [f"{k}={','.join(str(one) for one in v)}" for k, v in front.items() if isinstance(v, list) and v]
-    keys += [f"extracted={EXTRACTED}"]
+    keys += [f"ops.extracted={EXTRACTED}"]
     rel = f"{str(dest).rstrip('/')}/{title}.md"
     resource = front.get("resource")
     target = None
@@ -691,7 +691,7 @@ STALE = (BODY_NAME, CHAPTERS_NAME, WRITTEN_NAME)
 # Keys this script never puts on the page verb's command line: `title` is its
 # own argument, `status` is the verb's default, and identity and the harvest
 # stamp are minted outside any slice.
-HOST_OWNED = ("status", "document_id", "document_revision", "harvested", "title")
+HOST_OWNED = ("status", "document_id", "document_revision", "harvested", "ops", "narrate", "title")
 
 # What `pipeline/pages.py` reads as "a stage has been here": the string, not a
 # boolean — a page still reading `false` is picked up again.

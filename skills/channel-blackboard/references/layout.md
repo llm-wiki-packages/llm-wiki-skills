@@ -152,7 +152,7 @@ Every page's course text ends on a `---` line, the same each pull. Type
 notes below it, or change anything above it: a pull that finds the page
 edited merges the course's changes into the person's copy instead of
 writing over it. A frontmatter key the person changed keeps their value
-(`updates_waiting` marks the page where the course changed that key too);
+(`ops.updates_waiting` marks the page where the course changed that key too);
 a change both sides made to the same lines is a conflict, held until
 `{{@brain-cli-ops}} page resolve <page> mine|theirs|merged`. A pull leaves
 alone, and says why in its reason, a page a person holds (`draft: true`)

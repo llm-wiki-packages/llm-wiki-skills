@@ -110,7 +110,7 @@ itself: `page edit` of the job's page for the entity (`page ls resource=`),
 wherever a person renamed it, else `page create`. A page a person moved out of
 `dest` or holds (Draft, Archive), or the ticket's `held[]` names, is left alone, handed to the report step as a
 verdict like an excluded one. The entity's facts ride as frontmatter keys, plus `resource`
-(the ticket's `item`) and `extracted=true`.
+(the ticket's `item`) and `ops.extracted=true`.
 
 It honors the ticket's `min_date` and `process.exclude_rules` — a
 case-insensitive substring of the entity's name or URL, this unit's reading of

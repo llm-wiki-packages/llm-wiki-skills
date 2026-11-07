@@ -145,7 +145,7 @@ content root and pipe it in as the page's body, then mark it done:
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
     'published=<leaf.json published>' 'audience=<leaf.json audience>' --stdin
-{{@brain-cli-ops}} page edit '<the page's path>' extracted=true
+{{@brain-cli-ops}} page edit '<the page's path>' ops.extracted=true
 ```
 
 **Every `<…>` on those lines is venue text: paste it VERBATIM inside single

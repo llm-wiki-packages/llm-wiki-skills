@@ -7,7 +7,7 @@ the leaf capture directories, `capture_posts.py` writes each post's
 
 PROCESS is the unit's own: one ticket per captured leaf, the SKILL's three
 commands — `to_markdown.py`, then `page create --stdin`, then `page edit
-extracted=true` — driven here against the REAL CLI, and `capture_posts.py
+ops.extracted=true` — driven here against the REAL CLI, and `capture_posts.py
 --report --written-from` reporting the page.
 
 No network anywhere: the archive API is a fixture (`fixtures/

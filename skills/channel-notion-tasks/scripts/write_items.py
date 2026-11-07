@@ -859,6 +859,8 @@ def write_page(dest, title, front, body, slug=None, known=(), held=()):
 
     keys = [f"{key}={value}" for key, value in front.items()]
     ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{title}"]
+    # `page ls` filters `resource_id=`; a write puts it under `ops`.
+    write_ident = [ident[0], f"ops.{ident[1]}"]
     # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
     listed, answer, said = ops("page", "ls", f"filter=under:{dest}", *ident)
     if listed.returncode != 0 or not isinstance(answer.get("pages"), list):
@@ -881,7 +883,7 @@ def write_page(dest, title, front, body, slug=None, known=(), held=()):
         # channel in curate's list. `page edit` REFUSES the same key (exit 2 —
         # curate, revise and retire are what move a status) and does not need it:
         # a page created without a status still has none after an edit.
-        created, _, said = ops("page", "create", f"title={title}", f"dest={dest}", *keys, *ident, "status=", "--stdin", stdin=body)
+        created, _, said = ops("page", "create", f"title={title}", f"dest={dest}", *keys, *write_ident, "status=", "--stdin", stdin=body)
         if created.returncode == 0:
             return rel, None
         if EXISTS not in said:
@@ -893,7 +895,7 @@ def write_page(dest, title, front, body, slug=None, known=(), held=()):
         why = held_reason(held, None, rel)
         if why:
             return None, why
-        target, keys = rel, [*keys, *ident]
+        target, keys = rel, [*keys, *write_ident]
     edited, _, said = ops("page", "edit", target, *keys, "--stdin", stdin=body)
     if edited.returncode != 0:
         raise PageRefused(f"`page edit` refused (exit {edited.returncode}) over {rel}: {said}")
@@ -958,7 +960,7 @@ def ledger(directory, args, *, now=None):
         "channel": job.get("slug") or directory.parent.name,
         "date": directory.name,
         "items": str(counts["kept"]),
-        "extracted": EXTRACTED,
+        "ops.extracted": EXTRACTED,
     }
     try:
         rel, left = write_page(dest, directory.name, front, body, slug=job.get("slug"), known=ticket.get("known"), held=ticket.get("held"))
