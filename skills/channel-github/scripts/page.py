@@ -74,7 +74,8 @@ def norm_url(url: str) -> str:
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*(.+?)\s*$", re.M)
-JOB_LINE = re.compile(r"^job:[ \t]*(.*)$", re.M)
+# `job` lives inside the page's `ops:` object, indented under it.
+JOB_LINE = re.compile(r"^ops:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+job:[ \t]*(.*)$", re.M)
 
 
 def frontmatter_text(text: str) -> tuple[str, str]:

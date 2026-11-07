@@ -282,10 +282,10 @@ def test_find_held_never_falls_back_to_another_jobs_clip(tmp_path, monkeypatch):
     monkeypatch.setattr(page, "ops_json", listing())
     dest = tmp_path / "sources/github"
     dest.mkdir(parents=True)
-    (dest / "Theirs.md").write_text('---\ntype: repo\njob: other\nresource: "https://github.com/a/one"\n---\n')
+    (dest / "Theirs.md").write_text('---\ntype: repo\nops:\n  job: other\nresource: "https://github.com/a/one"\n---\n')
     assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
     mine = Path("sources/github/Mine.md")
-    mine.write_text('---\ntype: repo\njob: "s"\nresource: "https://github.com/a/one"\n---\n')
+    mine.write_text('---\ntype: repo\nops:\n  job: "s"\nresource: "https://github.com/a/one"\n---\n')
     assert page.find_held("sources/github", "https://github.com/a/one", "s") == (mine, None, None)
 
 
