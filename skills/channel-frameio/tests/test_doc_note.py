@@ -297,7 +297,7 @@ def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypat
     (call,) = _page_calls(seen)
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
     assert "ops.extracted=queued" in call["argv"], "the string `queued`, which is what the walker matches"
-    assert f"media={CAP_REL}/video.mp4" in call["argv"], "wiki-relative: the queue is committed and read on any box"
+    assert f"ops.media={CAP_REL}/video.mp4" in call["argv"], "wiki-relative: the queue is committed and read on any box"
     assert f"resource={URL}" in call["argv"] and call["argv"][-1] == "--stdin"
     assert call["stdin"] == "", "the transcriber fills the body; a page about the video would never be filled"
     assert not (root / CAP_REL / "page.md").exists(), "there is no body to keep beside the capture"

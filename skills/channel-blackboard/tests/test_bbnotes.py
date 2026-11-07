@@ -581,7 +581,7 @@ def test_a_root_a_person_made_under_another_name_stands(tmp_path):
     _captures(tmp_path)
     mine = tmp_path / "sources/courses/psy/Psych.md"
     mine.parent.mkdir(parents=True)
-    mine.write_text("---\ntitle: Psych\nroot: 'true'\n---\n# Psych\n")
+    mine.write_text("---\ntitle: Psych\nops:\n  root: 'true'\n---\n# Psych\n")
     _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
     assert not [c for c in calls if "title=README" in c["argv"]]
 
