@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 HERE = Path(__file__).resolve().parent
 SCRIPTS = HERE.parent / "scripts"
@@ -255,13 +254,28 @@ def test_readme_modes():
     assert page.readme_part("```\nopen", "excerpt").endswith("```")
 
 
+def _frontmatter_of(path):
+    """The fixtures' frontmatter: `key: value` lines, one level of nesting under `ops:`."""
+    out, nest = {}, None
+    for line in path.read_text().split("---\n")[1].splitlines():
+        key, _, value = line.strip().partition(":")
+        value = value.strip().strip("\"'")
+        if line.startswith(" ") and nest is not None:
+            nest[key] = value
+        elif value:
+            out[key], nest = value, None
+        else:
+            out[key] = nest = {}
+    return out
+
+
 def listing(*rows):
     """`ops_json` answering `page ls` with `rows`; every other call is refused."""
     def answer(*a, stdin=None):
         if a[:2] == ("page", "ls"):
             return 0, {"pages": list(rows)}
         if a[:2] == ("page", "read"):  # the CLI's frontmatter answer, off the file
-            return 0, {"frontmatter": yaml.safe_load(Path(a[2]).read_text().split("---\n")[1])}
+            return 0, {"frontmatter": _frontmatter_of(Path(a[2]))}
         return pytest.fail(f"called {a}")
     return answer
 
