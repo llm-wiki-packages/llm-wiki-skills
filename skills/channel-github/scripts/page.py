@@ -74,8 +74,6 @@ def norm_url(url: str) -> str:
 
 
 RESOURCE_LINE = re.compile(r"^resource:\s*(.+?)\s*$", re.M)
-# `job` lives inside the page's `ops:` object, indented under it.
-JOB_LINE = re.compile(r"^ops:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+job:[ \t]*(.*)$", re.M)
 
 
 def frontmatter_text(text: str) -> tuple[str, str]:
@@ -162,11 +160,12 @@ def find_clip(dest: Path, url: str, slug: str | None = None) -> Path | None:
             continue
         fm, _ = frontmatter_text(head)
         m = RESOURCE_LINE.search(fm)
-        job = JOB_LINE.search(fm)
-        if job and job.group(1).strip().strip("'\"") not in ("", slug):
+        if not (m and norm_url(m.group(1)) == want):
             continue
-        if m and norm_url(m.group(1)) == want:
-            return path
+        job = str((held_frontmatter(path).get("ops") or {}).get("job") or "").strip()
+        if job not in ("", slug):
+            continue
+        return path
     return None
 
 

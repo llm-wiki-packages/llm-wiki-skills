@@ -558,7 +558,7 @@ def now_stamp() -> str:
 def capture_record(*, slug: str, item: str, title: str | None, body: str, content_type: str, fetched_at: str | None = None) -> dict:
     """What harvest leaves behind, FLAT: what was fetched, and the file it is
     in. No page, no summary, no frontmatter object, and never a key a host
-    verb owns (`status`, `resource`, `harvested`, `extracted`,
+    verb owns (`status`, `resource`, `ops.harvested`, `ops.extracted`,
     `document_id`, `document_revision`) — those are the process step's, on the
     page itself."""
     return {

@@ -170,7 +170,7 @@ HELD = {
     "deprecated": "a person archived this page",
     "edited": "a person edited this page, and this pull cannot merge into it",
     "settling": "a person touched this page in the last few minutes: a later pull writes it",
-    "unstamped": "this page has no `rendered` stamp yet: `doctor --fix` stamps it",
+    "unstamped": "this page has no `ops.rendered` stamp yet: `doctor --fix` stamps it",
     "conflict": "this page has a merge conflict: `page resolve` settles it",
 }
 

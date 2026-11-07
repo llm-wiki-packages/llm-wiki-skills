@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 HERE = Path(__file__).resolve().parent
 SCRIPTS = HERE.parent / "scripts"
@@ -256,7 +257,13 @@ def test_readme_modes():
 
 def listing(*rows):
     """`ops_json` answering `page ls` with `rows`; every other call is refused."""
-    return lambda *a, stdin=None: (0, {"pages": list(rows)}) if a[:2] == ("page", "ls") else pytest.fail(f"called {a}")
+    def answer(*a, stdin=None):
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": list(rows)}
+        if a[:2] == ("page", "read"):  # the CLI's frontmatter answer, off the file
+            return 0, {"frontmatter": yaml.safe_load(Path(a[2]).read_text().split("---\n")[1])}
+        return pytest.fail(f"called {a}")
+    return answer
 
 
 def test_find_held_takes_the_jobs_page_of_the_resource_wherever_it_was_renamed(monkeypatch):
