@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Captures a Substack newsletter's archive: lists its posts, splits free from paid, and writes a page per post.",
   "keywords": [
     "newsletter",
     "newsletters",
@@ -8,21 +10,23 @@
     "host:substack.com",
     "host:*.substack.com"
   ],
-  "kind": "channel",
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-substack",
   "requires": {
-    "credential": false,
-    "ops": ">=0.1.0"
-  },
-  "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:substack/substack.harvest"
+    "credentials": {
+      "file": "optional"
     },
+    "ops": ">=0.10.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:substack",
+  "stages": {
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-substack ticket=<id>",
   "v": 1,
-  "venue": "substack",
   "version": "0.1.0",
   "watch": {
     "defaults": {

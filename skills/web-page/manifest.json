@@ -1,16 +1,21 @@
 {
+  "argument_hint": "",
+  "description": "Fetches one web page by its URL and captures it, for a job that names no channel. A script, with no model session and no hand-run form.",
   "keywords": [
     "page",
     "url",
     "article",
-    "web"
+    "web",
+    "fetch"
   ],
-  "kind": "media",
+  "mode": [
+    "pipeline"
+  ],
   "name": "web-page",
   "requires": {
-    "credential": false,
-    "ops": ">=0.1.0"
+    "ops": ">=0.10.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:web-page",
   "stages": {
     "harvest": {
       "script": "scripts/fetch.py"
@@ -18,6 +23,5 @@
   },
   "usage": "llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>",
   "v": 1,
-  "venue": "web",
   "version": "0.1.0"
 }

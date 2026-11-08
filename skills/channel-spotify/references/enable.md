@@ -2,32 +2,43 @@
 
 1. **API access** — needed for guaranteed-complete item lists (public
    catalog only; no user login exists in this skill). It is the harvest
-   sandbox's `spotify` route (`sandboxes enable` asks before it writes the
-   route to this machine's allow file), and its value is the wiki's own, in
-   its credential vault. Have the operator create an app at
-   developer.spotify.com → Dashboard; then the OPERATOR runs this at a
-   terminal, once per machine that harvests:
+   sandbox's `spotify` route (`skills enable` lists it among the stage's hosts and
+   routes before the yes), and its value is the wiki's own, in
+   its credential vault, mapped to the route on this machine. The route is on the
+   harvest stage of the unit's sandbox (`references/customize.md`). Once
+   per machine that harvests, name the wiki's vault with `{{@brain-cli}}
+   machine wikis vault <key> local`, `<key>` being this wiki's key in
+   `{{@brain-cli}} machine wikis ls`; the `credentials` row of `{{@brain-cli-ops}}
+   doctor` names the same line, and `bind` refuses until it is run. Have the
+   operator create an app at developer.spotify.com → Dashboard; then the
+   OPERATOR runs this at a terminal, once per machine that harvests:
 
    ```sh
-   tr -d '\n' | base64 | tr -d '\n'; echo
-   llm-wiki-ops credentials set spotify
+   printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
+   {{@brain-cli-ops}} credentials set spotify
+   {{@brain-cli-ops}} credentials bind skill channel-spotify spotify=spotify
    ```
 
    The first line reads `<client_id>:<client_secret>` typed at the terminal
-   (Enter, then Ctrl-D) and prints the grant, base64 of that pair; the second
-   asks for the value without echo — paste the grant there. Neither puts it in
-   an argument (argv is readable in `ps` and lands in shell history), and
-   `credentials set` asks only at a terminal: its stdin is not a pipe. In the harvest's jail the
+   (Enter, then Ctrl-D) and prints the value to store: the grant, base64 of
+   that pair, with the one host it may be spent at. The second asks for the
+   value without echo — paste that line there. Neither puts it in an
+   argument (argv is readable in `ps` and lands in shell history), and
+   `credentials set` asks only at a terminal: its stdin is not a pipe. The
+   third maps the route to it; `bind` refuses a value whose host is not the
+   route's. `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps
+   nothing: it lists `spotify` as unmapped, with that line. In the harvest's jail the
    route's variable holds a phantom, and the proxy adds the grant only to the
-   token request bound for `accounts.spotify.com`. With the route enabled and
-   no grant stored, the token request fails and the harvest says so; with no
-   route the capture degrades to the keyless embed fallback: possibly-truncated
-   item lists, flagged `"keyless": true` and with a warning callout in the note.
+   token request bound for `accounts.spotify.com`. With the route mapped to a
+   wrong grant, the token request fails and the harvest says so; with the
+   route unmapped the jail omits it, and the capture degrades to the keyless
+   embed fallback: possibly-truncated item lists, flagged `"keyless": true`
+   and with a warning callout in the note.
 2. **Non-URL requests** ("add the Lex Fridman podcast episode 400"): ask the
    operator for the entity's Spotify URL, then watch that. Nothing in this
    unit searches the catalog.
 3. **Declare the job**: one per entity URL.
-   `llm-wiki-ops pipeline jobs add <entity-url> slug=<content-name>
+   `{{@brain-cli-ops}} jobs add <entity-url> slug=<content-name>
    description="<what this is>" skill=channel-spotify
    meta.group="<name>" meta.group_type=playlist|series` — a playlist or show
    is a bundle. open.spotify.com is a generic share host carrying no source
@@ -51,7 +62,7 @@
 
 ## Known limitation — media egress under a confined harvest
 
-The harvest stage's sandbox reference covers the Spotify endpoints, Spotify's
+The harvest stage's sandbox covers the Spotify endpoints, Spotify's
 cover-art CDNs (`*.scdn.co`, `*.spotifycdn.com` — the cover is an asset of
 every capture) and the keyless iTunes feed lookup, and deliberately nothing
 more: the open-audio
@@ -64,9 +75,10 @@ deliberate — do not try to finish the allowlist.
 
 ## The route, and nothing else
 
-This skill declares `requires.credential: false`: a job is bound to no
-credential and its slice is granted no payload file. The `spotify` route is
-the one way the grant reaches a capture, and the script calls no
-`credentials` verb. A route in a harness profile, or `SPOTIFY_CLIENT_ID` in
+The manifest leaves the `spotify` binding undeclared, which reads
+`"optional"`, and declares no `file` or `dir`: its slice is granted no
+payload file. The `spotify` route, filled by this machine's mapping, is the
+one way the grant reaches a capture, and the script calls no `credentials`
+verb. A route in a harness profile, or `SPOTIFY_CLIENT_ID` in
 an environment, reaches nothing here. Unverified live: no capture has run
 against Spotify through the route.

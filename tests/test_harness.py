@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from harness import NEUTRAL_CWD, ROOT, STEP_MARK, Result, Session, _cli, _cli_python, claimed, declared_job, shown, staged
+from harness import NEUTRAL_CWD, ROOT, STEP_MARK, Result, Session, _cli, _cli_python, _plan_python, claimed, declared_job, shown, staged
 
 
 def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
@@ -16,8 +16,8 @@ def test_a_claimed_ticket_runs_in_the_jail_the_runner_composes(ops, env, wiki):
     job = declared_job(ops, env, wiki, "channel-frameio", "https://next.frame.io/share/00000000-0000-0000-0000-00000000aaaa",
                        slug="harness-staged")
     ticket_id, capture_dir = claimed(ops, env, wiki, job)
-    session = staged(ops, env, wiki, ticket_id, 'step jail printenv LLM_WIKI_JAIL\nstep open "$OPS" --json pipeline tickets open "$TICKET"\n'
-                     'step update "$OPS" --json pipeline tickets update "$TICKET" stage=harvest status=ok\n')
+    session = staged(ops, env, wiki, ticket_id, 'step jail printenv LLM_WIKI_JAIL\nstep open "$OPS" --json tickets open "$TICKET"\n'
+                     'step update "$OPS" --json tickets update "$TICKET" stage=harvest status=ok\n')
     assert session.step("jail").stdout.strip() == "nono"
     opened = session.step("open")
     assert opened.returncode == 0, opened.stdout + opened.stderr
@@ -58,6 +58,18 @@ def test_the_cli_interpreter_is_found_beside_its_console_script(tmp_path):
     assert _cli_python(["uv", "run", "--project", "/p", "llm-wiki-ops"]) == ["uv", "run", "--project", "/p", "python"]
 
 
+def test_the_plan_interpreter_is_the_real_one_through_a_symlinked_console_script(tmp_path):
+    (tmp_path / "real" / "bin").mkdir(parents=True)
+    (tmp_path / "link").mkdir()
+    (tmp_path / "real" / "bin" / "llm-wiki-ops").touch()
+    (tmp_path / "real" / "bin" / "python").touch()
+    (tmp_path / "link" / "llm-wiki-ops").symlink_to("../real/bin/llm-wiki-ops")
+    want = str((tmp_path / "real" / "bin" / "python").resolve())
+    assert _plan_python([str(tmp_path / "real" / "bin" / "llm-wiki-ops")]) == want
+    assert _plan_python([str(tmp_path / "link" / "llm-wiki-ops")]) == want
+    assert _plan_python(["uv", "run", "--project", "/p", "llm-wiki-ops"]) is None
+
+
 def test_the_machine_cli_is_found_beside_a_path_spelled_ops():
     """`LLM_WIKI_OPS` is the console script by absolute path (the dispatch's
     contract, and `which`'s answer): its directory need not be on PATH, so the
@@ -72,3 +84,18 @@ def test_the_harness_runs_nothing_from_the_checkout():
     neutral directory needs is that no wiki owns it."""
     assert NEUTRAL_CWD.is_dir() and not NEUTRAL_CWD.is_relative_to(ROOT) and not ROOT.is_relative_to(NEUTRAL_CWD)
     assert not any((p / ".llm-wiki.toml").exists() for p in (NEUTRAL_CWD, *NEUTRAL_CWD.parents))
+
+
+def test_the_toolchain_probe_fails_loudly_on_a_misconfigured_plugin_root(ops, tmp_path):
+    """A bad `LLM_WIKI_PLUGIN_ROOT` is a refusal the probe must not swallow: a swallowed one is a jail with no plugin tree and a silent EACCES."""
+    import os
+    import subprocess
+
+    from harness import _TOOLCHAIN, _cli_python
+
+    bad = tmp_path / "not-a-plugin"
+    bad.mkdir()
+    for var in ("LLM_WIKI_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+        env = {k: v for k, v in os.environ.items() if k not in ("LLM_WIKI_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")} | {var: str(bad)}
+        done = subprocess.run([*_cli_python(ops), "-c", _TOOLCHAIN], cwd=NEUTRAL_CWD, env=env, capture_output=True, text=True, check=False)
+        assert done.returncode != 0 and "is not an ops plugin directory" in done.stderr, (var, done.stdout, done.stderr)

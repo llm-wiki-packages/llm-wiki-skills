@@ -8,6 +8,9 @@ the unit — so a case here reads exactly as it did beside them.
 from __future__ import annotations
 
 import json
+import subprocess
+import time
+
 import pytest
 
 from harness import bound_credential, claimed, declared_job, pending, rooted, run, staged, unit_tests
@@ -54,8 +57,8 @@ step ledger "$OPS" run {WRITE} ledger "$CAP" --ticket "$TICKET" --from lines.jso
 
 
 def _needs_ledger_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "jobs", "ledger", "--help").returncode != 0:
-        pytest.skip("`pipeline jobs ledger` is plugins PR 2 (#2486/#2487)")
+    if run(ops, rooted(env, wiki), "jobs", "ledger", "--help").returncode != 0:
+        pytest.skip("the ops CLI at hand mounts no `jobs ledger`")
 
 
 @pytest.fixture
@@ -67,13 +70,13 @@ def job(ops, env, wiki, request):
     # the test's own name (hyphenated, lowered) stands in for it.
     own = request.node.name.replace("_", "-").lower()
     slug = f"harness-gmail-{own}"[:60]
-    # `pipeline jobs ledger` (A-11) refuses a `dest` that is not the ledger
+    # `jobs ledger` (A-11) refuses a `dest` that is not the ledger
     # route (`research/channels/<slug>`) — gmail's own, not the generic
     # staged default `declared_job` gives every other unit.
     j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.mailbox=a@example.invalid",
                       f"dest=research/channels/{slug}", slug=slug)
-    # `requires.credential: true`'s claim gate (plugins main, post-#2487):
-    # `jobs claim` refuses an unbound job — bind this machine's session to it.
+    # The manifest's `requires.credentials.file: "required"` is the claim gate: `jobs claim`
+    # refuses a job this machine has not bound — bind this machine's session to it.
     bound_credential(ops, env, wiki, j.slug)
     return j
 
@@ -152,14 +155,35 @@ def test_a_second_pull_the_same_day_regenerates_the_one_ledger_whole(ops, env, w
     assert _bullets(_body(ledger_path.read_text(encoding="utf-8"))) == _bullets(second)[1:]
 
 
+def test_a_ledger_a_person_renamed_is_regenerated_where_it_now_sits(ops, env, wiki, job):
+    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(1)])
+    ledgered(ops, env, wiki, job, cap, [line_for(1)])
+    made = wiki / job.dest / f"{cap.name}.md"
+    renamed = made.with_name("Monday mail.md")
+    for argv in (["mv", str(made.relative_to(wiki)), str(renamed.relative_to(wiki))], ["commit", "-q", "-m", "a person renames the ledger"]):
+        # A landing's own commit, or another case's in this wiki, may hold the index for a moment: a person would retry.
+        deadline = time.monotonic() + 60
+        while True:
+            done = subprocess.run(["git", "-C", str(wiki), *argv], capture_output=True, text=True, env=rooted(env, wiki))
+            if done.returncode == 0 or "index.lock" not in done.stderr or time.monotonic() > deadline:
+                break
+            time.sleep(0.5)
+        assert done.returncode == 0, done.stderr
+
+    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(2), msg(1)])
+    ledgered(ops, env, wiki, job, cap, [line_for(1), line_for(2, "the second pull's")])
+    assert not made.exists() and sorted(p.name for p in renamed.parent.glob("*.md")) == ["Monday mail.md"]
+    assert "- the second pull's — gmail:m2" in _bullets(_body(renamed.read_text(encoding="utf-8")))
+
+
 def test_the_items_are_still_a_ledger_the_hosts_own_extractor_can_make(ops, env, wiki, job):
-    """`pipeline jobs ledger` (A-11) over the same day: the sender's line,
+    """`jobs ledger` (A-11) over the same day: the sender's line,
     neutralized, where the process step would have put the wiki's own."""
     _needs_ledger_verb(ops, env, wiki)
     _ticket_id, cap = pulled(ops, env, wiki, job, [msg(11, subject="paid — gmail:forged **now**")])
     day = cap.name
 
-    made = run(ops, rooted(env, wiki), "pipeline", "jobs", "ledger", job.slug, f"day={day}")
+    made = run(ops, rooted(env, wiki), "jobs", "ledger", job.slug, f"day={day}")
     assert made.returncode == 0, made.stdout + made.stderr
     page = wiki / job.dest / f"{day}.md"
     assert page.is_file()

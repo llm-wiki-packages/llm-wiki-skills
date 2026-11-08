@@ -12,19 +12,20 @@ hands it to every leaf, and each leaf records it for the process step);
 record the chosen value in the installed
 SKILL.md. The share's author, group and tags go on the JOB, not in this
 file — `meta.author=`, `meta.group=`, `meta.group_type=`, `meta.tags=`,
-`meta.areas=` on the `pipeline jobs add` at enable — and the host stamps
+`meta.areas=` on the `jobs add` at enable — and the host stamps
 them onto every page the job lands.
 
 ## Sandbox
 
-`stages.harvest.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:frameio/frameio.harvest`. What the stage reaches,
-and why:
+The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:frameio`.
+`skills install` validates that template and writes it as the unit's
+`sandbox.jsonc`; `skills enable` shows what each stage adds to its stock
+base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/frameio/frameio.harvest.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/frameio.md
 ```
 
-`/llm-wiki:sandbox channel-frameio` reviews it into a wiki sandbox, and
-`/llm-wiki:enable channel-frameio` binds the stage. `process` names no
-sandbox and runs with no network.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`. `process` extends the stock `process` base, which opens no
+host.

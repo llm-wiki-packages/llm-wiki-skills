@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Captures Spotify playlists, shows, episodes, albums and audiobooks: their metadata, and audio only where a podcast publishes an open RSS feed. Protected catalog audio is kept as a reference and never downloaded.",
   "keywords": [
     "podcast",
     "podcasts",
@@ -8,24 +10,26 @@
     "playlist",
     "audiobook",
     "album",
+    "rss",
+    "audio",
+    "drm",
     "host:spotify.com",
     "host:*.spotify.com"
   ],
-  "kind": "channel",
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-spotify",
   "requires": {
-    "credential": false,
-    "ops": ">=0.1.0"
+    "ops": ">=0.10.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify/spotify.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-spotify ticket=<id>",
   "v": 1,
-  "venue": "spotify",
   "version": "0.1.0",
   "watch": {
     "defaults": {
@@ -43,6 +47,6 @@
       }
     },
     "dest": "sources/podcasts/{slug}",
-    "note": "One watch per entity URL (playlist/show/episode/album/audiobook) \u2014 scope page; enumeration happens inside the capture via the API, not by link discovery. The harvest sandbox's `spotify` route (the app's client credentials, in the wiki's vault per machine) is needed for complete item lists; keyless capture degrades to a possibly-truncated list. Audio downloads only when the show publishes an open RSS feed; Spotify-exclusive/music/audiobook audio is captured as DRM references, never ripped. A non-URL request (\"add episode 400 of X\") asks the operator for the URL. Confined harvest reaches metadata and the RSS lookup; media download needs a host the unit cannot declare (the creator's own feed and enclosure hosts, different per show)."
+    "note": "One watch per entity URL (playlist/show/episode/album/audiobook) \u2014 scope page; enumeration happens inside the capture via the API, not by link discovery. The harvest sandbox's `spotify` route (the app's client credentials, in the wiki's vault and mapped to the route per machine) is needed for complete item lists; keyless capture degrades to a possibly-truncated list. Audio downloads only when the show publishes an open RSS feed; Spotify-exclusive/music/audiobook audio is captured as DRM references, never ripped. A non-URL request (\"add episode 400 of X\") asks the operator for the URL. Confined harvest reaches metadata and the RSS lookup; media download needs a host the unit cannot declare (the creator's own feed and enclosure hosts, different per show)."
   }
 }

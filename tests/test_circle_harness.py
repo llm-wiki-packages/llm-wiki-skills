@@ -15,7 +15,7 @@ import subprocess
 
 from pathlib import Path
 
-from harness import claimed, declared_job, pending, rooted, staged, unit_tests
+from harness import claimed, declared_job, pending, rooted, run, staged, unit_tests
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-circle", "test_circle"))
@@ -50,7 +50,7 @@ def page_lines(cap: Path, dest: str, verb: str = "create") -> str:
     has them, the body on stdin — so every content case is a quoting case."""
     record = json.loads((cap / "capture.json").read_text(encoding="utf-8"))
     where = f"'title={record['title']}' 'dest={dest}'" if verb == "create" else f"'{dest}/{record['title']}.md'"
-    return f"""cat "$CAP/page.md" | "$OPS" --json page {verb} {where} 'resource={record['item']}' type=lesson extracted=true --stdin"""
+    return f"""cat "$CAP/page.md" | "$OPS" --json page {verb} {where} 'resource={record['item']}' type=lesson ops.extracted=true --stdin"""
 
 
 def processed(ops, env, wiki, ticket: str, cap: Path, dest: str, again: bool = False):
@@ -66,7 +66,27 @@ step report "$OPS" run {SCRIPT}/section_plan.py report "$CAP" --ticket "$TICKET"
 """)
 
 
-def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, wiki):
+def mapped_profile(ops, env, wiki, job, request) -> str:
+    """A `dir` credential of the job's own, mapped to it with `credentials bind
+    job` (enable.md step 3): `requires.credentials.dir` is "required", so `jobs claim`
+    refuses the harvest of a job this machine maps no profile to. Dropped and
+    removed when the case ends. Returns the directory."""
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    name = f"{job.slug}.profile"
+    # `login=browser` as the docs have it needs a person at a browser, and
+    # the host never grants a browser dir nobody logged in to: a dir with no
+    # login stands in, granted by the same slot.
+    done = run(ops, attended, "--json", "credentials", "set", name, "kind=dir", "host=example.com")
+    assert done.returncode == 0, done.stdout + done.stderr
+    request.addfinalizer(lambda: run(ops, attended, "--json", "credentials", "remove", name))
+    path = done.data["path"]
+    done = run(ops, attended, "--json", "credentials", "bind", "job", job.slug, f"dir={name}")
+    assert done.returncode == 0, done.stdout + done.stderr
+    request.addfinalizer(lambda: run(ops, attended, "--json", "credentials", "unbind", "job", job.slug))
+    return path
+
+
+def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, wiki, request):
     """The whole point of the rework: a harvest ticket whose session, in its
     jail, runs `section_plan.py plan`/`record`/`report` posting `tickets
     update` through the REAL CLI, and a process ticket per lesson whose
@@ -76,6 +96,7 @@ def test_one_ticket_walks_the_section_and_every_lesson_becomes_a_page(ops, env, 
     # whose target does not resolve to a public address, and `test_circle.py`'s
     # fixtures are keyed to that host, so `harvest.scope=section` keeps the leaves.
     job = declared_job(ops, env, wiki, UNIT, TARGET, slug="harness-circle")
+    mapped_profile(ops, env, wiki, job, request)
     ticket_id, cap = claimed(ops, env, wiki, job)
     records = "".join(f'step record-{n}-{i} "$OPS" run {SCRIPT}/section_plan.py record "$CAP" --leaf {n}\n'
                       for n in (1, 2) for i in (1, 2))  # a respawned worker records again: nothing may stack
@@ -130,8 +151,10 @@ step plan "$OPS" run {SCRIPT}/section_plan.py plan "$CAP" --ticket "$TICKET"
         texts.append(page.read_text(encoding="utf-8"))
         assert session.update["status"] == "ok", session.update
     first, second = texts
-    assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first and "status: draft" in first
-    assert "extracted: 'true'" in first
+    assert "title: Getting the Frame Right" in first and f"resource: {L1}" in first
+    # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
+    assert "\nstatus:" not in first and "\nverified:" not in first
+    assert "ops:\n  extracted: 'true'" in first
     assert "marmalade-sandwich rule" in first and "> A frame is a promise about what matters." in first
     assert "Topic 1 of 2" in first and "heliotrope question" in second
     assert "https://assets-v2.circle.so/abc123def" in second  # the extensionless Resources link survives
@@ -154,8 +177,31 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=lesson' --stdin"
+            + f" 'ops.extracted=true' 'type=lesson' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr
         assert (wiki / json.loads(done.stdout)["path"]).is_file()
+
+
+def test_the_profile_the_job_maps_reaches_the_harvest_as_its_credential_dir(ops, env, wiki, request):
+    """SKILL.md's Auth and enable.md step 3, through the real CLI: a job this
+    machine maps no profile to is refused at claim, and a `dir` credential
+    mapped to it with `credentials bind job` reaches the harvest's jail as the
+    ticket's `credential_dir`, writable, which is where `capture_lesson.py`
+    reads the profile."""
+    job = declared_job(ops, env, wiki, UNIT, f"{TARGET}-profile", slug="harness-circle-profile")
+    refused = run(ops, rooted(env, wiki), "--json", "jobs", "claim", job.slug)
+    said = refused.stdout + refused.stderr
+    assert refused.returncode == 2 and "harvest requires dir and this machine fills none of it" in said, said
+    profile = mapped_profile(ops, env, wiki, job, request)
+    ticket_id, _cap = claimed(ops, env, wiki, job)
+    session = staged(ops, env, wiki, ticket_id, f"""\
+step open "$OPS" --json tickets open "$TICKET"
+step write touch {shlex.quote(profile)}/harness-wrote
+""")
+    opened = session.step("open")
+    assert opened.returncode == 0, opened
+    ticket = json.loads(opened.stdout)["ticket"]
+    assert ticket["credential_mode"] == "dir" and ticket["credential_dir"] == profile, ticket
+    assert session.step("write").returncode == 0, session.step("write")

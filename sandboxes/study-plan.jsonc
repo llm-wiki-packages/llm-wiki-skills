@@ -1,0 +1,26 @@
+// study-plan: the catalog template for the study-plan unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/study-plan.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // The scheduled evening run, with nobody at the keyboard. No host: the
+    // harness profile supplies the model hosts.
+    "routine": {
+      "extends": "routine",
+      "filesystem": {
+        // Each tree by name: a bare $WORKDIR grants nothing. `sources/` holds
+        // the syllabus, `research/` the quiz logs. The `study-plan` and `quiz`
+        // overlays are `_base`'s `$OPS/policy` read, so they need no entry.
+        "read": [
+          "$WORKDIR/research",
+          "$WORKDIR/sources"
+        ],
+        // `wiki/` alone: the units the plan embeds are read there, and the
+        // plan and the exam guides are written there.
+        "allow": ["$WORKDIR/wiki"]
+      }
+    }
+  }
+}

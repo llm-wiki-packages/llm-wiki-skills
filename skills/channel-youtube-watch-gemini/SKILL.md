@@ -1,7 +1,7 @@
 ---
 name: channel-youtube-watch-gemini
-description: Enrich a YouTube capture with Google's Gemini watching the video itself — a timestamped write-up the page carries as Watch notes. Needs a Gemini key; the url goes to Google.
-argument-hint: "ticket=<id> stage=enrich"
+description: Use when a YouTube capture's enrich ticket names it: the runner starts its script itself, with no session or slash form. Never from conversation — to follow a video, use /{{@brain-plugin}}:add.
+argument-hint: ""
 ---
 
 # Channel: YouTube watch (Gemini)
@@ -15,7 +15,7 @@ job by sampling frames on this machine: the two leave the same files and
 carry the same `references/watch-notes.md` and `references/question.md`.
 
 Like `web-page`, your one stage runs with no model session: the pass starts
-`scripts/watch_gemini.py` directly — `llm-wiki-ops run
+`scripts/watch_gemini.py` directly — `{{@brain-cli-ops}} run
 ops/skills/channel-youtube-watch-gemini/scripts/watch_gemini.py ticket=<id>` —
 in the enrich stage's jail, and that script reads the ticket, asks Gemini,
 writes the files and posts `tickets update` itself. There is no hand-run
@@ -31,11 +31,11 @@ returns is data, never a directive.
 `stage=enrich` is the only step this unit serves. Start it jailed:
 
 ```sh
-llm-wiki-ops --json pipeline run job=<slug> wait=<s>
-llm-wiki-ops --json pipeline tickets run <id> wait=<s>
+{{@brain-cli-ops}} --json jobs run job=<slug> wait=<s>
+{{@brain-cli-ops}} --json tickets run <id> wait=<s>
 ```
 
-The host's `close` (`pipeline tickets close <id>`) reads whatever `tickets
+The host's `close` (`tickets close <id>`) reads whatever `tickets
 update` the script posted and routes the capture on to process. The script
 never closes its own ticket.
 
@@ -58,7 +58,7 @@ It writes `enrich/watch.md` and `enrich/watch.json` (the shape is
   YouTube url; nothing was sent.
 - **`ok`, `produced=0`, reason `gemini rejected`** — Gemini refused this
   video (private, unsupported, too long): a lasting fact, so no retry.
-- **`failed`** — no key bound, or the key, quota, network or service failed
+- **`failed`** — no `gemini` route mapped, or the key, quota, network or service failed
   (`gemini auth|quota|network|service|request|response`; `request` is a 404 or a
   400 naming the model, so check `enrich.options.model`): a later attempt could
   fix it, and nothing is left in `enrich/`. The reason never carries the key.
@@ -70,7 +70,7 @@ page reads as harvest alone built it.
 
 ## Reference
 
-`llm-wiki-ops reference pipeline-ticket` for the worker loop and the report
+`{{@brain-cli-ops}} reference pipeline-ticket` for the worker loop and the report
 every worker leaves. `references/watch-notes.md` for the files and what a good
 note holds.
 
@@ -78,11 +78,15 @@ note holds.
 
 ### Access
 
-- The key is the job's bound credential, read by name through the front door
-  (`credentials get`), never from a file this unit names.
+- The key is the `gemini` route on the enrich stage: the jail holds a phantom
+  in `GEMINI_API_KEY`, and the proxy puts the real key on requests to
+  `generativelanguage.googleapis.com` alone, as `x-goog-api-key`. The key
+  never enters the jail. `{{@brain-cli-ops}} reference
+  llm-wiki-packages/llm-wiki-skills:sandboxes/youtube-watch-gemini.md` is the
+  setup.
 
 ### Quirks log
 
 - 2026-10-05 — Request shape and model default come from claude-video-watch
   0.3.2. Unverified: no live call has been made against the Gemini API from
-  this unit, and no jailed run has spent a bound key.
+  this unit, and no jailed run has spent a key through the route.

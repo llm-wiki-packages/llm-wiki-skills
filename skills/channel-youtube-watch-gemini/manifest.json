@@ -1,12 +1,33 @@
 {
-  "keywords": ["gemini", "watch", "summary", "summarize", "visual", "host:generativelanguage.googleapis.com"],
-  "kind": "media",
+  "argument_hint": "",
+  "description": "Enriches a captured YouTube video: Google's Gemini watches the url and writes timestamped notes that channel-youtube folds into the page as Watch notes. A script stage; needs a Gemini key.",
+  "keywords": [
+    "gemini",
+    "watch",
+    "summary",
+    "summarize",
+    "visual",
+    "host:generativelanguage.googleapis.com"
+  ],
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-youtube-watch-gemini",
-  "requires": {"credential": true, "ops": ">=0.1.0"},
-  "stages": {"enrich": {"sandbox_ref": "llm-wiki-packages/llm-wiki-skills:gemini/gemini.enrich", "script": "scripts/watch_gemini.py"}},
-  "usage": "/channel-youtube-watch-gemini ticket=<id> stage=enrich",
-  "uses": "channel-youtube",
+  "requires": {
+    "credentials": {
+      "routes": {
+        "gemini": "required"
+      }
+    },
+    "ops": ">=0.15.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube-watch-gemini",
+  "stages": {
+    "enrich": {
+      "script": "scripts/watch_gemini.py"
+    }
+  },
+  "usage": "llm-wiki-ops run ops/skills/channel-youtube-watch-gemini/scripts/watch_gemini.py ticket=<id>",
   "v": 1,
-  "venue": "gemini",
   "version": "0.1.0"
 }

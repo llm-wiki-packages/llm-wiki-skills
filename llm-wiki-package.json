@@ -2,10 +2,10 @@
   "schema_version": 1,
   "name": "llm-wiki-skills",
   "repository": "llm-wiki-packages/llm-wiki-skills",
-  "version": "0.2.0",
+  "version": "0.10.0",
   "description": "Skills for llm-wiki wikis: the channel skills the ops CLI installs.",
   "license": "MIT",
-  "min_ops_version": "0.1.0",
+  "min_ops_version": "0.10.0",
   "platforms": [
     "macos",
     "linux"
@@ -21,6 +21,26 @@
     },
     {
       "type": "skill",
+      "name": "study-plan",
+      "path": "skills/study-plan"
+    },
+    {
+      "type": "skill",
+      "name": "podcast",
+      "path": "skills/podcast"
+    },
+    {
+      "type": "skill",
+      "name": "quiz-show",
+      "path": "skills/quiz-show"
+    },
+    {
+      "type": "skill",
+      "name": "channel-blackboard",
+      "path": "skills/channel-blackboard"
+    },
+    {
+      "type": "skill",
       "name": "channel-circle",
       "path": "skills/channel-circle"
     },
@@ -31,8 +51,18 @@
     },
     {
       "type": "skill",
+      "name": "channel-github",
+      "path": "skills/channel-github"
+    },
+    {
+      "type": "skill",
       "name": "channel-gmail",
       "path": "skills/channel-gmail"
+    },
+    {
+      "type": "skill",
+      "name": "channel-gmail-gws",
+      "path": "skills/channel-gmail-gws"
     },
     {
       "type": "skill",
@@ -43,6 +73,11 @@
       "type": "skill",
       "name": "channel-notion-tasks",
       "path": "skills/channel-notion-tasks"
+    },
+    {
+      "type": "skill",
+      "name": "channel-parentsquare",
+      "path": "skills/channel-parentsquare"
     },
     {
       "type": "skill",

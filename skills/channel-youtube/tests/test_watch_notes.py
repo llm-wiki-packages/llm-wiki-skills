@@ -172,7 +172,7 @@ def wiki(note, tmp_path, monkeypatch):
     (cap / "metadata.json").write_text(json.dumps(META))
     written = {}
     monkeypatch.setattr(note, "open_ticket", lambda ticket, stage=None: {"slug": "yt-job", "item": ITEM, "process": {}})
-    monkeypatch.setattr(note, "write_page", lambda wiki, dest, title, front, body, ops=None: written.update(body=body) or f"{dest}/{title}.md")
+    monkeypatch.setattr(note, "write_page", lambda wiki, dest, title, front, body, ops=None, **_: written.update(body=body) or (f"{dest}/{title}.md", None))
 
     def arm(*flags):
         monkeypatch.setattr(sys, "argv", ["youtube_note.py", str(tmp_path), "--capture-dir", CAP, "--ticket", "abc", *flags])

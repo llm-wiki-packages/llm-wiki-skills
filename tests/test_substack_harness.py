@@ -49,7 +49,7 @@ cp "$FIX/leaves.json" "$CAP/leaves.json"
 def paged(ops, env, wiki, job, capture_dir):
     """The process stage the harvest's landing minted for one post, in its
     jail, exactly as SKILL.md prescribes it: convert the captured `page.html`
-    into `page create`'s stdin, `page edit … extracted=true`, then report.
+    into `page create`'s stdin, `page edit … ops.extracted=true`, then report.
     Returns the page."""
     record = json.loads((capture_dir / "capture.json").read_text(encoding="utf-8"))
     said = json.loads((capture_dir / "leaf.json").read_text(encoding="utf-8"))
@@ -65,9 +65,9 @@ def paged(ops, env, wiki, job, capture_dir):
     process_id = pending(ops, env, wiki, job.slug)[str(capture_dir.relative_to(wiki))]
     session = staged(ops, env, wiki, process_id, f"""\
 step create sh -c {shlex.quote(create)}
-step extracted sh -c {shlex.quote(f"\"$OPS\" page edit '{page}' extracted=true")}
+step extracted sh -c {shlex.quote(f"\"$OPS\" page edit '{page}' ops.extracted=true")}
 printf '%s' {shlex.quote(json.dumps([page]))} > "$CAP/written.json"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=process status=ok written_from=written.json
 """)
     for name in ("create", "extracted", "update"):
         done = session.step(name)
@@ -168,8 +168,11 @@ def test_a_title_the_host_would_refuse_still_lands_and_forges_nothing(ops, env, 
     pages = [paged(ops, env, wiki, job, wiki / d) for d in captured_dirs]
     assert pages and all(page.is_file() for page in pages)
     lines = pages[0].read_text(encoding="utf-8").splitlines()
-    # the venue's title reaches the page QUOTED, opening no heading and no rule of its own
-    assert lines[1] == "title: 'Lesson 3 - What is ’A-B’ testing # Forged heading ---'"
+    # the venue's title reaches the page QUOTED, opening no heading and no rule of
+    # its own — wherever in the block it sits, since the wiki's template may
+    # put its own keys first
+    block = lines[1 : lines.index("---", 1)]
+    assert "title: 'Lesson 3 - What is ’A-B’ testing # Forged heading ---'" in block
     assert "# Forged heading" not in lines and "# Forged date" not in lines
     assert [line for line in lines if line.strip() == "---"] == ["---", "---"]  # the page's own block only
     assert "lighthouses" in "\n".join(lines)
@@ -214,7 +217,7 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=article' --stdin"
+            + f" 'ops.extracted=true' 'type=article' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr

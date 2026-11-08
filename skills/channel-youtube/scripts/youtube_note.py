@@ -43,15 +43,17 @@ The process arm writes:
 - `page.md` in the capture dir — the body, kept beside the bytes it was built
   from so a retried process ticket can see what the run produced.
 - the page under `dest`, through the front door: `page create` with the
-  video's facts as frontmatter keys and the body on stdin, or `page edit` over
-  the page `dest` already holds under that title. The body is the video's TRUE
+  video's facts as frontmatter keys and the body on stdin, or `page edit`
+  of the job's page `page ls resource=<item>` finds, wherever in `dest` a
+  person renamed it. A page a person moved out of `dest` or holds (Draft,
+  Archive), or the ticket's `held[]` names, is left alone: `written` is empty and `left` says why. The body is the video's TRUE
   title as the `# H1`, thumbnail, embed, a compact facts list, the description
   as a blockquote (bare URLs linkified, the creator's own TIMESTAMPS block
   turned into a list, hashtag soup collapsed), the enrich unit's notes as a
   blockquote under "Watch notes" where there are any, and the transcript as
   timestamped, chapter-headed sections, noise-stripped and de-duplicated.
   `frontmatter.source_title` is the true title, when the filename rule made
-  the page's differ from it. `extracted=true` is set, so the stage records
+  the page's differ from it. `ops.extracted=true` is set, so the stage records
   that it has been here. Identity and `status` are not this script's to write.
 
 Everything yt-dlp returns is the venue's text, and it reaches both the page
@@ -206,7 +208,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -237,7 +239,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
@@ -451,13 +453,76 @@ def format_transcript(captions, chapters_json, wiki, override):
     return cp.stdout
 
 
-def write_page(wiki, dest, title, front, body, ops=None):
-    """The page under `dest`, through the front door. Returns it, wiki-relative.
+def identity_match(rows, slug, dest):
+    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    `(None, <why>)` where there are several — never one picked.
 
-    `page create` first, `page edit` on the one refusal that means the title is
-    already a page here. The arguments are an argv LIST and never a shell line:
-    every value on them is venue text — a title, a channel name, a url — and a
-    venue that can type onto a Bash line can run a command.
+    A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
+    page written before it carries none. A row from another job is that job's page, not this one's."""
+    folder = str(dest or "").strip("/")
+    mine = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("job") == slug or (row.get("job") is None and folder and str(row.get("path") or "").startswith(folder + "/")))
+    ]
+    if len(mine) > 1:
+        return None, "pages " + ", ".join(sorted(str(row.get("path")) for row in mine)) + " all hold this item: none was written"
+    return (mine[0] if mine else None), None
+
+
+def left_alone(row):
+    """Why the page `row` names is not this run's to write, or None: a person moved it out of `dest`, or ticked its
+    Draft or Archive box."""
+    if row.get("moved"):
+        return f"{row.get('path')}: moved out of dest by a person, left alone"
+    if row.get("draft") or row.get("archive"):
+        return f"{row.get('path')}: held (Draft or Archive), left alone"
+    return None
+
+
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def _said(cp):
+    return ((cp.stderr or "") + (cp.stdout or "")).strip()[-500:]
+
+
+def write_page(wiki, dest, title, front, body, ops=None, slug=None, known=(), held=()):
+    """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
+
+    The page is found by identity first — `page ls resource=<item>`, the job's rows of it (`identity_match`) — so a
+    page a person renamed inside `dest` is edited at the path the lookup found, never duplicated under the title. No row:
+    `page create`. A page at the title's path that is not this item's is never written over. With no `resource`
+    there is no identity, and the title's page is the one edited. The arguments are an argv LIST and never a shell
+    line: every value on them is venue text — a title, a channel name, a url — and a venue that can type onto a Bash
+    line can run a command.
     """
     door = list(ops) if ops else front_door()
     if not door:
@@ -469,31 +534,58 @@ def write_page(wiki, dest, title, front, body, ops=None):
     where = {"cwd": str(wiki), "env": _front_door_env()}
     keys = [f"{k}={v}" for k, v in front.items() if k not in HOST_OWNED and not isinstance(v, (list, dict))]
     keys += [f"{k}={','.join(str(one) for one in v)}" for k, v in front.items() if isinstance(v, list) and v]
-    keys += [f"extracted={EXTRACTED}"]
-    created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
-        input=body, capture_output=True, text=True, **where,
-    )
+    keys += [f"ops.extracted={EXTRACTED}"]
     rel = f"{str(dest).rstrip('/')}/{title}.md"
-    if created.returncode == 0:
-        return rel
-    if EXISTS not in (created.stdout or "") + (created.stderr or ""):
-        sys.exit(
-            f"youtube_note: `page create` refused (exit {created.returncode}) — "
-            f"no page was written.\n{((created.stderr or '') + (created.stdout or '')).strip()[-500:]}"
+    resource = front.get("resource")
+    target = None
+    if resource:
+        # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+        listed = subprocess.run(
+            [*door, "--json", "page", "ls", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where,
         )
-    # The one refusal that is not a failure: this job pulled the video before,
-    # and the page under `dest` is the one to replace.
+        try:
+            rows = json.loads(listed.stdout).get("pages")
+        except (ValueError, AttributeError):
+            rows = None
+        if listed.returncode != 0 or not isinstance(rows, list):
+            sys.exit(f"youtube_note: `page ls resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
+        row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
+        if why:
+            sys.exit(f"youtube_note: {why}")
+        why = (left_alone(row) if row is not None else None) or held_reason(held, resource, row and row["path"])
+        if why:
+            return None, why
+        if row is not None:
+            # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+            # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+            target = [row["path"]]
+            rel = row["path"]
+    if target is None:
+        created = subprocess.run(
+            [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
+            input=body, capture_output=True, text=True, **where,
+        )
+        if created.returncode == 0:
+            return rel, None
+        if resource or EXISTS not in (created.stdout or "") + (created.stderr or ""):
+            sys.exit(
+                f"youtube_note: `page create` refused (exit {created.returncode}) — "
+                f"no page was written.\n{_said(created)}"
+            )
+        why = held_reason(held, None, rel)
+        if why:
+            return None, why
+        target = [rel]
     edited = subprocess.run(
-        [*door, "--json", "page", "edit", rel, *keys, "--stdin"],
+        [*door, "--json", "page", "edit", *target, *keys, "--stdin"],
         input=body, capture_output=True, text=True, **where,
     )
     if edited.returncode != 0:
         sys.exit(
             f"youtube_note: `page edit` refused (exit {edited.returncode}) over "
-            f"{rel} — no page was written.\n{((edited.stderr or '') + (edited.stdout or '')).strip()[-500:]}"
+            f"{rel} — no page was written.\n{_said(edited)}"
         )
-    return rel
+    return rel, None
 
 
 def yt_date(d):
@@ -630,14 +722,15 @@ STALE = (BODY_NAME, CHAPTERS_NAME, WRITTEN_NAME)
 # Keys this script never puts on the page verb's command line: `title` is its
 # own argument, `status` is the verb's default, and identity and the harvest
 # stamp are minted outside any slice.
-HOST_OWNED = ("status", "document_id", "document_revision", "harvested", "title")
+HOST_OWNED = ("status", "document_id", "document_revision", "harvested", "ops", "narrate", "title")
 
 # What `pipeline/pages.py` reads as "a stage has been here": the string, not a
 # boolean — a page still reading `false` is picked up again.
 EXTRACTED = "true"
 
-# `page create`'s one refusal that means "edit it instead". Matched on the
-# tail, which is fixed prose; the head is the path.
+# `page create`'s refusal of a title already a page: "edit it instead" for a
+# page with no `resource` to find it by. Matched on the tail, which is fixed
+# prose; the head is the path.
 EXISTS = "already exists"
 
 # Tried in order. yt-dlp writes whatever sub format it fetched (suffix is not
@@ -895,12 +988,17 @@ def main():
     (cap_dir / BODY_NAME).write_text(body, encoding="utf-8")
     if item:
         front["resource"] = item
-    written = write_page(args.wiki, args.dest, page_title(meta), front, body, ops=shlex.split(args.ops) if args.ops else None)
-    (cap_dir / WRITTEN_NAME).write_text(json.dumps([written]) + "\n", encoding="utf-8")
+    written, left = write_page(
+        args.wiki, args.dest, page_title(meta), front, body, ops=shlex.split(args.ops) if args.ops else None, slug=slug,
+        known=ticket.get("known"), held=ticket.get("held"),
+    )
+    written = [written] if written else []
+    (cap_dir / WRITTEN_NAME).write_text(json.dumps(written) + "\n", encoding="utf-8")
     print(
         json.dumps(
             {
-                "written": [written],
+                "written": written,
+                **({"left": left} if left else {}),
                 "page": f"{args.capture_dir.rstrip('/')}/{BODY_NAME}",
                 "has_transcript": bool(captions),
                 "chapters": len(safe_chapters(meta)),

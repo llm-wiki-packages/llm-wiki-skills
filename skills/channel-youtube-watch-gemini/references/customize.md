@@ -3,17 +3,19 @@
 Ask whether the default question fits this wiki. `references/question.md` is
 the prompt every video gets; a wiki that wants something else says so with
 `enrich.options.question=` on the job, or a policy overlay for every job
-(`llm-wiki-ops reference policy-overlays`).
+(`{{@brain-cli-ops}} reference policy-overlays`).
 
 ## Sandbox
 
-`stages.enrich.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:gemini/gemini.enrich`. What the stage
-reaches, and why:
+The manifest's `sandbox_ref` is
+`llm-wiki-packages/llm-wiki-skills:youtube-watch-gemini`. `skills install`
+validates that template and writes it as the unit's `sandbox.jsonc`;
+`skills enable` shows what each stage adds to its stock base and asks. What
+the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/gemini/gemini.enrich.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/youtube-watch-gemini.md
 ```
 
-`/llm-wiki:sandbox channel-youtube-watch-gemini` reviews it into a wiki
-sandbox, and `/llm-wiki:enable channel-youtube-watch-gemini` binds the stage.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`.

@@ -189,7 +189,7 @@ def test_a_hand_run_without_a_key_exits_nonzero(mod, tmp_path, monkeypatch, caps
 @pytest.fixture
 def door(tmp_path, monkeypatch):
     """A recording `llm-wiki-ops` named by `LLM_WIKI_OPS`, answering `tickets
-    open` with `door.ticket` and `credentials get` with a stored key."""
+    open` with `door.ticket`."""
     stub, log = tmp_path / "bin" / "llm-wiki-ops", tmp_path / "calls.jsonl"
     stub.parent.mkdir()
     state = tmp_path / "state.json"
@@ -198,10 +198,8 @@ def door(tmp_path, monkeypatch):
         f"state = json.load(open({str(state)!r}))\n"
         f"open({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "args = sys.argv[1:]\n"
-        "if args[1:4] == ['pipeline', 'tickets', 'open']:\n"
+        "if args[1:3] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': state['ticket']}))\n"
-        "elif args[1:3] == ['credentials', 'get']:\n"
-        "    print(json.dumps({'name': args[3], 'value': state['stored']}))\n"
         "else:\n"
         "    print('{}')\n"
     )
@@ -210,8 +208,8 @@ def door(tmp_path, monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
     class Door:
-        def set(self, ticket, stored=KEY + "\n"):
-            state.write_text(json.dumps({"ticket": ticket, "stored": stored}))
+        def set(self, ticket):
+            state.write_text(json.dumps({"ticket": ticket}))
 
         def calls(self):
             return [json.loads(line) for line in log.read_text().splitlines()]
@@ -220,33 +218,41 @@ def door(tmp_path, monkeypatch):
 
 
 def ticket(**extra):
-    return {"capture_dir": "_raw/job/leaf", "item": URL, "credential": "gem", "credential_route": None, "enrich": {"options": {}}, **extra}
+    return {"capture_dir": "_raw/job/leaf", "item": URL, "credential_mode": "route", "enrich": {"options": {}}, **extra}
 
 
-def test_a_ticketed_run_reads_the_bound_key_by_name_and_posts_ok(mod, gemini, door, tmp_path, monkeypatch):
+@pytest.fixture
+def phantom(monkeypatch):
+    """The jail of a mapped `gemini` route: the phantom rides `GEMINI_API_KEY`."""
+    monkeypatch.setenv("GEMINI_API_KEY", KEY)
+
+
+def test_a_ticketed_run_sends_the_route_phantom_and_posts_ok(mod, gemini, door, phantom, tmp_path, monkeypatch):
     door.set(ticket())
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mod, "API", gemini.base)
     assert mod.run_ticketed("abc123") == 0
     assert gemini.seen[0]["key"] == KEY
     calls = door.calls()
-    assert ["--json", "credentials", "get", "gem"] in calls
-    assert calls[-1][:6] == ["--json", "pipeline", "tickets", "update", "abc123", "stage=enrich"] and "status=ok" in calls[-1] and "produced=1" in calls[-1]
+    assert not any(c[1:3] == ["credentials", "get"] for c in calls), "a route's key is the proxy's, never read by name"
+    assert calls[-1][:5] == ["--json", "tickets", "update", "abc123", "stage=enrich"] and "status=ok" in calls[-1] and "produced=1" in calls[-1]
     assert not any(KEY in " ".join(c) for c in calls), "the key must never ride a command line"
     assert (tmp_path / "_raw/job/leaf/enrich/watch.md").read_text(encoding="utf-8") == ANSWER
 
 
-def test_a_route_phantom_rides_the_environment_and_the_payload_is_never_read(mod, gemini, door, tmp_path, monkeypatch):
-    door.set(ticket(credential_route="gemini"))
+@pytest.mark.parametrize("mode", [None, "none", "file"])
+def test_a_ticket_with_no_route_mode_sends_nothing_even_with_a_key_in_the_environment(mod, gemini, door, phantom, tmp_path, monkeypatch, mode):
+    """The mode word is the signal, never the variable's presence."""
+    door.set(ticket(credential_mode=mode))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mod, "API", gemini.base)
-    monkeypatch.setenv("GEMINI_API_KEY", "phantom-value")
+    monkeypatch.delenv("LLM_WIKI_CREDENTIAL_MODE", raising=False)
     mod.run_ticketed("abc123")
-    assert gemini.seen[0]["key"] == "phantom-value"
-    assert not any(c[1:3] == ["credentials", "get"] for c in door.calls())
+    update = door.calls()[-1]
+    assert gemini.seen == [] and "status=failed" in update and any(p.startswith("reason=no_key") for p in update)
 
 
-def test_a_ticketed_run_takes_the_item_from_capture_json_when_the_ticket_names_none(mod, gemini, door, tmp_path, monkeypatch):
+def test_a_ticketed_run_takes_the_item_from_capture_json_when_the_ticket_names_none(mod, gemini, door, phantom, tmp_path, monkeypatch):
     door.set(ticket(item=None))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mod, "API", gemini.base)
@@ -257,7 +263,7 @@ def test_a_ticketed_run_takes_the_item_from_capture_json_when_the_ticket_names_n
     assert gemini.seen[0]["body"]["input"][0]["uri"] == URL
 
 
-def test_the_ticket_options_reach_the_request(mod, gemini, door, tmp_path, monkeypatch):
+def test_the_ticket_options_reach_the_request(mod, gemini, door, phantom, tmp_path, monkeypatch):
     door.set(ticket(enrich={"options": {"question": "What is shown?", "model": "gemini-y"}}))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mod, "API", gemini.base)
@@ -274,7 +280,7 @@ def test_a_capture_dir_that_is_not_wiki_relative_is_refused_before_anything_is_w
     assert "status=failed" in door.calls()[-1] and gemini.seen == []
 
 
-def test_a_failure_is_posted_failed_with_the_key_scrubbed(mod, gemini, door, tmp_path, monkeypatch):
+def test_a_failure_is_posted_failed_with_the_key_scrubbed(mod, gemini, door, phantom, tmp_path, monkeypatch):
     door.set(ticket())
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mod, "API", gemini.base)

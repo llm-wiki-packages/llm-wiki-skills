@@ -1,0 +1,36 @@
+// parentsquare: the catalog template for the channel-parentsquare unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/parentsquare.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: sign-in, feed, calendar and notices alike.
+          "www.parentsquare.com"
+        ]
+      },
+      // The stdio server the harness starts for this stage. The cookie, the
+      // audit log and the downloads go to the slice's scratch directory.
+      "mcp": [
+        {
+          "name": "parentsquare",
+          "command": "parentsquare-mcp",
+          "args": [],
+          "env": {
+            "PS_COOKIE_FILE": "{scratch}/cookies.json",
+            "PS_AUDIT_LOG": "{scratch}/audit.log",
+            "PS_DOWNLOAD_DIR": "{scratch}/downloads",
+            "PS_NO_ELICIT": "1"
+          }
+        }
+      ]
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

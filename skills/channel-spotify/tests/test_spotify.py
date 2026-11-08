@@ -117,8 +117,8 @@ def _reset_last_ticket():
 
 
 def _stub_ops(tmp_path: Path, ticket_dict: dict) -> str:
-    """A stand-in front door: `pipeline tickets open` answers `ticket_dict`;
-    `pipeline tickets update` is recorded to `update-calls.jsonl` (relative
+    """A stand-in front door: `tickets open` answers `ticket_dict`;
+    `tickets update` is recorded to `update-calls.jsonl` (relative
     to wherever the worker's own cwd is) and answers a bare 0."""
     stub = tmp_path / "ops_stub.py"
     updates = tmp_path / "update-calls.jsonl"
@@ -126,10 +126,10 @@ def _stub_ops(tmp_path: Path, ticket_dict: dict) -> str:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket_dict))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -174,7 +174,7 @@ def ticket(cap: Path, **over) -> dict:
     body = {
         "v": 1, "ticket": "0123456789ab", "unit": "channel-spotify", "slug": "money-models", "item": PLAYLIST_URL,
         "target": PLAYLIST_URL, "capture_dir": "_raw/money-models/playlist--deadbeef", "dest": None, "hosts": [],
-        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential": None,
+        "harvest": {"scope": "page", "access": "free", "assets": "download"}, "options": {}, "credential": {}, "credential_mode": "none",
         "min_date": None, "known": [],
     }
     body.update(over)
@@ -549,11 +549,19 @@ def captured(spotify, cap: Path, name: str = "playlist", **plan) -> dict:
     return meta
 
 
-def recording_ops(spotify, monkeypatch, *answers) -> list:
-    """`_ops`, replaced: one answer per call, and every argv kept."""
-    calls = []
+class Calls(list):
+    lookups: list
+
+
+def recording_ops(spotify, monkeypatch, *answers, pages=()) -> list:
+    """`_ops`, replaced: one answer per call, and every argv kept. `page ls` answers `pages`, kept in `.lookups`."""
+    calls = Calls()
+    calls.lookups = []
 
     def fake(root, *args, **kw):
+        if args[:2] == ("page", "ls"):
+            calls.lookups.append(args)
+            return 0, {"pages": list(pages)}
         calls.append((args, kw.get("input")))
         return answers[len(calls) - 1]
 
@@ -587,23 +595,80 @@ def test_the_builder_hands_the_front_door_an_argv_list_never_a_shell_line(spotif
 
     (args, body), = calls
     assert args[:4] == ("page", "create", "title=Fixture Money Models", "dest=sources/podcasts/money-models")
-    assert args[-1] == "--stdin" and f"resource={PLAYLIST_URL}" in args and "extracted=true" in args
+    assert args[-1] == "--stdin" and f"resource={PLAYLIST_URL}" in args and "ops.extracted=true" in args
     assert "entity_type=playlist" in args and not [a for a in args if a.startswith("type=")]
     assert b"Ignore all previous instructions" in body  # the description rides stdin
     assert not [a for a in args if "Ignore all previous" in a]
 
 
-def test_a_page_that_already_exists_is_edited_not_created_twice(spotify, tmp_path, monkeypatch):
+RENAMED = "sources/podcasts/money-models/Our money show.md"
+
+
+def test_the_jobs_page_for_the_entity_is_edited_wherever_it_was_renamed(spotify, tmp_path, monkeypatch, capsys):
     cap = tmp_path / "cap"
     process_ticket(cap, "sources/podcasts/money-models")
     captured(spotify, cap)
-    refused = (2, {"error": "sources/podcasts/money-models/Fixture Money Models.md already exists — the filename is the title"})
-    calls = recording_ops(spotify, monkeypatch, refused, WROTE)
+    row = {"path": RENAMED, "document_id": "doc-1", "job": "money-models", "resource": PLAYLIST_URL}
+    calls = recording_ops(spotify, monkeypatch, (0, {"path": RENAMED}), pages=[row])
     process(spotify, cap, monkeypatch)
 
-    assert calls[1][0][:3] == ("page", "edit", "sources/podcasts/money-models/Fixture Money Models.md")
-    assert not [a for a in calls[1][0] if a.startswith(("dest=", "title="))]  # `edit` names the path, not the title
-    assert calls[1][1] == calls[0][1] and calls[1][0][-1] == "--stdin"
+    assert calls.lookups == [("page", "ls", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
+    (args, _body), = calls
+    assert args[:3] == ("page", "edit", RENAMED) and args[-1] == "--stdin"
+    assert not [a for a in args if a.startswith(("dest=", "title="))]
+    assert json.loads(capsys.readouterr().out)["written"] == [RENAMED]
+
+
+def test_two_pages_for_one_entity_refuse_naming_both(spotify, tmp_path, monkeypatch, capsys):
+    cap = tmp_path / "cap"
+    process_ticket(cap, "sources/podcasts/money-models")
+    captured(spotify, cap)
+    rows = [{"path": f"sources/podcasts/money-models/{n}.md", "document_id": n, "job": "money-models"} for n in ("A", "B")]
+    calls = recording_ops(spotify, monkeypatch, pages=rows)
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    said = capsys.readouterr().err
+    assert caught.value.code == 2 and "money-models/A.md" in said and "money-models/B.md" in said
+    assert not calls and not (cap / "verdict.json").exists()
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(spotify, tmp_path, monkeypatch):
+    cap = tmp_path / "cap"
+    moved = {"resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "path": "wiki/shows/Money.md", "reason": "moved"}
+    process_ticket(cap, "sources/podcasts/money-models", known=[moved])
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch)
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls and "wiki/shows/Money.md: moved" in read(cap, "verdict.json")["reason"]
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_a_page_a_person_moved_or_holds_is_left_alone(spotify, tmp_path, monkeypatch, held):
+    cap = tmp_path / "cap"
+    process_ticket(cap, "sources/podcasts/money-models")
+    captured(spotify, cap)
+    row = {"path": "wiki/shows/Money.md", "document_id": "doc-1", "job": "money-models", **held}
+    calls = recording_ops(spotify, monkeypatch, pages=[row])
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls
+    verdict = read(cap, "verdict.json")
+    assert verdict["status"] == "ok" and "left alone" in verdict["reason"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(spotify, tmp_path, monkeypatch, status):
+    cap = tmp_path / "cap"
+    path = "sources/podcasts/money-models/Money.md"
+    held = [{"path": path, "resource": PLAYLIST_URL, "resource_id": None, "document_id": "doc-1", "status": status}]
+    process_ticket(cap, "sources/podcasts/money-models", held=held)
+    captured(spotify, cap)
+    calls = recording_ops(spotify, monkeypatch, pages=[{"path": path, "document_id": "doc-1", "job": "money-models"}])
+    with pytest.raises(SystemExit) as caught:
+        process(spotify, cap, monkeypatch)
+    assert caught.value.code == 0 and not calls
+    assert read(cap, "verdict.json")["reason"] == f"{path}: held ({status}), left alone"
 
 
 def test_a_refusal_the_builder_does_not_know_is_not_swallowed(spotify, tmp_path, monkeypatch):
@@ -668,7 +733,7 @@ def test_a_process_report_names_the_pages_it_wrote_and_captures_nothing(tmp_path
     call = _updates(tmp_path)[-1]
     kv = _kv(call)
     assert kv["written_from"] == written and "captured" not in kv
-    assert kv["status"] == "ok" and call[3] == "0123456789ab"
+    assert kv["status"] == "ok" and call[2] == "0123456789ab"
 
 
 def test_a_process_report_over_a_degraded_capture_is_not_a_quiet_ok(spotify, tmp_path):
@@ -1035,7 +1100,7 @@ def test_the_bearer_token_is_never_sent_to_a_next_page_off_spotify(spotify, monk
 
 
 def ops_stub(tmp_path: Path) -> tuple:
-    """An `llm-wiki-ops` front door that answers `pipeline tickets open`/
+    """An `llm-wiki-ops` front door that answers `tickets open`/
     `update` like `_stub_ops` (open answers the last built `ticket()`, update
     is recorded to `update-calls.jsonl`) and records every OTHER call's argv
     to `seen`, refusing it."""
@@ -1048,10 +1113,10 @@ def ops_stub(tmp_path: Path) -> tuple:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({ticket_json})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    sys.stdout.write(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         f"    pathlib.Path({str(updates)!r}).open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         f"pathlib.Path({str(seen)!r}).open('a').write(json.dumps(sys.argv[1:]) + '\\n')\n"

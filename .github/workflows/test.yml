@@ -20,6 +20,12 @@ concurrency:
 # itself against a CLI that has not landed, and sets it back before it lands.
 env:
   PLUGINS_REF: main
+  # The interpreter the harness runs on, and so the one a jailed `run` resolves
+  # a unit script's dependencies for: the jail inherits the harness venv's
+  # VIRTUAL_ENV, and `tests/harness.py` grants the jail that interpreter.
+  # A dependency with per-version wheels (`requests` pulls charset-normalizer)
+  # is cached only for the interpreter the warm step ran on.
+  HARNESS_PYTHON: "3.14"
 
 jobs:
   harness:
@@ -54,9 +60,10 @@ jobs:
       # the secret the install tests SKIP (and say so); the script tests run
       # regardless, since a unit script is stdlib-only.
       #
-      # `LLM_WIKI_OPS` is the command the harness runs (`tests/harness.py`); a `uv run
-      # --project` against the checkout, the same shape a developer's proof
-      # run uses. `LLM_WIKI_OPS_PLUGIN` is the plugin's root: the
+      # `LLM_WIKI_OPS` is the command the harness runs (`tests/harness.py`): the
+      # checkout's own console script, by absolute path, once `uv run --project`
+      # has synced its venv. Not `uv run` per call: the harness makes hundreds of
+      # calls, and uv's resolve check is paid on each. `LLM_WIKI_OPS_PLUGIN` is the plugin's root: the
       # youtube-note cases look under it for `format_transcript.py`, at the
       # address the unit itself runs, and FAIL if it is not there.
       - name: Check out llm-wiki-plugins and resolve the ops CLI
@@ -75,34 +82,44 @@ jobs:
           # someone installs.
           git clone --quiet --depth 1 --branch "$PLUGINS_REF" https://github.com/simple10/llm-wiki-plugins "$plugins"
           project="$plugins/llm-wiki-ops/v1/plugin/packages/llm-wiki-ops-v1"
+          # A checkout's CLI resolves its machine home through the checkout's
+          # record, and refuses every verb without one. This seeds the record
+          # as the plugins' `just setup-dev` does in CI mode; a checkout record
+          # is also the only kind that honors the harness's LLM_WIKI_TEST_HOME.
+          uv run --quiet --project "$project" python -I "$plugins/scripts/checkout_home.py" "$plugins" ci
           # The machine CLI answers a version anywhere; `llm-wiki-ops` is
           # `wiki --here`, so it refuses every argv outside a wiki, `--version`
           # among them. Both are console scripts of this one project.
           uv run --project "$project" llm-wiki-cli --version
-          echo "LLM_WIKI_OPS=uv run --project $project llm-wiki-ops" >> "$GITHUB_ENV"
+          test -x "$project/.venv/bin/llm-wiki-ops"
+          echo "LLM_WIKI_OPS=$project/.venv/bin/llm-wiki-ops" >> "$GITHUB_ENV"
           echo "LLM_WIKI_OPS_PLUGIN=$plugins/llm-wiki-ops/v1/plugin" >> "$GITHUB_ENV"
       # Some cases run a unit script the way production does — `uv run --script`, OFFLINE, so a
       # test can never reach a venue — and skip, saying so, when its PEP 723 dependencies are
       # not in uv's cache. A fresh runner's cache is empty: resolve them once here, online, so
       # those cases RUN in CI rather than skip. `-h` imports nothing heavy and touches no venue.
+      # On HARNESS_PYTHON, not uv's default pick: the plugins step left a newer managed Python.
       - name: Warm the unit scripts' dependencies
         run: |
           for script in skills/*/scripts/*.py; do
             grep -q '^# /// script' "$script" || continue
-            uv run --quiet --script "$script" -h > /dev/null 2>&1 || echo "::warning::could not warm $script"
+            uv run --quiet --python "$HARNESS_PYTHON" --script "$script" -h > /dev/null 2>&1 || echo "::warning::could not warm $script"
           done
       # `skills enable` refuses a skill whose `requires.bins` are not on PATH
       # and installs nothing itself, so the runner supplies what the manifests
       # declare. `uv tool` puts the binary where setup-uv already put PATH;
       # brew is on the runner but not on PATH, so only `ntn`'s own directory
       # joins it. No test runs `ntn`: `skills enable` resolves it and reads
-      # its version. `nono` is the sandbox runtime the runner composes a
-      # stage's jail with: without it every staged harness case skips, saying so.
+      # its version. `parentsquare-mcp` is installed for the same reason, and
+      # the harness's stand-in leads PATH, so no case starts the real server.
+      # `nono` is the sandbox runtime the runner composes a stage's jail with:
+      # without it every staged harness case skips, saying so.
       - name: Install the binaries the manifests declare
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           uv tool install yt-dlp
+          uv tool install parentsquare-mcp==0.4.0
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install notion-cli nono
           dirname "$(readlink -f "$(brew --prefix)/bin/ntn")" >> "$GITHUB_PATH"
@@ -112,4 +129,4 @@ jobs:
       # `-rs`: every skip prints its reason, so a harness that skipped its
       # install tier is visible in the log, never a quiet green.
       - name: Run the harness
-        run: uv run --with pytest --with pytest-xdist --python 3.14 pytest -q -rs -n auto
+        run: uv run --with pytest --with pytest-xdist --python "$HARNESS_PYTHON" pytest -q -rs -n auto

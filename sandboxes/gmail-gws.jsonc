@@ -1,0 +1,25 @@
+// gmail-gws: the catalog template for the channel-gmail-gws unit. `skills
+// install` validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/gmail-gws.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: the Gmail API.
+          "gmail.googleapis.com",
+          // gws's token refresh.
+          "oauth2.googleapis.com",
+          // gws's discovery document, when its cache is cold.
+          "www.googleapis.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

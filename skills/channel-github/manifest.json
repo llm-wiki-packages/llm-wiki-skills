@@ -1,0 +1,76 @@
+{
+  "argument_hint": "<setup|rank|pending|retag> [words] | ticket=<id> stage=process",
+  "description": "Keeps one categorized page per GitHub repository, fed by watched stars, organizations, users, repositories or searches. Its routine keeps the list pages current. By hand it ranks those repositories against a question, lists clips with no GitHub facts and retags pages.",
+  "keywords": [
+    "repo",
+    "repos",
+    "repository",
+    "stars",
+    "starred",
+    "projects",
+    "opensource",
+    "readme",
+    "rank",
+    "category",
+    "categories",
+    "taxonomy",
+    "clipper",
+    "host:github.com",
+    "host:api.github.com"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
+  "name": "channel-github",
+  "requires": {
+    "credentials": {
+      "routes": {
+        "github": "optional"
+      }
+    },
+    "ops": ">=0.10.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github",
+  "stages": {
+    "harvest": {
+      "script": "scripts/harvest.py"
+    },
+    "process": {},
+    "routine": {
+      "script": "scripts/lists.py"
+    }
+  },
+  "usage": "/channel-github <setup|rank|pending|retag> [words]; a job's stages run by ticket",
+  "v": 1,
+  "version": "0.1.0",
+  "watch": {
+    "defaults": {
+      "every": "1d"
+    },
+    "dest": "sources/github",
+    "inputs": {
+      "select": {
+        "prompt": "What does this watch pull? Comma-separated: stars:<login>, org:<org>, user:<login>, repo:<owner>/<name>, search:<github search query> (required on a harvest job; a routines job leaves it blank)",
+        "required": false
+      },
+      "max_captures": {
+        "default": "150",
+        "prompt": "Most repos captured per run (the rest wait for the next run)"
+      },
+      "jump_abs": {
+        "default": "500",
+        "prompt": "Stars gained since the last capture that re-capture a held repo"
+      },
+      "jump_pct": {
+        "default": "25",
+        "prompt": "...or this percent gain (and at least 50 stars)"
+      },
+      "refresh_days": {
+        "default": "90",
+        "prompt": "Re-capture a pushed repo whose capture is older than this many days"
+      }
+    },
+    "note": "Two kinds of job. A harvest job per set of selectors (stars:<login>, org:<org>, ...): every one shares ONE dest, sources/github, so a repo is one page however many watches or clips name it; its target is a bare name (github-stars). One routines job regenerates the list pages: `jobs add github-lists routines=channel-github dest=research/github/github-lists`. Keyless harvest runs at 60 API calls an hour; a token raises it (references/enable.md)."
+  }
+}

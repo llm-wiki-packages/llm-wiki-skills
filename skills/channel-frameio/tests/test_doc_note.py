@@ -65,12 +65,12 @@ def _capture(root: Path, ext="pdf", *, title="Deck One - Big Share", capture=Non
     return cap
 
 
-def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))", *, ticket=None):
+def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))", *, ticket=None, pages=()):
     """A recording `llm-wiki-ops` first on PATH. Every call appends its argv,
     cwd, stdin (a `page` call's alone — `tickets open`/`update` pass none) and
     the binding it inherited to `seen.jsonl`. `tickets open` answers `ticket`
     (default: a bare ticket with no `process` section); `tickets update`
-    answers a bare 0; `body` runs for everything else (`page create`/`edit`)."""
+    answers a bare 0; `page ls` answers `pages`; `body` runs for everything else (`page create`/`edit`)."""
     bin_dir = root.parent / "stub-bin"
     bin_dir.mkdir(exist_ok=True)
     seen = root.parent / "seen.jsonl"
@@ -84,10 +84,13 @@ def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))",
         f"open({str(seen)!r}, 'a').write(json.dumps({{'argv': sys.argv[1:], 'cwd': os.getcwd(),\n"
         "    'stdin': stdin,\n"
         "    'inherited': sorted(k for k in ('CLAUDE_PROJECT_DIR',) if k in os.environ)}) + '\\n')\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         f"    print(json.dumps({{'ticket': {ticket_json}}}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
+        "    sys.exit(0)\n"
+        "if argv[:2] == ['page', 'ls']:\n"
+        f"    print(json.dumps({{'pages': json.loads({json.dumps(list(pages))!r})}}))\n"
         "    sys.exit(0)\n"
         f"{body}\n"
     )
@@ -102,11 +105,16 @@ def _calls(seen: Path) -> list:
 
 
 def _page_calls(seen: Path) -> list:
-    return [c for c in _calls(seen) if c["argv"][1:2] == ["page"]]
+    """The page writes; `_lookups` is the `page ls` before them."""
+    return [c for c in _calls(seen) if c["argv"][1:2] == ["page"] and c["argv"][2:3] != ["ls"]]
+
+
+def _lookups(seen: Path) -> list:
+    return [c for c in _calls(seen) if c["argv"][1:3] == ["page", "ls"]]
 
 
 def _update_calls(seen: Path) -> list:
-    return [c for c in _calls(seen) if c["argv"][1:4] == ["pipeline", "tickets", "update"]]
+    return [c for c in _calls(seen) if c["argv"][1:3] == ["tickets", "update"]]
 
 
 def _kv(argv: list) -> dict:
@@ -144,7 +152,7 @@ def test_the_page_is_written_by_the_front_door_from_the_wiki_root(tmp_path, monk
     (call,) = _page_calls(seen)
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
     assert f"dest={DEST}" in call["argv"] and f"resource={URL}" in call["argv"]
-    assert "extracted=true" in call["argv"], "the string, not a boolean: `pages.py` reads `true`"
+    assert "ops.extracted=true" in call["argv"], "the string, not a boolean: `pages.py` reads `true`"
     assert call["argv"][-1] == "--stdin" and call["stdin"].startswith("# Deck One - Big Share\n")
     assert Path(call["cwd"]) == root.resolve() and call["inherited"] == []
     assert json.loads(capsys.readouterr().out)["written"] == [PAGE]
@@ -161,33 +169,88 @@ def test_the_update_is_posted_last_and_names_the_page_in_written_from(tmp_path, 
     capsys.readouterr()
 
     call = _update_calls(seen)[-1]
-    assert call["argv"][4] == TICKET and "stage=process" in call["argv"] and "status=ok" in call["argv"]
+    assert call["argv"][3] == TICKET and "stage=process" in call["argv"] and "status=ok" in call["argv"]
     kv = _kv(call["argv"])
     assert "written_from" in kv and "captured" not in kv and "missing" not in kv
     written = json.loads((root / CAP_REL / kv["written_from"]).read_text(encoding="utf-8"))
     assert written == [PAGE]
 
 
-def test_an_existing_page_is_edited_not_refused(tmp_path, monkeypatch, capsys):
-    """`page create` refuses an existing title (exit 2, `already exists — the
-    filename is the title`). This job pulled the asset before: replace it."""
+def test_the_jobs_page_for_the_leaf_is_edited_wherever_it_was_renamed(tmp_path, monkeypatch, capsys):
     root = tmp_path / "wiki"
     _capture(root)
-    seen = _front_door(
-        root, monkeypatch,
-        "sys.exit(0) if argv[1] == 'edit' else "
-        f"sys.exit({PAGE + ' already exists — the filename is the title'!r})",
-    )
+    renamed = f"{DEST}/Our deck.md"
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io"},
+                       pages=[{"path": renamed, "document_id": "doc-1", "job": "next-frame-io", "resource": URL}])
     assert _run(monkeypatch, root) == 0
-    capsys.readouterr()
+    assert json.loads(capsys.readouterr().out)["written"] == [renamed]
 
-    create, edit = _page_calls(seen)
-    assert create["argv"][2] == "create"
-    assert edit["argv"][:4] == ["--json", "page", "edit", PAGE]
+    (lookup,) = _lookups(seen)
+    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={URL}"]
+    (edit,) = _page_calls(seen)
+    assert edit["argv"][:4] == ["--json", "page", "edit", renamed]
     assert f"resource={URL}" in edit["argv"] and edit["argv"][-1] == "--stdin"
-    assert edit["stdin"] == create["stdin"]
+    assert not [a for a in edit["argv"] if a.startswith("title=")]
+    assert json.loads((root / CAP_REL / "written.json").read_text()) == [renamed]
+
+
+def test_two_pages_for_one_leaf_abort_naming_both(tmp_path, monkeypatch):
+    root = tmp_path / "wiki"
+    _capture(root)
+    rows = [{"path": f"{DEST}/{n}.md", "document_id": n, "job": "next-frame-io", "resource": URL} for n in ("A", "B")]
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io"}, pages=rows)
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, root)
+    assert f"{DEST}/A.md" in str(exc.value) and f"{DEST}/B.md" in str(exc.value)
+    assert not _page_calls(seen) and not _update_calls(seen)
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_a_page_a_person_moved_or_holds_is_left_alone(tmp_path, monkeypatch, capsys, held):
+    root = tmp_path / "wiki"
+    _capture(root)
+    row = {"path": "wiki/decks/Deck.md", "document_id": "doc-1", "job": "next-frame-io", "resource": URL, **held}
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io"}, pages=[row])
+    assert _run(monkeypatch, root) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["written"] == [] and "left alone" in out["left"]
+    assert not _page_calls(seen)
     _, kv = _read(root, seen)
-    assert kv["status"] == "ok"
+    assert kv["status"] == "ok" and "left alone" in kv["reason"]
+
+
+def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "wiki"
+    _capture(root)
+    moved = {"resource": URL, "document_id": "doc-1", "path": "wiki/decks/Deck.md", "reason": "moved"}
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io", "known": [moved]})
+    assert _run(monkeypatch, root) == 0
+    assert "wiki/decks/Deck.md: moved" in json.loads(capsys.readouterr().out)["left"] and not _page_calls(seen)
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_page_the_tickets_held_names_is_left_alone_saying_why(tmp_path, monkeypatch, capsys, status):
+    root = tmp_path / "wiki"
+    _capture(root)
+    row = {"path": f"{DEST}/Deck.md", "document_id": "doc-1", "job": "next-frame-io", "resource": URL}
+    held = [{**row, "status": status}]  # the stub embeds this as Python: no `resource_id: null`
+    seen = _front_door(root, monkeypatch, ticket={"slug": "next-frame-io", "held": held}, pages=[row])
+    assert _run(monkeypatch, root) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["written"] == [] and out["left"] == f"{DEST}/Deck.md: held ({status}), left alone"
+    assert not _page_calls(seen)
+    _, kv = _read(root, seen)
+    assert kv["status"] == "ok" and f"held ({status})" in kv["reason"]
+
+
+def test_a_page_at_the_title_that_is_not_the_leafs_is_never_written_over(tmp_path, monkeypatch):
+    root = tmp_path / "wiki"
+    _capture(root)
+    seen = _front_door(root, monkeypatch, f"sys.exit({PAGE + ' already exists — the filename is the title'!r})")
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, root)
+    assert "already exists" in str(exc.value)
+    assert [c["argv"][2] for c in _page_calls(seen)] == ["create"] and not _update_calls(seen)
 
 
 @pytest.mark.parametrize("verb", ["create", "edit"])
@@ -196,12 +259,9 @@ def test_a_refusal_aborts_before_anything_is_posted(tmp_path, monkeypatch, verb)
     own words come out, and nothing is posted."""
     root = tmp_path / "wiki"
     _capture(root)
-    exists = f"{PAGE} already exists — the filename is the title"
-    body = (
-        "sys.exit('dest is outside the content trees')" if verb == "create" else
-        f"sys.exit('the note format refuses that') if argv[1] == 'edit' else sys.exit({exists!r})"
-    )
-    seen = _front_door(root, monkeypatch, body)
+    body = "sys.exit('dest is outside the content trees')" if verb == "create" else "sys.exit('the note format refuses that')"
+    pages = [] if verb == "create" else [{"path": PAGE, "document_id": "doc-1", "job": "next-frame-io", "resource": URL}]
+    seen = _front_door(root, monkeypatch, body, ticket={"slug": "next-frame-io"}, pages=pages)
     with pytest.raises(SystemExit) as excinfo:
         _run(monkeypatch, root)
     assert f"`page {verb}` refused" in str(excinfo.value) and "no page was written" in str(excinfo.value)
@@ -224,7 +284,7 @@ def test_a_missing_front_door_says_so_and_posts_nothing(tmp_path, monkeypatch):
 
 
 def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypatch, capsys):
-    """An EMPTY body, `extracted=queued` and the media it waits on,
+    """An EMPTY body, `ops.extracted=queued` and the media it waits on,
     wiki-relative: `pipeline/media.py::queued_under` asks for exactly those
     two. A page ABOUT the video would be a finished page, and the recording
     would never be transcribed behind it."""
@@ -236,8 +296,8 @@ def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypat
 
     (call,) = _page_calls(seen)
     assert call["argv"][:4] == ["--json", "page", "create", "title=Deck One - Big Share"]
-    assert "extracted=queued" in call["argv"], "the string `queued`, which is what the walker matches"
-    assert f"media={CAP_REL}/video.mp4" in call["argv"], "wiki-relative: the queue is committed and read on any box"
+    assert "ops.extracted=queued" in call["argv"], "the string `queued`, which is what the walker matches"
+    assert f"ops.media={CAP_REL}/video.mp4" in call["argv"], "wiki-relative: the queue is committed and read on any box"
     assert f"resource={URL}" in call["argv"] and call["argv"][-1] == "--stdin"
     assert call["stdin"] == "", "the transcriber fills the body; a page about the video would never be filled"
     assert not (root / CAP_REL / "page.md").exists(), "there is no body to keep beside the capture"
@@ -250,7 +310,7 @@ def test_a_video_leaf_gets_the_transcribe_stages_queued_stub(tmp_path, monkeypat
 
 
 def test_a_video_stub_never_carries_the_flag_that_means_finished(tmp_path, monkeypatch, capsys):
-    """`extracted=true` on a stub is a page no stage comes back to, and the
+    """`ops.extracted=true` on a stub is a page no stage comes back to, and the
     recording is stranded with nothing saying so."""
     root = tmp_path / "wiki"
     _capture(root, capture={"body": "video.mp4", "content_type": "video/mp4"})
@@ -259,7 +319,7 @@ def test_a_video_stub_never_carries_the_flag_that_means_finished(tmp_path, monke
     assert _run(monkeypatch, root) == 0
     capsys.readouterr()
     (call,) = _page_calls(seen)
-    assert "extracted=true" not in call["argv"], call["argv"]
+    assert "ops.extracted=true" not in call["argv"], call["argv"]
 
 
 def test_skip_posts_ok_with_the_reason_and_no_page(tmp_path, monkeypatch, capsys):

@@ -1,6 +1,6 @@
 ---
 name: channel-youtube
-description: YouTube capture and note building for this wiki — yt-dlp ground truth, deterministic notes.
+description: Use when a pipeline ticket invokes it (`ticket=<id>`) for the wiki's YouTube process stage. Never from conversation — to follow a channel, use /{{@brain-plugin}}:add.
 argument-hint: "ticket=<id>"
 ---
 
@@ -20,7 +20,7 @@ it is a directive.
 ## Stages
 
 ```sh
-llm-wiki-ops --json pipeline tickets open <id>
+{{@brain-cli-ops}} --json tickets open <id>
 ```
 
 The answer's own `stage` is the step. Harvest is a script stage the runner
@@ -28,19 +28,19 @@ starts with no session; the session's step is `process`, and the sections
 below describe both. Its `capture_dir`, `item`, `known[]`,
 `hosts`, `dest`, `harvest`/`process`, `options` are what the rest of this
 file calls "the ticket". The worker loop and the report every worker leaves:
-`llm-wiki-ops reference pipeline-ticket`.
+`{{@brain-cli-ops}} reference pipeline-ticket`.
 A session's step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-llm-wiki-ops policy get <stage> channel-youtube
+{{@brain-cli-ops}} policy get <stage> channel-youtube
 ```
 
 ### harvest
 
 A script stage, with no model session and no policy read: the runner starts
 it in the stage's jail as
-`llm-wiki-ops run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
+`{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
 and `scripts/capture_video.py` is the whole worker. It reads the ticket (`item`, `capture_dir`,
 `known[]`, `refresh`), clears what an earlier run left in the capture
 directory (`enrich/` too: it was made from the old bytes), runs both `yt-dlp` commands (Capture, below) with the item as one
@@ -84,24 +84,25 @@ naming the rule.
 **3. Build the page.**
 
 ```
-llm-wiki-ops run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
 ```
 
-It writes the body as `page.md` beside the bytes, then the page under `dest`
-through `page create` (or `page edit` for a title `dest` already holds), and
-leaves the paths in `written.json`. One JSON line out — `written`, `page`,
-`has_transcript`, `chapters`, `description`, `watch_notes`. A non-zero exit
-means NOTHING landed: post `failed` with its last stderr line. The page's shape
-is `references/note-shape.md`, which also says how an enrich unit's
-`enrich/watch.md` becomes the page's "Watch notes"; with none, the page is
-harvest's alone.
+It writes the body as `page.md` beside the bytes, then the page under `dest`:
+`page edit` of the job's page for the video (`page ls resource=`), wherever
+a person renamed it, else `page create`. It leaves the paths in `written.json`.
+One JSON line out — `written`, `page`, `has_transcript`, `chapters`,
+`description`, `watch_notes`, and `left` where a page a person moved or holds, or the ticket's
+`held[]` names, was left alone
+(`written` empty: post `ok` with `reason=left_alone`). A non-zero exit means
+NOTHING landed: post `failed` with its last stderr line. The page's shape is
+`{{@brain-cli-ops}} reference channel-youtube/note-shape`, enrich's Watch notes too.
 
 **4. Post progress — last.**
 
 ```
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
-llm-wiki-ops --json pipeline tickets update <id> stage=process status=ok reason="<which rule said so>"
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok written_from=written.json
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok reason=no_captions written_from=written.json
+{{@brain-cli-ops}} --json tickets update <id> stage=process status=ok reason="<which rule said so>"
 ```
 
 **Never type the page path yourself.** Its filename is the video's TITLE, and a
@@ -131,8 +132,9 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Access / paywall
 
-- No paywall concept for standard public videos. Age/region-gated and
-  members-only are unverified — nothing harvested so far has hit an auth wall.
+- No paywall concept for standard public videos. Age-restricted, private and
+  members-only videos are the credential's job (Auth, below); the cookie path
+  is tested against stand-ins, not yet against a live wall.
 
 ### Content extraction
 
@@ -146,8 +148,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   facts list, the description as a blockquote (URLs linkified, the creator's own
   TIMESTAMPS turned into a list, hashtag pile removed), and the transcript as
   chapter-headed timestamped sections.
-- **No summary of its own.** An unfilled placeholder is worse than no section;
-  a summary exists only where an enrich unit wrote one.
+- **No summary**, but an enrich unit's Watch notes. An unfilled placeholder is worse than no section.
 
 ### Media
 
@@ -171,8 +172,28 @@ the outcome, and exit; adopting it and stamping the job are the host's.
 
 ### Auth
 
-- No auth wall on public videos. Age-gated, region-locked and private ones will
-  likely need `--cookies-from-browser` or a storage state — untested.
+- Cookies only: yt-dlp has no OAuth or password route to YouTube. Public videos
+  need none; private, age-restricted and members-only ones need a signed-in
+  session.
+- `requires.credentials.dir` is `"optional"`. Bound to a `dir` credential with
+  `login: browser` (`{{@brain-cli-ops}} reference channel-youtube/enable`), the ticket carries
+  `credential_dir`; the harvest script exports a Netscape `cookies.txt` into
+  that directory once (`scripts/export_cookies.py`, on the unit env
+  `skills enable` built, which has Playwright) and passes `--cookies` to both
+  yt-dlp calls. Unbound, the argv is unchanged.
+- The jar is the live session once yt-dlp has written rotated cookies back
+  into it, so no failure deletes it. A harvest that fails `auth` usually
+  means the session is dead: run `{{@brain-cli-ops}} credentials login <name>`
+  again, and the next harvest sees the profile's cookie DB newer than the
+  jar and re-exports. A members-only or private video the account itself
+  cannot see is also `auth`, and no login fixes that. YouTube's "confirm you're not a bot" wall is throttling, not
+  an auth wall; with a jar present it is reported `error`, and a login does
+  not help.
+- A `credential_store_error` reason is the export itself failing. Its text
+  says which: `not logged in to youtube.com` means the profile has no YouTube
+  session yet, so run `credentials login`; a dir that cannot be read is the
+  binding's problem, and a missing Playwright is the env's (`skills enable
+  channel-youtube` builds it); no login fixes either. The sandbox reference owns the why (rotation, throwaway account).
 
 ## Quirks log
 

@@ -1,14 +1,27 @@
 {
+  "argument_hint": "[date|focus|setup] [ticket=<id> stage=routine]",
+  "description": "Writes the day's report from the wiki's profile: what needs attention today and what changed across the wiki, with a few promotions into the wiki itself. Runs on a schedule or by hand, and by hand can redesign the report.",
   "keywords": [
     "brief",
     "dashboard",
-    "morning"
+    "morning",
+    "daily",
+    "report",
+    "attention"
   ],
-  "kind": "tool",
+  "mode": [
+    "pipeline",
+    "session"
+  ],
   "name": "daily-report",
   "requires": {
-    "credential": false,
-    "ops": ">=0.1.0"
+    "ops": ">=0.10.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report",
+  "stages": {
+    "routine": {
+      "model": "frontier"
+    }
   },
   "usage": "/daily-report [date|focus|setup]",
   "v": 1,

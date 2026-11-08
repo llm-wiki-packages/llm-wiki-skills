@@ -1,0 +1,88 @@
+{
+  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>",
+  "description": "Downloads Blackboard Learn courses through a signed-in browser session and turns each into pages: content items with due dates and grades, pdf, slide and Word text, video transcripts, announcements, discussions and a course overview. Runs as a scheduled job or by hand.",
+  "keywords": [
+    "announcements",
+    "assignments",
+    "blackboard",
+    "course",
+    "courses",
+    "discussions",
+    "deadlines",
+    "gradebook",
+    "grades",
+    "host:*.blackboard.com",
+    "host:blackboard.com",
+    "learn",
+    "lms",
+    "pdf",
+    "syllabus",
+    "transcript",
+    "video"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
+  "name": "channel-blackboard",
+  "requires": {
+    "credentials": {
+      "dir": "required"
+    },
+    "ops": ">=0.15.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
+  "stages": {
+    "harvest": {
+      "script": "scripts/harvest.py"
+    },
+    "process": {
+      "script": "scripts/process.py"
+    }
+  },
+  "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
+  "v": 1,
+  "version": "0.3.0",
+  "watch": {
+    "dest": "sources/courses/{slug}",
+    "defaults": {
+      "every": "1d",
+      "transcribe": {
+        "options": {
+          "when": "if-no-captions",
+          "diarize": false
+        }
+      },
+      "options": {
+        "layout": "modules",
+        "prefix": "position",
+        "backfill": "changed",
+        "announcements_dir": "announcements",
+        "discussions_dir": "discussions"
+      }
+    },
+    "inputs": {
+      "timezone": {
+        "prompt": "The time zone due dates read in, an IANA name (America/Chicago); blank keeps UTC",
+        "required": false
+      },
+      "layout": {
+        "prompt": "How the course's pages are laid out: modules (a numbered folder per module, in course order) or flat (one folder, module-ordered names)",
+        "default": "modules"
+      },
+      "files": {
+        "prompt": "Fetch attachments, pdfs and videos (download), or only the course's own text (skip)",
+        "default": "download"
+      },
+      "discussions": {
+        "prompt": "Pull discussion boards (include), whose pages carry classmates' names and posts into the committed wiki, or none (skip)",
+        "default": "include"
+      },
+      "current": {
+        "prompt": "Is this a course you're taking now? true, or false for a past course; it is written once onto the course's root page (README.md), where a later edit stands",
+        "default": "true"
+      }
+    },
+    "note": "One job per course. The target is the course's url as the browser shows it (https://<host>/ultra/courses/_123_1/outline); its host is the site. Bind the signed-in browser credential to the job: `credentials bind job <slug> dir=<credential>`. A course video with no captions waits on this machine's transcribe engine. Pages go in a folder per top-level module with outline-ordered names (`options.layout=modules`, the default a new job takes; `flat` keeps one folder): `reference channel-blackboard/references/layout.md`."
+  }
+}

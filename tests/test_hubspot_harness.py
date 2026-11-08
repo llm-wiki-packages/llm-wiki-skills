@@ -26,8 +26,8 @@ LEAVES = "ops/skills/channel-hubspot-video/scripts/leaves.py"
 
 
 def _needs_retry_verb(ops, env, wiki):
-    if run(ops, rooted(env, wiki), "pipeline", "tickets", "retry", "--help").returncode != 0:
-        pytest.skip("`pipeline tickets retry` is plugins PR 2 (#2486)")
+    if run(ops, rooted(env, wiki), "tickets", "retry", "--help").returncode != 0:
+        pytest.skip("the ops CLI at hand mounts no `tickets retry`")
 
 
 def test_a_cadence_change_and_a_retry_refusal_are_real(ops, env, wiki):
@@ -38,11 +38,11 @@ def test_a_cadence_change_and_a_retry_refusal_are_real(ops, env, wiki):
     job = declared_job(ops, env, wiki, UNIT, "https://www.example-hubspot.invalid/continue", slug="port-channel-hubspot-continue")
     assert job.record["every"] == "once"
     for cadence in ("1h", "once"):
-        done = run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "edit", job.slug, f"every={cadence}")
+        done = run(ops, rooted(env, wiki), "--json", "jobs", "edit", job.slug, f"every={cadence}")
         assert done.returncode == 0, done.stdout + done.stderr
-        assert run(ops, rooted(env, wiki), "--json", "pipeline", "jobs", "show", job.slug).data["job"]["every"] == cadence
+        assert run(ops, rooted(env, wiki), "--json", "jobs", "show", job.slug).data["job"]["every"] == cadence
     _needs_retry_verb(ops, env, wiki)
-    refused = run(ops, rooted(env, wiki), "--json", "pipeline", "tickets", "retry", "0123456789ab")
+    refused = run(ops, rooted(env, wiki), "--json", "tickets", "retry", "0123456789ab")
     assert refused.returncode != 0 and "no ticket" in refused.stdout + refused.stderr  # never minted, never active
 
 
@@ -58,7 +58,7 @@ def test_a_title_with_an_apostrophe_survives_the_documented_shell_line(ops, env,
             "printf '%s' 'body' | "
             + shlex.join([*ops, "--json", "page", "create"])
             + f" 'title={title}' 'dest={dest}' 'resource=https://example.invalid/x'"
-            + f" 'extracted=true' 'type=video' --stdin"
+            + f" 'ops.extracted=true' 'type=video' --stdin"
         )
         done = subprocess.run(["/bin/sh", "-c", line], env=rooted(env, wiki), capture_output=True, text=True, check=False)
         assert done.returncode == 0, line + "\n" + done.stdout + done.stderr
@@ -111,7 +111,7 @@ step report "$OPS" run {LEAVES} report "$CAP" --ticket "$TICKET"
     # site's own selectors, then the REAL `page create` through the front door.
     expected = f"{job.dest}/Pricing the offer.md"
     create = (f"""cat "$CAP/page.md" | "$OPS" --json page create 'title=Pricing the offer' 'dest={job.dest}' """
-              f"""'resource={lesson}' 'extracted=true' 'type=video' 'venue=hubspot-cms' --stdin""")
+              f"""'resource={lesson}' 'ops.extracted=true' 'type=video' 'venue=hubspot-cms' --stdin""")
     session = staged(ops, env, wiki, process_id, f"""\
 step md "$OPS" run ops/skills/channel-hubspot-video/scripts/to_markdown.py "$CAP/page.html" --selector main#main-content \
     --drop-selector "main#main-content h1" --title-selector "main#main-content h2" --base-url {shlex.quote(lesson)}

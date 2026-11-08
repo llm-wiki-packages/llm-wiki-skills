@@ -17,7 +17,7 @@ import json
 import re
 import shutil
 
-from harness import YT_FIXTURES, bound_credential, claimed, declared_job, enabled, pending, shown, staged, unit_tests
+from harness import YT_FIXTURES, claimed, declared_job, enabled, local_vault, mapped_route, pending, shown, staged, unit_tests, unmapped_route
 
 YT = unit_tests("channel-youtube", "test_youtube")
 
@@ -36,15 +36,13 @@ def _held(item: str) -> None:
     shutil.copy(YT["FIXTURES"] / "dQw4fixture.en.vtt", video / f"{meta['id']}.en.vtt")
 
 
-def _harvested(ops, env, wiki, unit, target, slug, *extra, credential=None):
+def _harvested(ops, env, wiki, unit, target, slug, *extra):
     """A `channel-youtube` job that names `unit` as its enrich unit, harvested
     by the runner; returns the job, the capture dir and the enrich ticket the
     harvest's landing minted."""
     _held(target)
     enabled(ops, env, wiki, unit)
     job = declared_job(ops, env, wiki, YT["UNIT"], target, f"enrich.skill={unit}", *extra, slug=slug)
-    if credential:
-        bound_credential(ops, env, wiki, slug, credential)
     ticket_id, cap = claimed(ops, env, wiki, job)
     session = staged(ops, env, wiki, ticket_id, "")
     landed = shown(ops, env, wiki, ticket_id)
@@ -54,12 +52,18 @@ def _harvested(ops, env, wiki, unit, target, slug, *extra, credential=None):
 
 
 def test_the_harvest_landing_mints_the_gemini_enrich_ticket_with_the_jobs_options(ops, env, wiki):
-    job, _cap, enrich_id = _harvested(
-        ops, env, wiki, GEMINI_UNIT, "https://www.youtube.com/watch?v=gemAAAAAAAA", "harness-yt-gemini",
-        "enrich.options.question=What is shown on screen?", "enrich.options.model=gemini-harness",
-        credential="gemini-key",
-    )
-    ticket = shown(ops, env, wiki, enrich_id)
+    """The `gemini` route mapped the way the unit's references/enable.md says."""
+    enabled(ops, env, wiki, GEMINI_UNIT)
+    with local_vault(ops, env):
+        try:
+            mapped_route(ops, env, wiki, GEMINI_UNIT, "gemini", "generativelanguage.googleapis.com")
+            _job, _cap, enrich_id = _harvested(
+                ops, env, wiki, GEMINI_UNIT, "https://www.youtube.com/watch?v=gemAAAAAAAA", "harness-yt-gemini",
+                "enrich.options.question=What is shown on screen?", "enrich.options.model=gemini-harness",
+            )
+            ticket = shown(ops, env, wiki, enrich_id)
+        finally:
+            unmapped_route(ops, env, wiki, GEMINI_UNIT, "gemini")
     assert ticket["queue"] == "enrich" and ticket["unit"] == GEMINI_UNIT
 
 
@@ -73,7 +77,7 @@ def test_the_local_unit_carries_a_capture_through_enrich_to_a_page_with_watch_no
 printf -- '- [00:07] A test pattern counts up.\\n' > "$CAP/enrich-notes.tmp"
 mkdir -p "$CAP/enrich" && mv "$CAP/enrich-notes.tmp" "$CAP/enrich/watch.md"
 step seal "$OPS" run {FRAMES} seal --capture-dir "$CAP"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=enrich status=ok produced=1
+step update "$OPS" --json tickets update "$TICKET" stage=enrich status=ok produced=1
 """)
     for name in ("seal", "update"):
         done = session.step(name)
@@ -84,7 +88,7 @@ step update "$OPS" --json pipeline tickets update "$TICKET" stage=enrich status=
     session = staged(ops, env, wiki, process_id, f"""\
 rm -f "$CAP/page.md" "$CAP/written.json"
 step note "$OPS" run {NOTE} . --capture-dir "$CAP" --dest {job.dest} --ticket "$TICKET"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=process status=ok written_from=written.json
 """)
     for name in ("note", "update"):
         done = session.step(name)

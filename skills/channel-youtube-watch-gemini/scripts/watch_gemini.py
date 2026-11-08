@@ -10,7 +10,9 @@ The pass starts the first form: the script reads its ticket through `tickets
 open`, writes `enrich/watch.md` and `enrich/watch.json` in the ticket's
 capture directory, and posts `tickets update` itself. The second is a hand
 run with no ticket: the key comes from `GEMINI_API_KEY`, nothing is posted,
-and the outcome is printed as JSON.
+and the outcome is printed as JSON. On a ticketed run `GEMINI_API_KEY` holds
+the `gemini` route's phantom (`credential_mode: route`), and the proxy puts
+the real key on the request.
 
 The YouTube url goes to Google as a url; nothing is downloaded and nothing is
 uploaded, so a video that is not a public YouTube one is refused before any
@@ -228,7 +230,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -259,7 +261,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
@@ -278,28 +280,16 @@ def post_update(
     return cp.returncode
 
 
-def stored_key(name: str) -> str | None:
-    """The credential's payload through the front door; None where it is absent."""
-    door = front_door()
-    if not door:
-        sys.exit(f"watch_gemini: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reads its key")
-    cp = subprocess.run([*door, "--json", "credentials", "get", name], capture_output=True, text=True)
-    if cp.returncode != 0:
-        return None
-    try:
-        value = json.loads(cp.stdout).get("value")
-    except (ValueError, AttributeError):
-        return None
-    return value.strip() if isinstance(value, str) and value.strip() else None
-
-
 def key_for(ticket: dict | None) -> str | None:
-    """A route's phantom rides `GEMINI_API_KEY` and the proxy swaps in the real
-    value; with no route the binding's payload is read by name. The value never
-    touches a command line."""
-    named = ticket.get("credential") if ticket else None
-    if ticket and not ticket.get("credential_route") and named:
-        return stored_key(named)
+    """The `gemini` route's phantom: on `credential_mode: route` the jail holds
+    it in `GEMINI_API_KEY` and the proxy puts the real key on requests to the
+    API host alone. The mode word is the signal, never the variable's presence.
+    A hand run (no ticket) reads `GEMINI_API_KEY` as it finds it. The value
+    never touches a command line."""
+    if ticket is not None:
+        mode = ticket.get("credential_mode") or os.environ.get("LLM_WIKI_CREDENTIAL_MODE") or "none"
+        if mode != "route":
+            return None
     return (os.environ.get(ENV_KEY) or "").strip() or None
 
 
@@ -313,7 +303,7 @@ def watch(item, cap_dir: Path, *, options: dict, key: str | None, api_base: str 
     if not is_youtube(item):
         return "ok", "not_youtube: only a public YouTube url can be sent to Gemini as a url", 0
     if not key:
-        return "failed", f"no_key: bind a Gemini key to this job (or set {ENV_KEY} on a hand run)", None
+        return "failed", f"no_key: map the `gemini` route to a stored key (or set {ENV_KEY} on a hand run)", None
     question = (options.get("question") or "").strip() or default_question()
     model = (options.get("model") or "").strip() or DEFAULT_MODEL
     try:

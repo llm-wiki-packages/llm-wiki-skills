@@ -1,0 +1,33 @@
+{
+  "argument_hint": "[focus] [ticket=<id> stage=routine]",
+  "description": "Writes the learner's study plan for the coming days: one guide page of embedded concepts and practice questions, ordered by what the syllabus has due and what the recent quiz logs show weak. Runs on a schedule or by hand, and writes a study guide for an exam the syllabus shows coming up.",
+  "keywords": [
+    "study",
+    "plan",
+    "syllabus",
+    "schedule",
+    "exam",
+    "revision",
+    "guide",
+    "weak",
+    "quiz",
+    "learning"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
+  "name": "study-plan",
+  "requires": {
+    "ops": ">=0.11.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:study-plan",
+  "stages": {
+    "routine": {
+      "model": "frontier"
+    }
+  },
+  "usage": "/study-plan [focus]",
+  "v": 1,
+  "version": "0.1.0"
+}

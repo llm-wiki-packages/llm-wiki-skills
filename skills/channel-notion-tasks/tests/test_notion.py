@@ -22,10 +22,22 @@ import pytest
 
 UNIT_DIR = Path(__file__).resolve().parents[1]  # the unit, wherever its tree sits
 UNIT = "channel-notion-tasks"
+
+# An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
+# in (the `unit-manifest` contract's Tokens section); these tests read the
+# source as that copy does.
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+
+
+def _doc(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for token, name in _TOKENS.items():
+        text = text.replace(token, name)
+    return text.replace("{{@@brain-", "{{@brain-")
 SCRIPT = UNIT_DIR / "scripts" / "write_items.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "pull.json"
 DAY = "2026-09-18"
-# A channel's target is any bare name, and a wiki holds ONE job per target (`pipeline add` refuses a
+# A channel's target is any bare name, and a wiki holds ONE job per target (`jobs add` refuses a
 # second) — `test_install.py` declares the venue's own name in this same session wiki, so this takes another.
 # Read by the harness (`tests/harness.py::unit_tests`), not by this file.
 TARGET = "notion-tasks-port"
@@ -65,7 +77,7 @@ def day_dir(tmp_path: Path, slug: str = "tasks", day: str = DAY, **over) -> tupl
     directory.mkdir(parents=True)
     ticket = {
         "ticket": TICKET_ID, "slug": slug, "item": None, "target": "notion-tasks",
-        "capture_dir": f"_raw/{slug}/{day}", "options": {"workspace": "harness"}, "credential": None,
+        "capture_dir": f"_raw/{slug}/{day}", "options": {"workspace": "harness"}, "credential": {}, "credential_mode": "none",
         "min_date": None, "known": [], "dest": f"research/channels/{slug}",
     }
     ticket.update(over)
@@ -73,8 +85,8 @@ def day_dir(tmp_path: Path, slug: str = "tasks", day: str = DAY, **over) -> tupl
 
 
 def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code: int = 0) -> dict:
-    """A stand-in front door, reachable through `LLM_WIKI_OPS`: `pipeline
-    tickets open` answers `ticket`; `pipeline tickets update` is recorded to
+    """A stand-in front door, reachable through `LLM_WIKI_OPS`: `tickets
+    open` answers `ticket`; `tickets update` is recorded to
     `update-calls.jsonl` and ALSO writes `report.<id>.json` into the
     ticket's own capture directory — the ONE file the real host writes (CLI
     spec § 5, and the one `carried()` reads back off disk) — with `captured`
@@ -88,12 +100,12 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket or {}))})\n"
         f"CREATE_CODE, EDIT_CODE = {create_code}, {edit_code}\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
-        "    tid, kv, missing = argv[3], {}, []\n"
-        "    for a in argv[4:]:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
+        "    tid, kv, missing = argv[2], {}, []\n"
+        "    for a in argv[3:]:\n"
         "        if a.startswith('missing='):\n"
         "            host, url, why = a[len('missing='):].split(',', 2)\n"
         "            missing.append({'host': host, 'url': url.replace('%2C', ','), 'why': why})\n"
@@ -366,7 +378,7 @@ def test_a_failure_with_nothing_read_is_failed_and_leaves_no_stale_pull(tmp_path
 
 
 def test_skill_md_runs_no_ntn_of_its_own():
-    text = (UNIT_DIR / "SKILL.md").read_text(encoding="utf-8")
+    text = _doc(UNIT_DIR / "SKILL.md")
     blocks = re.findall(r"^```sh\n(.*?)^```$", text, re.M | re.S)
     bare = [line for block in blocks for line in block.replace("\\\n", " ").splitlines() if re.search(r"(^|\|)\s*ntn\s", line)]
     assert not bare, f"a venue command belongs in a script: {bare}"
@@ -626,12 +638,12 @@ RECORDER = """
 import json, os, pathlib, sys
 argv = sys.argv[1:]
 bare = [a for a in argv if a != '--json']
-if bare[:3] == ['pipeline', 'tickets', 'open']:
+if bare[:2] == ['tickets', 'open']:
     print(json.dumps({'ticket': json.loads(os.environ['NOTION_TICKET'])}))
     sys.exit(0)
-if bare[:3] == ['pipeline', 'tickets', 'update']:
-    tid, kv, missing = bare[3], {}, []
-    for a in bare[4:]:
+if bare[:2] == ['tickets', 'update']:
+    tid, kv, missing = bare[2], {}, []
+    for a in bare[3:]:
         if a.startswith('missing='):
             host, url, why = a[len('missing='):].split(',', 2)
             missing.append({'host': host, 'url': url.replace('%2C', ','), 'why': why})
@@ -676,7 +688,7 @@ def test_the_existing_page_marker_survives_the_clis_json_voice():
 
 @pytest.fixture
 def door(tmp_path):
-    """`llm-wiki-ops`, first on PATH, answering `pipeline tickets open`/
+    """`llm-wiki-ops`, first on PATH, answering `tickets open`/
     `update` for real (as `stub_env` does) and a planned list of `(rc, out)`
     for every `page` call, recording each. The ambient env carries what a
     hosted script really inherits, so the harness's project dir is there to
@@ -695,12 +707,15 @@ def door(tmp_path):
                    CLAUDE_PROJECT_DIR=str(tmp_path / "some-other-wiki"))
         return env
 
-    plan.calls = lambda: json.loads(seen.read_text(encoding="utf-8")) if seen.exists() else []
+    every = lambda: json.loads(seen.read_text(encoding="utf-8")) if seen.exists() else []  # noqa: E731
+    plan.calls = lambda: [c for c in every() if c["argv"][1:3] not in (["page", "ls"], ["page", "read"])]
+    plan.lookups = lambda: [c for c in every() if c["argv"][1:3] in (["page", "ls"], ["page", "read"])]
     return plan
 
 
-def landed(directory: Path, ticket: dict, door, *steps):
-    return script("ledger", directory, ticket, env=door(ticket, *steps))
+def landed(directory: Path, ticket: dict, door, *steps, pages=()):
+    """The ledger step, its `page ls` answered `pages` before the planned `steps`."""
+    return script("ledger", directory, ticket, env=door(ticket, (0, {"pages": list(pages)}), *steps))
 
 
 def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on_stdin(tmp_path, door):
@@ -711,7 +726,10 @@ def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on
     assert r.returncode == 0, r.stderr + r.stdout
     (call,) = door.calls()
     assert call["argv"] == ["--json", "page", "create", f"title={DAY}", "dest=research/channels/tasks",
-                            "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "extracted=true", "status=", "--stdin"]
+                            "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "ops.extracted=true",
+                            "resource=notion:ledger", f"ops.resource_id=notion:day:{DAY}", "status=", "--stdin"]
+    (lookup,) = door.lookups()
+    assert lookup["argv"] == ["--json", "page", "ls", "filter=under:research/channels/tasks", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
     assert call["stdin"].startswith("- checklist moved to Doing — notion:0000aaaa-0001")
     assert call["inherited"] == []  # CLAUDE_PROJECT_DIR dropped: the harness's project dir, never a wiki root; the cwd picks the wiki
     assert call["cwd"] == str(directory.parents[2])
@@ -721,18 +739,86 @@ def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on
     assert json.loads(r.stdout)["written"] == [f"research/channels/tasks/{DAY}.md"]
 
 
-def test_a_day_that_already_has_a_ledger_is_edited_not_minted_twice(tmp_path, door):
+def test_a_day_whose_ledger_predates_its_identity_is_edited_and_stamped(tmp_path, door):
     directory, ticket = day_dir(tmp_path)
     assert write(directory, ticket, [task(1)]).returncode == 0
-    r = landed(directory, ticket, door, (2, EXISTS), (0, {"path": f"research/channels/tasks/{DAY}.md"}))
+    r = landed(directory, ticket, door, (2, EXISTS), (0, {"frontmatter": {"type": "ledger"}}),
+               (0, {"path": f"research/channels/tasks/{DAY}.md"}))
     assert r.returncode == 0, r.stderr + r.stdout
     created, edited = door.calls()
     assert created["argv"][:3] == ["--json", "page", "create"]
     assert edited["argv"][:4] == ["--json", "page", "edit", f"research/channels/tasks/{DAY}.md"]
+    assert {"resource=notion:ledger", f"ops.resource_id=notion:day:{DAY}"} <= set(edited["argv"])
     assert edited["stdin"] == created["stdin"] and "--stdin" in edited["argv"]
     # `page edit` REFUSES `status=` (exit 2); a page created without one keeps none.
     assert "status=" in created["argv"] and "status=" not in edited["argv"]
     assert report(directory)["written"] == [f"research/channels/tasks/{DAY}.md"]
+
+
+def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    renamed = "research/channels/tasks/Thursday.md"
+    r = landed(directory, ticket, door, (0, {"path": renamed}), pages=[{"path": renamed, "document_id": "doc-1", "job": "tasks"}])
+    assert r.returncode == 0, r.stderr + r.stdout
+    (edited,) = door.calls()
+    assert edited["argv"][:4] == ["--json", "page", "edit", renamed] and "status=" not in edited["argv"]
+    assert report(directory)["written"] == [renamed]
+
+
+def test_two_ledgers_for_one_day_fail_naming_both(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    rows = [{"path": f"research/channels/tasks/{n}.md", "document_id": n, "job": "tasks"} for n in ("A", "B")]
+    r = landed(directory, ticket, door, pages=rows)
+    rep = report(directory)
+    assert r.returncode == 1 and not door.calls() and "tasks/A.md" in rep["reason"] and "tasks/B.md" in rep["reason"]
+
+
+def test_a_ledger_a_person_archived_is_left_alone(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    r = landed(directory, ticket, door, pages=[{"path": "research/channels/tasks/x.md", "document_id": "d", "job": "tasks", "archive": True}])
+    rep = report(directory)
+    assert r.returncode == 0 and not door.calls() and rep["status"] == "ok" and "left alone" in rep["reason"]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_ledger_the_tickets_held_names_is_left_alone_saying_why(tmp_path, door, status):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    mine = f"research/channels/tasks/{DAY}.md"
+    held = [{"path": mine, "resource": "notion:ledger", "resource_id": f"notion:day:{DAY}", "status": status}]
+    r = landed(directory, {**ticket, "held": held}, door, pages=[{"path": mine, "document_id": "d", "job": "tasks"}])
+    rep = report(directory)
+    assert r.returncode == 0 and not door.calls() and rep["status"] == "ok"
+    assert rep["reason"] == f"{mine}: held ({status}), left alone"
+
+
+def test_a_ledger_known_moved_out_of_dest_is_left_alone(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    moved = {"resource": "notion:ledger", "resource_id": f"notion:day:{DAY}", "document_id": "d", "path": "wiki/tasks.md", "reason": "moved"}
+    r = landed(directory, {**ticket, "known": [moved]}, door)
+    rep = report(directory)
+    assert r.returncode == 0 and not door.calls() and "wiki/tasks.md: moved" in rep["reason"]
+
+
+def test_a_ledger_from_before_its_identity_that_held_names_is_not_stamped(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    held = [{"path": f"research/channels/tasks/{DAY}.md", "resource": None, "resource_id": None, "status": "unstamped"}]
+    r = landed(directory, {**ticket, "held": held}, door, (2, EXISTS), (0, {"frontmatter": {"type": "ledger"}}))
+    rep = report(directory)
+    assert r.returncode == 0 and [c["argv"][2] for c in door.calls()] == ["create"] and "held (unstamped)" in rep["reason"]
+
+
+def test_a_page_at_the_days_path_with_another_resource_is_never_written_over(tmp_path, door):
+    directory, ticket = day_dir(tmp_path)
+    assert write(directory, ticket, [task(1)]).returncode == 0
+    r = landed(directory, ticket, door, (2, EXISTS), (0, {"frontmatter": {"resource": "https://example.com/x"}}))
+    rep = report(directory)
+    assert r.returncode == 1 and [c["argv"][2] for c in door.calls()] == ["create"] and "not this ledger's" in rep["reason"]
 
 
 def test_a_refusal_that_is_not_the_existing_page_writes_no_page_and_no_stale_success(tmp_path, door):

@@ -76,10 +76,10 @@ With the operator present:
    sections is this, never the sample:
 
    ```sh
-   llm-wiki-ops op open grill
-   llm-wiki-ops pipeline jobs ls
-   llm-wiki-ops page ls filter=under:wiki/profile
-   llm-wiki-ops search status
+   {{@brain-cli-ops}} op open grill
+   {{@brain-cli-ops}} jobs ls
+   {{@brain-cli-ops}} page ls filter=under:wiki/profile
+   {{@brain-cli-ops}} search status
    ```
 
 2. **Ask what they care about seeing each morning**, in their words, few
@@ -94,8 +94,8 @@ With the operator present:
    explicit yes and never otherwise:
 
    ```sh
-   llm-wiki-ops policy get daily-report
-   llm-wiki-ops policy set daily-report     # the prose arrives on stdin
+   {{@brain-cli-ops}} policy get daily-report
+   {{@brain-cli-ops}} policy set daily-report     # the prose arrives on stdin
    ```
 
    One call carrying the complete folded text: which signals feed which
@@ -106,22 +106,22 @@ With the operator present:
    first read answers both names at once; a redesign on a wiki that already
    ran setup got no `daily-report-setup` row and skips this step, because
    retiring a name the wiki no longer carries is a refusal that would land
-   between the overlay saved above and the commit below, leaving the
+   between the overlay saved above and the close below, leaving the
    operator's answers uncommitted. When the row came back, spend it here,
    after the overlay is saved and not before — this is the only place it is
    spent, and spending it is what stops every later run offering setup
    again:
 
    ```sh
-   llm-wiki-ops policy retire daily-report-setup
+   {{@brain-cli-ops}} policy retire daily-report-setup
    ```
 
-6. **Close the run** and log the pass to `wiki/log.md` with the `schema`
-   prefix:
+6. **Log the pass, then close the run.** The `schema`-prefixed line goes to
+   `wiki/log.md` first: the close is the run's one commit, and a write after
+   it stays uncommitted. Never `git commit`.
 
    ```sh
-   llm-wiki-ops git commit message="daily-report: template and overlay"
-   llm-wiki-ops op close grill outcome=ok summary="daily-report setup: brief (re)designed"
+   {{@brain-cli-ops}} op close grill outcome=ok summary="daily-report setup: brief (re)designed"
    ```
 
 A scheduled run never asks questions. It authors the best page it can from

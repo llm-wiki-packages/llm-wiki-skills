@@ -30,17 +30,19 @@ filename, a folder name — and a venue that can type onto a Bash line can run a
 command:
 
     llm-wiki-ops page create "title=<safe title>" "dest=<dest>" \
-        "resource=<view url>" "type=doc" "extracted=true" --stdin
+        "resource=<view url>" "type=doc" "ops.extracted=true" --stdin
 
-with the body on stdin. On the one refusal that means this job already landed
-the page (`<path> already exists — the filename is the title`, exit 2) it runs
-`page edit <dest>/<title>.md` with the same keys instead. Any other non-zero
-status ABORTS before `tickets update` is posted: an update claiming a page
-nobody wrote would be read as work done.
+with the body on stdin — or, where `page ls resource=<view url>` finds the
+job's page for the leaf, `page edit <its path>` with the same keys,
+wherever in `dest` a person renamed it. A page a person moved out of `dest` or
+holds (Draft, Archive), or the ticket's `held[]` names, is left alone: `ok`, nothing written, the reason
+naming it. Two pages for one leaf, or a page at the title's path that is
+another item's, ABORT before `tickets update` is posted, as any refusal does:
+an update claiming a page nobody wrote would be read as work done.
 
 `title` is `capture.json`'s, which harvest already made filename-safe and
 settled against its namesakes (`capture_record.py::safe_title`,
-`settle_titles`), so `<dest>/<title>.md` IS the page's path. The H1 keeps the
+`settle_titles`), so `<dest>/<title>.md` is a new page's path. The H1 keeps the
 venue's own spelling off `meta.json`.
 
 **The body does NOT point at the captured file, and must not be "fixed" to.**
@@ -52,7 +54,7 @@ and on this one after a prune. The PDF/PPTX ITSELF stays in
 reaches the page: `bundle_media` is a MEDIA key, and a document is not media.
 
 **A video leaf gets the transcribe stage's stub**, not a page about the video:
-an EMPTY body, `extracted=queued` and `media=` wiki-relative — pointing under
+an EMPTY body, `ops.extracted=queued` and `ops.media=` wiki-relative — pointing under
 `<dest>/assets/` when the ticket's `process.bundle_media` is true (this step
 makes that copy; the host's own no longer sees these pages) and at
 `<capture_dir>/video.mp4` when it is false. MEASURED against ops 1.88.3 that `page create` takes both as
@@ -103,9 +105,7 @@ History:
               page through `page create`/`page edit` itself, and writes
               `report.json` naming it in `written[]`.
   2026-09-19  a video leaf gets a page too — the transcribe stage's queued
-              stub, minted here. It was reported `skipped` for a day, on the
-              reading that only `pipeline extract` could set `extracted` and
-              `media`; measuring `page create` showed otherwise.
+              stub, minted here.
   2026-09-25  moved to the CLI-verb worker contract: `--ticket <id>` opens
               `process.bundle_media` through `tickets open` instead of a file
               beside the leaf dir, and the report is posted `tickets update`
@@ -146,13 +146,14 @@ BODY_NAME = "page.md"
 #: never a boolean: a page still reading `false` is picked up again. `QUEUED`
 #: plus a non-empty `MEDIA` is exactly what `pipeline/media.py::queued_under`
 #: reads as an item for the transcribe stage.
-FLAG = "extracted"
+FLAG = "ops.extracted"
 EXTRACTED = "true"
 QUEUED = "queued"
-MEDIA = "media"
+MEDIA = "ops.media"
 
-#: `page create`'s one refusal that means "edit it instead". Matched on the
-#: tail, which is fixed prose; the head is the path.
+#: `page create`'s refusal of a title already a page: "edit it instead" for a
+#: page with no `resource` to find it by. Matched on the tail, which is fixed
+#: prose; the head is the path.
 EXISTS = "already exists"
 
 # The note format requires a `type` on every page, and `page create` defaults a
@@ -160,9 +161,10 @@ EXISTS = "already exists"
 TYPE_DOC = "doc"
 TYPE_VIDEO = "video"
 
-# Where `process.bundle_media: true` puts the media, relative to `dest`. The
-# process slice is granted rw on `dest`, so the copy is this step's to make;
-# `pipeline extract` used to make it and no longer sees these pages.
+# Where `process.bundle_media: true` puts the media, relative to `dest`. Media
+# bundling lives in the plugin's extractor, which runs only for a unit that
+# declares harvest alone; this unit declares process and holds the pen, so it
+# copies its own media into `dest` (its process slice is granted rw there).
 ASSETS = "assets"
 
 #: Cap on inlined text. A page is read by people and by search; a 300-page
@@ -253,12 +255,74 @@ def render_body(*, title, url, facts, orig_name, breadcrumb, extracted) -> str:
 # ------------------------------------------------------------ the front door
 
 
-def write_page(wiki: Path, dest: str, title: str, keys, body: str) -> str:
-    """The page under `dest`, through the front door. Returns it, wiki-relative.
+def identity_match(rows, slug, dest):
+    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    `(None, <why>)` where there are several — never one picked.
 
-    `page create` first, `page edit` on the one refusal that means the title is
-    already a page here. The arguments are an argv LIST and `shell=False`:
-    every value on them is venue text — a title, a filename, a folder name —
+    A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
+    page written before it carries none. A row from another job is that job's page, not this one's."""
+    folder = str(dest or "").strip("/")
+    mine = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("job") == slug or (row.get("job") is None and folder and str(row.get("path") or "").startswith(folder + "/")))
+    ]
+    if len(mine) > 1:
+        return None, "pages " + ", ".join(sorted(str(row.get("path")) for row in mine)) + " all hold this item: none was written"
+    return (mine[0] if mine else None), None
+
+
+def left_alone(row):
+    """Why the page `row` names is not this run's to write, or None: a person moved it out of `dest`, or ticked its
+    Draft or Archive box."""
+    if row.get("moved"):
+        return f"{row.get('path')}: moved out of dest by a person, left alone"
+    if row.get("draft") or row.get("archive"):
+        return f"{row.get('path')}: held (Draft or Archive), left alone"
+    return None
+
+
+def moved_rows(known, resource, slug, resource_id=None):
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
+    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    that one: a ledger's days share one `resource`."""
+    return [
+        {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
+        for row in known or ()
+        if isinstance(row, dict)
+        and row.get("resource") == resource
+        and row.get("reason") == "moved"
+        and (resource_id is None or row.get("resource_id") == resource_id)
+    ]
+
+
+def held_reason(held, resource, path=None, resource_id=None):
+    """Why the ticket's `held[]` names this item's page, or None: by its path, or by its `resource` and `resource_id`.
+
+    `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
+    `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
+    `page ls` shows, so the ticket is the one place they are named."""
+    for one in held or ():
+        if isinstance(one, dict) and (
+            (path is not None and one.get("path") == path)
+            or (resource and one.get("resource") == resource and one.get("resource_id") == resource_id)
+        ):
+            return f"{one.get('path')}: held ({one.get('status')}), left alone"
+    return None
+
+
+def _said(cp):
+    return ((cp.stderr or "") + (cp.stdout or "")).strip()[-500:]
+
+
+def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, known=(), held=()):
+    """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
+
+    The page is found by identity first — `page ls resource=<view url>`, the job's rows of it (`identity_match`) —
+    so a page a person renamed inside `dest` is edited at the path the lookup found, never duplicated under the title. No
+    row: `page create`; a page at the title's path then is another item's, and is never written over. The arguments
+    are an argv LIST and `shell=False`: every value on them is venue text — a title, a filename, a folder name —
     and a venue that can type onto a Bash line can run a command.
     """
     door = front_door()
@@ -269,30 +333,50 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str) -> str:
             "the ops plugin on this machine"
         )
     where = {"cwd": str(wiki), "env": front_door_env()}
-    created = subprocess.run(
-        [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
-        input=body, capture_output=True, text=True, **where,
-    )
     rel = f"{str(dest).rstrip('/')}/{title}.md"
-    if created.returncode == 0:
-        return rel
-    if EXISTS not in (created.stdout or "") + (created.stderr or ""):
-        sys.exit(
-            f"frameio_doc_note: `page create` refused (exit {created.returncode}) — "
-            f"no page was written.\n{((created.stderr or '') + (created.stdout or '')).strip()[-500:]}"
+    resource = next((key.split("=", 1)[1] for key in keys if key.startswith("resource=")), None)
+    target = None
+    if resource:
+        # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+        listed = subprocess.run(
+            [*door, "--json", "page", "ls", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where
         )
-    # The one refusal that is not a failure: this job landed the page before,
-    # and the one under `dest` is the one to replace.
+        try:
+            rows = json.loads(listed.stdout).get("pages")
+        except (ValueError, AttributeError):
+            rows = None
+        if listed.returncode != 0 or not isinstance(rows, list):
+            sys.exit(f"frameio_doc_note: `page ls resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
+        row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
+        if why:
+            sys.exit(f"frameio_doc_note: {why}")
+        why = (left_alone(row) if row is not None else None) or held_reason(held, resource, row and row["path"])
+        if why:
+            return None, why
+        if row is not None:
+            # By the path the lookup found (2026-11-02): in a stage's jail, `page edit id=` resolves the id by a walk from the wiki root,
+            # which sees nothing. Spelled as the row spells it: `page edit` matches a staged `known[]` row by that path (2026-11-06).
+            target, rel = [row["path"]], row["path"]
+    if target is None:
+        created = subprocess.run(
+            [*door, "--json", "page", "create", f"title={title}", f"dest={dest}", *keys, "--stdin"],
+            input=body, capture_output=True, text=True, **where,
+        )
+        if created.returncode == 0:
+            return rel, None
+        if resource or EXISTS not in (created.stdout or "") + (created.stderr or ""):
+            sys.exit(f"frameio_doc_note: `page create` refused (exit {created.returncode}) — no page was written.\n{_said(created)}")
+        target = [rel]
     edited = subprocess.run(
-        [*door, "--json", "page", "edit", rel, *keys, "--stdin"],
+        [*door, "--json", "page", "edit", *target, *keys, "--stdin"],
         input=body, capture_output=True, text=True, **where,
     )
     if edited.returncode != 0:
         sys.exit(
             f"frameio_doc_note: `page edit` refused (exit {edited.returncode}) over "
-            f"{rel} — no page was written.\n{((edited.stderr or '') + (edited.stdout or '')).strip()[-500:]}"
+            f"{rel} — no page was written.\n{_said(edited)}"
         )
-    return rel
+    return rel, None
 
 
 def post_report(ticket_id: str, cap_dir: Path, written_from: str | None, *, status: str, reason=None) -> int:
@@ -361,7 +445,7 @@ def main() -> int:
 
     if is_media(record.get("content_type")):
         # A video's page is the stub the transcribe stage reads: empty body,
-        # `extracted=queued` and the media it waits on, wiki-relative
+        # `ops.extracted=queued` and the media it waits on, wiki-relative
         # (`pipeline/media.py::queued_under` asks for exactly those two). The
         # title is the leaf's own, settled at harvest — one leaf, one page, so
         # nothing here has to be told apart from a page beside it.
@@ -374,13 +458,16 @@ def main() -> int:
             copy = beside / f"{title}.{ext}" if ext else beside / title
             shutil.copyfile(src_path, copy)
             media_rel = f"{args.dest.strip('/')}/{ASSETS}/{copy.name}"
-        written = write_page(
+        written, left = write_page(
             args.wiki, args.dest, title,
-            [f"resource={item}", f"type={TYPE_VIDEO}", f"{FLAG}={QUEUED}", f"{MEDIA}={media_rel}"], "",
+            [f"resource={item}", f"type={TYPE_VIDEO}", f"{FLAG}={QUEUED}", f"{MEDIA}={media_rel}"], "", slug=ticket.get("slug"), known=ticket.get("known"),
+            held=ticket.get("held"),
         )
-        write_json(cap_dir / WRITTEN_NAME, [written])
-        code = post_report(args.ticket, cap_dir, WRITTEN_NAME, status="ok")
-        print(json.dumps({"dir": capture_rel, "written": [written], "title": title, "ext": ext, "queued": f"{capture_rel}/{body_name}"}))
+        written = [written] if written else []
+        write_json(cap_dir / WRITTEN_NAME, written)
+        code = post_report(args.ticket, cap_dir, WRITTEN_NAME, status="ok", reason=left)
+        print(json.dumps({"dir": capture_rel, "written": written, "title": title, "ext": ext, "queued": f"{capture_rel}/{body_name}",
+                          **({"left": left} if left else {})}))
         return 2 if code else 0
 
     path_bits = list(args.path if args.path is not None else [p for p in (meta.get("path") or []) if isinstance(p, str)])
@@ -419,15 +506,20 @@ def main() -> int:
     # Kept beside the capture as well as written to the page: a process ticket
     # can be retried over the same bytes, and this is what the run produced.
     (cap_dir / BODY_NAME).write_text(body, encoding="utf-8")
-    written = write_page(args.wiki, args.dest, title, [f"resource={item}", f"type={TYPE_DOC}", f"{FLAG}={EXTRACTED}"], body)
-    write_json(cap_dir / WRITTEN_NAME, [written])
+    written, left = write_page(
+        args.wiki, args.dest, title, [f"resource={item}", f"type={TYPE_DOC}", f"{FLAG}={EXTRACTED}"], body, slug=ticket.get("slug"),
+        known=ticket.get("known"), held=ticket.get("held"),
+    )
+    written = [written] if written else []
+    write_json(cap_dir / WRITTEN_NAME, written)
     # LAST: an update naming a page is the claim that the page is there.
-    code = post_report(args.ticket, cap_dir, WRITTEN_NAME, status="ok")
+    code = post_report(args.ticket, cap_dir, WRITTEN_NAME, status="ok", reason=left)
     print(
         json.dumps(
             {
                 "dir": capture_rel,
-                "written": [written],
+                "written": written,
+                **({"left": left} if left else {}),
                 "title": title,
                 "ext": ext,
                 "extracted_chars": len(extracted),

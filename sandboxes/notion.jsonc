@@ -1,0 +1,40 @@
+// notion: the catalog template for the channel-notion-tasks unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/notion.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: Notion's public API, the one host `ntn` calls.
+          "api.notion.com"
+        ],
+        // The venue route: the jail holds a phantom in NOTION_API_TOKEN and
+        // the proxy spends the real token on requests to api.notion.com alone.
+        "credentials": ["notion"],
+        "custom_credentials": {
+          "notion": {
+            "upstream": "https://api.notion.com",
+            "env_var": "NOTION_API_TOKEN",
+            "credential_format": "Bearer {}"
+          }
+        }
+      },
+      "environment": {
+        "set_vars": {
+          // Pinned, so `ntn` never dials developers.notion.com for the latest.
+          "NOTION_API_VERSION": "2025-09-03"
+        }
+      },
+      // Run after the yes, inside the composed jail: exit 0 names the bot and
+      // its workspace. It spends the wiki's vault entry `notion`.
+      "probe": [["{bin:ntn}", "whoami"]]
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

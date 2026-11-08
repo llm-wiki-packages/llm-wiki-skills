@@ -1,0 +1,23 @@
+// quiz-show: the catalog template for the quiz-show unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/quiz-show.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // The scheduled run, with nobody at the keyboard. No host: the harness
+    // profile supplies the model hosts, and the audio is made on the host
+    // by `narrate`, never in this jail.
+    "routine": {
+      "extends": "routine",
+      "filesystem": {
+        // `research/` for the quiz logs. The `quiz-show` and `quiz`
+        // overlays are `_base`'s `$OPS/policy` read, so they need no entry.
+        "read": ["$WORKDIR/research"],
+        // `wiki/` alone: the questions and concepts are read there, and the
+        // episode is written under `wiki/podcasts/`.
+        "allow": ["$WORKDIR/wiki"]
+      }
+    }
+  }
+}

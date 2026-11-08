@@ -1,0 +1,34 @@
+// youtube-watch-gemini: the catalog template for the channel-youtube-watch-gemini
+// unit. `skills install` validates it, spells every default out and writes it
+// as the unit's `sandbox.jsonc`; `sandboxes/youtube-watch-gemini.md` is its
+// help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // `scripts/watch_gemini.py` is the enrich stage, a script with no model
+    // session: one request per video to the Gemini API.
+    "enrich": {
+      "extends": "enrich",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: the Gemini API.
+          "generativelanguage.googleapis.com"
+        ],
+        // The venue route: the jail holds a phantom in GEMINI_API_KEY and the
+        // proxy spends the real key, as `x-goog-api-key`, on this host alone.
+        "credentials": ["gemini"],
+        "custom_credentials": {
+          "gemini": {
+            "upstream": "https://generativelanguage.googleapis.com",
+            "env_var": "GEMINI_API_KEY",
+            "inject_header": "x-goog-api-key",
+            "credential_format": "{}"
+          }
+        }
+      }
+    },
+    "routine": {"extends": "routine"}
+  }
+}

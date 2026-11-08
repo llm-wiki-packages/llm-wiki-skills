@@ -1,0 +1,599 @@
+"""channel-github's scripts against fixtures — never the CLI, never the network."""
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+SCRIPTS = HERE.parent / "scripts"
+
+
+# The scripts import their siblings (`door`, `catalog`) by name, as `run` does.
+sys.path.insert(0, str(SCRIPTS))
+
+
+def _load(name):
+    spec = importlib.util.spec_from_file_location(f"gh_{name}", SCRIPTS / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+harvest = _load("harvest")
+page = _load("page")
+lists = _load("lists")
+
+OPTS = dict(harvest.DEFAULTS)
+
+
+def raw_repo(full, stars=100, **kw):
+    owner, name = full.split("/")
+    return {
+        "full_name": full,
+        "name": name,
+        "owner": {"login": owner},
+        "html_url": f"https://github.com/{full}",
+        "description": kw.get("description", "A thing."),
+        "stargazers_count": stars,
+        "forks_count": 3,
+        "language": "Python",
+        "topics": kw.get("topics", ["agents"]),
+        "license": {"spdx_id": "MIT"},
+        "archived": kw.get("archived", False),
+        "fork": kw.get("fork", False),
+        "created_at": "2024-01-02T00:00:00Z",
+        "pushed_at": kw.get("pushed_at", "2026-09-30T00:00:00Z"),
+        "homepage": "",
+    }
+
+
+# ------------------------------------------------------------------ selectors
+
+
+def test_selectors_parse_every_kind():
+    got = harvest.parse_selectors("stars:octocat, org:example-org\nrepo:a/b,user:x,search:topic:mcp stars:>100")
+    assert got == [("stars", "octocat"), ("org", "example-org"), ("repo", "a/b"), ("user", "x"), ("search", "topic:mcp stars:>100")]
+
+
+@pytest.mark.parametrize("bad", ["", "stars", "bogus:x", "repo:nope", "org:a b", "repo:a/b/c"])
+def test_selectors_refuse_bad_entries(bad):
+    with pytest.raises(ValueError):
+        harvest.parse_selectors(bad)
+
+
+# ------------------------------------------------------------------ the repo
+
+
+def test_normalize_and_title():
+    r = harvest.normalize(raw_repo("example-org/agent-kit", 5000), via="stars:me", starred_at="2025-03-01T10:00:00Z")
+    assert r["url"] == "https://github.com/example-org/agent-kit"
+    assert r["starred_at"] == "2025-03-01" and r["created"] == "2024-01-02" and r["license"] == "MIT"
+    assert harvest.page_title(r["full_name"]) == "example-org--agent-kit"
+
+
+def test_merge_unions_selectors_and_keeps_starred():
+    seen = {}
+    harvest.merge_repo(seen, harvest.normalize(raw_repo("a/B"), via="org:a"))
+    harvest.merge_repo(seen, harvest.normalize(raw_repo("a/B"), via="stars:me", starred_at="2025-01-01T00:00:00Z"))
+    (r,) = seen.values()
+    assert r["via"] == ["org:a", "stars:me"] and r["starred_at"] == "2025-01-01"
+
+
+def test_forks_dropped_from_org_but_never_from_stars():
+    fork = harvest.normalize(raw_repo("a/f", fork=True), via="org:a")
+    assert not harvest.keep(fork, OPTS, "org")
+    assert harvest.keep(fork, OPTS, "stars")
+
+
+# ------------------------------------------------------------------ change
+
+
+def repo(stars=1000, **kw):
+    r = harvest.normalize(raw_repo("a/b", stars, **kw), via=kw.get("via", "stars:me"), starred_at=kw.get("starred"))
+    return r
+
+
+def test_new_when_unheld():
+    assert harvest.decide(repo(), None, False, OPTS, "2026-10-09") == "new"
+
+
+def test_held_by_page_never_captured_is_baseline_only():
+    assert harvest.decide(repo(), None, True, OPTS, "2026-10-09") is None
+
+
+def test_jump_absolute_and_percent():
+    prev = {"captured_at": "2026-09-01", "stars_at_capture": 1000, "via": ["stars:me"]}
+    assert harvest.decide(repo(1200), prev, True, OPTS, "2026-10-09") is None  # +20%, +200
+    assert harvest.decide(repo(1250), prev, True, OPTS, "2026-10-09") == "jump"  # +25%
+    big = {"captured_at": "2026-09-01", "stars_at_capture": 100000, "via": ["stars:me"]}
+    assert harvest.decide(repo(100500), big, True, OPTS, "2026-10-09") == "jump"  # +500 absolute
+    small = {"captured_at": "2026-09-01", "stars_at_capture": 200, "via": ["stars:me"]}
+    assert harvest.decide(repo(260), small, True, OPTS, "2026-10-09") == "jump"  # +30%, +60
+    tiny = {"captured_at": "2026-09-01", "stars_at_capture": 10, "via": ["stars:me"]}
+    assert harvest.decide(repo(40), tiny, True, OPTS, "2026-10-09") is None  # +300% but under the floor
+
+
+def test_newly_starred_and_new_selector_and_stale():
+    prev = {"captured_at": "2026-09-01", "stars_at_capture": 1000, "via": ["org:a"]}
+    assert harvest.decide(repo(starred="2026-10-01T00:00:00Z", via="org:a"), prev, True, OPTS, "2026-10-09") == "starred"
+    assert harvest.decide(repo(via="org:b"), prev, True, OPTS, "2026-10-09") == "via"
+    old = {"captured_at": "2026-01-01", "stars_at_capture": 1000, "via": ["stars:me"]}
+    assert harvest.decide(repo(pushed_at="2026-09-30T00:00:00Z"), old, True, OPTS, "2026-10-09") == "stale"
+    assert harvest.decide(repo(pushed_at="2025-12-01T00:00:00Z"), old, True, OPTS, "2026-10-09") is None
+
+
+def test_leaf_names_stable_and_dated():
+    url = "https://github.com/example-org/agent-kit"
+    assert harvest.leaf_name(url).startswith("example-org-agent-kit--")
+    assert harvest.leaf_name(url, "2026-10-09").endswith("-20261009")
+
+
+def test_history_one_per_day_capped():
+    e = {"history": [["2026-10-0%d" % i, i] for i in range(1, 10)] + [["2026-10-10", 5], ["2026-10-11", 6], ["2026-10-12", 7]]}
+    h = harvest.record_history(e, 8, "2026-10-12")
+    assert h[-1] == ["2026-10-12", 8] and len(h) == harvest.HISTORY_MAX
+    assert harvest.record_history(e, 9, "2026-10-13")[-1] == ["2026-10-13", 9]
+
+
+# ------------------------------------------------------------------ a whole run
+
+
+class FakeHeaders(dict):
+    def get(self, k, d=None):
+        return super().get(k, d)
+
+
+def test_whole_run_captures_then_skips(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    starred = [
+        {"starred_at": "2026-10-01T00:00:00Z", "repo": raw_repo("a/one", 900)},
+        {"starred_at": "2026-09-01T00:00:00Z", "repo": raw_repo("b/two", 50)},
+    ]
+    calls, updates = [], []
+
+    def fake_get(url, token, accept="application/vnd.github+json"):
+        calls.append(url)
+        if "/starred" in url:
+            return json.dumps(starred).encode(), FakeHeaders()
+        if url.endswith("/readme"):
+            if "b/two" in url:
+                raise harvest.NotFound(url)
+            return b"# One\n\nHello.", FakeHeaders()
+        raise AssertionError(url)
+
+    ticket = {"ticket": "t1", "slug": "github-stars", "capture_dir": "_raw/github-stars/2026-10-09",
+              "options": {"select": "stars:me"}, "known": [], "credential": {}, "credential_mode": "none"}
+    monkeypatch.setattr(harvest, "_get", fake_get)
+    monkeypatch.setattr(harvest, "open_ticket", lambda t, s=None: ticket)
+    monkeypatch.setattr(harvest, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert harvest.run("t1") == 0
+    (args, kw), = updates
+    assert args[2] == "ok" and len(kw["captured"]) == 2
+    leaf = tmp_path / kw["captured"][0]
+    cap = json.loads((leaf / "capture.json").read_text())
+    assert cap["title"] == "a--one" and cap["body"] == "README.md" and cap["item"] == "https://github.com/a/one"
+    no_readme = json.loads((tmp_path / kw["captured"][1] / "capture.json").read_text())
+    assert no_readme["body"] == "repo.json"
+    state = json.loads((tmp_path / "_raw/github-stars/.state.json").read_text())
+    assert state["repos"]["a/one"]["stars_at_capture"] == 900
+
+    # Second run, same stars: nothing changed, nothing captured.
+    updates.clear()
+    ticket["known"] = [{"resource": "https://github.com/a/one"}, {"resource": "https://github.com/b/two"}]
+    assert harvest.run("t1") == 0
+    (args, kw), = updates
+    assert args[2] == "ok" and kw["captured"] == [] and "nothing changed" in kw["reason"]
+
+    # Third run, a/one jumped: one dated update leaf, carrying prev.
+    updates.clear()
+    starred[0]["repo"]["stargazers_count"] = 2000
+    assert harvest.run("t1") == 0
+    (args, kw), = updates
+    assert len(kw["captured"]) == 1 and kw["captured"][0].endswith(tuple("0123456789"))
+    facts = json.loads((tmp_path / kw["captured"][0] / "repo.json").read_text())
+    assert facts["change"] == "jump" and facts["prev"]["stars"] == 900
+
+
+def test_refused_update_keeps_state(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ticket = {"ticket": "t1", "slug": "s", "capture_dir": "_raw/s/d", "options": {"select": "repo:a/one"}, "known": []}
+    monkeypatch.setattr(harvest, "_get", lambda url, token, accept=None: (json.dumps(raw_repo("a/one")).encode() if "/readme" not in url else b"x", FakeHeaders()))
+    monkeypatch.setattr(harvest, "open_ticket", lambda t, s=None: ticket)
+    monkeypatch.setattr(harvest, "post_update", lambda *a, **k: 1)
+    assert harvest.run("t1") == 2
+    assert not (tmp_path / "_raw/s/.state.json").exists()
+
+
+# ------------------------------------------------------------------ the page
+
+
+def facts(**kw):
+    r = harvest.normalize(raw_repo("a/one", 12345, topics=["mcp", "agents"]), via="stars:me", starred_at="2025-03-01T00:00:00Z")
+    r.update({"seen": "2026-10-09", "change": "new", "prev": None, **kw})
+    return r
+
+
+JUDGMENT = {"keep": True, "junk": None, "description": "An MCP server for [[Postgres]].", "summary": "Does X.",
+            "use_for": ["query Postgres from an agent"], "categories": ["MCP Servers", "databases", "github"]}
+
+
+def test_keys_carry_facts_signals_and_categories():
+    k = page.page_keys(facts(), JUDGMENT, {}, clipped=False)
+    assert k["type"] == "repo" and k["gh_stars"] == 12345 and k["gh_starred_at"] == "2025-03-01"
+    assert k["tags"] == "github,gh-starred,mcp-servers,databases"
+    assert k["description"] == "An MCP server for Postgres."
+    assert k["gh_first_seen"] == "2026-10-09"
+    assert "gh_archived" not in k and "gh_stars_prev" not in k
+
+
+def test_keys_merge_held_tags_and_first_seen():
+    held = {"tags": ["clip", "gh-clipped", "marketing"], "gh_first_seen": "2025-01-01"}
+    k = page.page_keys(facts(via=["org:a"]), JUDGMENT, held, clipped=True)
+    assert k["tags"].split(",") == ["gh-clipped", "marketing", "github", "gh-starred", "gh-watched", "mcp-servers", "databases"]
+    assert k["gh_first_seen"] == "2025-01-01"
+
+
+def test_body_keeps_notes_and_demotes_readme():
+    readme = "# Title\n\n```sh\n# not a heading\n```\n\n## Install\n"
+    body = page.render_body(facts(prev={"stars": 12000, "at": "2026-09-01"}), JUDGMENT, readme, "my note", False, "full")
+    assert "★ 12,345 as of 2026-10-09 · +345 since 2026-09-01" in body
+    assert "## Notes\n\nmy note" in body
+    assert "### Title" in body and "# not a heading" in body and "#### Install" in body
+    assert page.section(body, "## Notes") == "my note"
+    assert page.section(body, "## What it's for") == "- query Postgres from an agent"
+
+
+def test_readme_modes():
+    long = "\n".join(f"line {i}" for i in range(400))
+    assert page.readme_part(long, "none") == ""
+    assert "truncated" in page.readme_part(long, "excerpt")
+    assert page.readme_part("```\nopen", "excerpt").endswith("```")
+
+
+def _frontmatter_of(path):
+    """The fixtures' frontmatter: `key: value` lines, one level of nesting under `ops:`."""
+    out, nest = {}, None
+    for line in path.read_text().split("---\n")[1].splitlines():
+        key, _, value = line.strip().partition(":")
+        value = value.strip().strip("\"'")
+        if line.startswith(" ") and nest is not None:
+            nest[key] = value
+        elif value:
+            out[key], nest = value, None
+        else:
+            out[key] = nest = {}
+    return out
+
+
+def listing(*rows):
+    """`ops_json` answering `page ls` with `rows`; every other call is refused."""
+    def answer(*a, stdin=None):
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": list(rows)}
+        if a[:2] == ("page", "read"):  # the CLI's frontmatter answer, off the file
+            return 0, {"frontmatter": _frontmatter_of(Path(a[2]))}
+        return pytest.fail(f"called {a}")
+    return answer
+
+
+def test_find_held_takes_the_jobs_page_of_the_resource_wherever_it_was_renamed(monkeypatch):
+    row = {"path": "sources/github/Renamed.md", "document_id": "doc-1", "job": "s"}
+    monkeypatch.setattr(page, "ops_json", listing(row, {**row, "path": "sources/other/x.md", "job": "other"}))
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (Path("sources/github/Renamed.md"), "doc-1", None)
+
+
+def test_find_held_falls_back_to_a_clip_and_never_to_the_title(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(page, "ops_json", listing())
+    dest = tmp_path / "sources/github"
+    dest.mkdir(parents=True)
+    (dest / "a--one.md").write_text("---\ntype: repo\n---\n")
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
+    clip = Path("sources/github/Some Clipped Name.md")
+    clip.write_text('---\ntype: repo\nresource: "https://github.com/A/One/"\n---\nbody\n')
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (clip, None, None)
+
+
+def test_find_held_never_falls_back_to_another_jobs_clip(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(page, "ops_json", listing())
+    dest = tmp_path / "sources/github"
+    dest.mkdir(parents=True)
+    (dest / "Theirs.md").write_text('---\ntype: repo\nops:\n  job: other\nresource: "https://github.com/a/one"\n---\n')
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (None, None, None)
+    mine = Path("sources/github/Mine.md")
+    mine.write_text('---\ntype: repo\nops:\n  job: "s"\nresource: "https://github.com/a/one"\n---\n')
+    assert page.find_held("sources/github", "https://github.com/a/one", "s") == (mine, None, None)
+
+
+def test_find_held_refuses_two_pages_naming_both(monkeypatch):
+    rows = [{"path": f"sources/github/{n}.md", "document_id": n, "job": "s"} for n in ("A", "B")]
+    monkeypatch.setattr(page, "ops_json", listing(*rows))
+    with pytest.raises(SystemExit):
+        page.find_held("sources/github", "https://github.com/a/one", "s")
+
+
+def test_find_held_reads_a_page_moved_out_of_dest_off_known(monkeypatch):
+    monkeypatch.setattr(page, "ops_json", listing())
+    known = [{"resource": "https://github.com/a/one", "document_id": "doc-1", "path": "wiki/one.md", "reason": "moved"}]
+    assert "wiki/one.md: moved" in page.find_held("sources/github", "https://github.com/a/one", "s", known)[2]
+
+
+@pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
+def test_find_held_says_why_a_page_a_person_moved_or_holds_is_left(monkeypatch, held):
+    monkeypatch.setattr(page, "ops_json", listing({"path": "wiki/x.md", "document_id": "doc-1", "job": "s", **held}))
+    assert "left alone" in page.find_held("sources/github", "https://github.com/a/one", "s")[2]
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_find_held_says_a_page_the_tickets_held_names_is_left(monkeypatch, status):
+    monkeypatch.setattr(page, "ops_json", listing({"path": "sources/github/one.md", "document_id": "doc-1", "job": "s"}))
+    held = [{"path": "sources/github/one.md", "resource": "https://github.com/a/one", "resource_id": None, "status": status}]
+    found = page.find_held("sources/github", "https://github.com/a/one", "s", (), held)
+    assert found == (Path("sources/github/one.md"), "doc-1", f"sources/github/one.md: held ({status}), left alone")
+
+
+def test_find_held_leaves_alone_an_item_held_names_even_with_no_page_found(monkeypatch):
+    monkeypatch.setattr(page, "ops_json", listing())
+    held = [{"path": "sources/github/one.md", "resource": "https://github.com/a/one", "resource_id": None, "status": "edited"}]
+    assert "held (edited)" in page.find_held("sources/github", "https://github.com/a/one", "s", (), held)[2]
+
+
+# ------------------------------------------------------------------ credential
+
+
+def test_keyless_unless_the_route_is_filled(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "phantom")
+    monkeypatch.delenv("LLM_WIKI_CREDENTIAL_MODE", raising=False)
+    assert harvest.get_token({"credential_mode": "none"}) is None
+    assert harvest.get_token({}) is None
+    assert harvest.get_token({"credential_mode": "route"}) == "phantom"
+    monkeypatch.setenv("LLM_WIKI_CREDENTIAL_MODE", "route")
+    assert harvest.get_token({}) == "phantom"
+
+
+def test_route_mode_with_no_phantom_fails_the_ticket_as_auth(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    ticket = {"ticket": "t1", "slug": "s", "capture_dir": "_raw/s/d", "options": {"select": "repo:a/one"}, "known": [], "credential_mode": "route"}
+    updates = []
+    monkeypatch.setattr(harvest, "open_ticket", lambda t, s=None: ticket)
+    monkeypatch.setattr(harvest, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert harvest.run("t1") == 1
+    (args, kw), = updates
+    assert args[2] == "failed" and kw["missing"][0][2] == "auth" and "GITHUB_TOKEN" in kw["reason"]
+
+
+def test_a_job_with_no_selector_fails_naming_the_option(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ticket = {"ticket": "t1", "slug": "s", "capture_dir": "_raw/s/d", "options": {}, "known": [], "credential_mode": "none"}
+    updates = []
+    monkeypatch.setattr(harvest, "open_ticket", lambda t, s=None: ticket)
+    monkeypatch.setattr(harvest, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert harvest.run("t1") == 1
+    (args, kw), = updates
+    assert args[2] == "failed" and "options.select" in kw["reason"]
+
+
+# ------------------------------------------------------------------ the write
+
+
+def capture(tmp_path) -> Path:
+    leaf = tmp_path / "_raw/s/a-one--12345678"
+    leaf.mkdir(parents=True)
+    (leaf / "repo.json").write_text(json.dumps(facts()))
+    (leaf / "README.md").write_text("# One\n")
+    (leaf / "capture.json").write_text(json.dumps({"title": "a--one", "item": "https://github.com/a/one"}))
+    return leaf
+
+
+def test_write_reads_a_bare_judgment_name_beside_the_capture_and_reports_the_page(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
+    calls, updates = [], []
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github"})
+    monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": "sources/github/a--one.md", "pages": []}))
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    assert calls[0] == ("page", "ls", "filter=under:sources/github", "resource=https://github.com/a/one")
+    assert calls[1][:3] == ("page", "create", "title=a--one") and "dest=sources/github" in calls[1]
+    (args, kw), = updates
+    assert args[1:] == ("process", "ok") and kw["written_from"] == "written.json"
+    assert json.loads((leaf / "written.json").read_text()) == ["sources/github/a--one.md"]
+
+
+def test_junk_on_an_unheld_repo_writes_no_page(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps({**JUDGMENT, "keep": False, "junk": "template clone"}))
+    updates = []
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github"})
+    monkeypatch.setattr(page, "ops_json", listing())
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    (args, kw), = updates
+    assert args[2] == "ok" and "template clone" in kw["reason"] and "written_from" not in kw
+
+
+def test_write_edits_the_renamed_page_where_it_now_sits(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
+    renamed = tmp_path / "sources/github/My one.md"
+    renamed.parent.mkdir(parents=True)
+    renamed.write_text("---\ntype: repo\n---\n## Notes\n\nmine\n")
+    calls = []
+
+    def ops(*a, stdin=None):
+        calls.append((a, stdin))
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": [{"path": "sources/github/My one.md", "document_id": "doc-1", "job": "s"}]}
+        return 0, {"path": "sources/github/My one.md", "frontmatter": {}}
+
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github", "slug": "s"})
+    monkeypatch.setattr(page, "ops_json", ops)
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    (edit, body), = [c for c in calls if c[0][:2] == ("page", "edit")]
+    assert edit[2] == "sources/github/My one.md" and "mine" in body
+    assert not [c for c in calls if c[0][:2] == ("page", "create")]
+    assert json.loads((leaf / "written.json").read_text()) == ["sources/github/My one.md"]
+
+
+def test_write_leaves_a_page_a_person_holds_alone(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    leaf = capture(tmp_path)
+    (leaf / "judgment.json").write_text(json.dumps(JUDGMENT))
+    updates = []
+    monkeypatch.setattr(page, "open_ticket", lambda t, s=None: {"dest": "sources/github", "slug": "s"})
+    monkeypatch.setattr(page, "ops_json", listing({"path": "wiki/kept.md", "document_id": "doc-1", "job": "s", "moved": True}))
+    monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
+    assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
+    (args, kw), = updates
+    assert args[2] == "ok" and "left alone" in kw["reason"] and "written_from" not in kw
+
+
+# ------------------------------------------------------------------ the routine
+
+
+def repo_page(root: Path, full: str, tags: str) -> None:
+    d = root / "sources/github"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{full.replace('/', '--')}.md").write_text(
+        f"---\ntype: repo\nresource: https://github.com/{full}\ntags: [{tags}]\ngh_stars: '10'\ngh_seen: 2026-10-09\n---\n")
+
+
+def test_the_routine_opens_its_op_writes_each_list_into_dest_and_closes(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_ROOT", str(tmp_path))
+    repo_page(tmp_path, "a/one", "github, gh-starred, mcp")
+    calls = []
+    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: {"dest": "research/github/lists"})
+    monkeypatch.setattr(lists, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": f"x/{len(calls)}.md", "pages": []}))
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
+    assert calls[0] == ("op", "open", "channel-github")
+    assert calls[1][:4] == ("page", "ls", "filter=under:research/github/lists", "resource=github:lists")
+    assert calls[1][4].startswith("resource_id=github:list:")
+    assert calls[2][:2] == ("page", "create") and "dest=research/github/lists" in calls[2] and "type=list" in calls[2]
+    assert "resource=github:lists" in calls[2] and "ops." + calls[1][4] in calls[2]
+    assert calls[-1][:4] == ("op", "close", "channel-github", "outcome=ok") and len(calls) == 4
+
+
+def _lists_with(monkeypatch, tmp_path, rows=(), held=None, ticket_rows=None):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_ROOT", str(tmp_path))
+    repo_page(tmp_path, "a/one", "github, gh-starred")
+    calls = []
+
+    def ops(*a, stdin=None):
+        calls.append(a)
+        if a[:2] == ("page", "ls"):
+            return 0, {"pages": list(rows)}
+        if a[:2] == ("page", "read"):
+            return 0, {"frontmatter": held or {}}
+        return 0, {"path": "p.md"}
+
+    ticket = {"dest": "research/github/lists", "slug": "gh-lists", **(ticket_rows or {})}
+    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: ticket)
+    monkeypatch.setattr(lists, "ops_json", ops)
+    return calls
+
+
+def test_a_list_page_a_person_renamed_is_regenerated_where_it_now_sits(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path, [{"path": "research/github/lists/My stars.md", "document_id": "doc-1", "job": "gh-lists"}])
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
+    (edit,) = [c for c in calls if c[:2] == ("page", "edit")]
+    assert edit[2] == "research/github/lists/My stars.md" and not [c for c in calls if c[:2] == ("page", "create")]
+
+
+def test_two_pages_for_one_list_refuse_and_write_neither(tmp_path, monkeypatch):
+    rows = [{"path": f"research/github/lists/{n}.md", "document_id": n, "job": "gh-lists"} for n in ("A", "B")]
+    calls = _lists_with(monkeypatch, tmp_path, rows)
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 1
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))] and calls[-1][3] == "outcome=failed"
+
+
+def test_a_list_page_from_before_its_identity_is_stamped_and_another_is_never_written_over(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path)
+    built = lists.build_lists(lists.load_config(), lists.load_catalog(tmp_path, *[lists.load_config()[k] for k in ("repos", "also")]), lists.today_utc())
+    title = next(b[0] for b in built if "Stars" in b[0])
+    legacy = tmp_path / "research/github/lists" / f"{title}.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("---\ntype: list\n---\n")
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
+    (edit,) = [c for c in calls if c[:2] == ("page", "edit")]
+    assert edit[2] == f"research/github/lists/{title}.md" and "resource=github:lists" in edit
+
+    calls = _lists_with(monkeypatch, tmp_path, held={"resource": "https://example.com/x"})
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 1
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+
+
+def _stars_title(tmp_path):
+    built = lists.build_lists(lists.load_config(), lists.load_catalog(tmp_path, *[lists.load_config()[k] for k in ("repos", "also")]), lists.today_utc())
+    return next(b[0] for b in built if "Stars" in b[0])
+
+
+@pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
+def test_a_list_page_the_tickets_held_names_is_left_alone(tmp_path, monkeypatch, status):
+    mine = "research/github/lists/My stars.md"
+    calls = _lists_with(monkeypatch, tmp_path, [{"path": mine, "document_id": "doc-1", "job": "gh-lists"}],
+                        ticket_rows={"held": [{"path": mine, "resource": "github:lists", "resource_id": "x", "status": status}]})
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+    (closed,) = [c for c in calls if c[:2] == ("op", "close")]
+    assert closed[3] == "outcome=ok" and f"held ({status})" in closed[4], "left alone is not a refusal"
+
+
+def test_a_list_page_known_moved_out_of_dest_is_left_alone(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path)
+    moved = {"resource": "github:lists", "resource_id": f"github:list:{_stars_title(tmp_path)}", "path": "wiki/stars.md", "reason": "moved"}
+    calls = _lists_with(monkeypatch, tmp_path, ticket_rows={"known": [moved]})
+    assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"))]
+
+
+def test_a_list_page_from_before_its_identity_that_held_names_is_not_stamped(tmp_path, monkeypatch):
+    calls = _lists_with(monkeypatch, tmp_path)
+    path = f"research/github/lists/{_stars_title(tmp_path)}.md"
+    (tmp_path / path).parent.mkdir(parents=True)
+    (tmp_path / path).write_text("---\ntype: list\n---\n")
+    calls = _lists_with(monkeypatch, tmp_path, ticket_rows={"held": [{"path": path, "resource": None, "status": "unstamped"}]})
+    lists.main(["--only", "Stars", "ticket=t1"])
+    assert not [c for c in calls if c[:2] in (("page", "edit"), ("page", "create"), ("page", "read"))]
+
+
+def test_a_routines_job_with_no_dest_closes_failed_naming_the_fix(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    calls = []
+    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: {})
+    monkeypatch.setattr(lists, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {}))
+    assert lists.main(["ticket=t1"]) == 1
+    assert calls[-1][3] == "outcome=failed" and "dest=research/github/" in calls[-1][4]
+
+
+def test_a_refused_list_page_makes_the_run_partial(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_WIKI_ROOT", str(tmp_path))
+    repo_page(tmp_path, "a/one", "github, gh-starred")
+    calls = []
+
+    def ops(*a, stdin=None):
+        calls.append(a)
+        refused = a[:2] == ("page", "create") and "Clipped" in a[2]
+        return (2, {"error": "refused"}) if refused else (0, {"path": "p.md", "pages": []})
+
+    monkeypatch.setattr(lists, "open_ticket", lambda t, s=None: {"dest": "research/github/lists"})
+    monkeypatch.setattr(lists, "ops_json", ops)
+    assert lists.main(["ticket=t1"]) == 0
+    assert calls[-1][3] == "outcome=partial"
+
+
+def test_the_routine_refuses_to_run_without_a_ticket():
+    with pytest.raises(SystemExit):
+        lists.main([])

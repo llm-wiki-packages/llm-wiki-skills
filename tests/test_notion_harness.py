@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import datetime
 import json
-import re
 
 import pytest
 
-from harness import ROOT, claimed, declared_job, jsonc, pending, snippet, staged, unit_tests
+from harness import ROOT, claimed, doc, declared_job, local_vault, mapped_route, pending, rooted, run, staged, template, unit_tests, unmapped_route
 
 # The unit's own helpers, constants and fixtures — the stdlib above is this file's.
 globals().update(unit_tests("channel-notion-tasks", "test_notion"))
@@ -54,39 +53,29 @@ step ledger "$OPS" run {WRITE} ledger "$CAP" --ticket "$TICKET" --from lines.jso
     return done
 
 
-def _machine_fragment(text: str) -> dict:
-    """The one fenced json block under `## Machine`: the nono fragment `skills install` writes to `machine.allow`."""
-    match = re.search(r"^## Machine\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    assert match, "the reference has no `## Machine` block"
-    (fence,) = re.findall(r"^```json\n(.*?)^```$", match.group(1), re.M | re.S)
-    return json.loads(fence)
-
-
-def test_the_reference_carries_the_notion_route_the_wikis_vault_resolves():
-    text = (ROOT / "references" / "sandboxes" / "notion" / "notion.harvest.md").read_text(encoding="utf-8")
-    profile = jsonc(snippet(text))["profile"]
-    network = profile["network"]
-    assert "api.notion.com" in network["allow_domain"]
-    assert not any("notion" in h and h != "api.notion.com" for h in network["allow_domain"])
-    assert profile["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
-    # The committed `## Profile` is read straight, and refuses every credential key.
-    assert set(network) == {"allow_domain"} and "credential" not in json.dumps(profile)
+def test_the_template_carries_the_notion_route_the_wikis_vault_resolves():
+    harvest = template("notion")["stages"]["harvest"]
+    network = harvest["network"]
+    assert network["allow_domain"] == ["api.notion.com"]
+    assert harvest["environment"]["set_vars"]["NOTION_API_VERSION"] == "2025-09-03"
+    assert harvest["probe"] == [["{bin:ntn}", "whoami"]]
     # A venue route is `credentials` plus `custom_credentials`, nothing else: compose
     # mints `credential_key` and the capture, so a wiki-written one is refused.
-    assert _machine_fragment(text) == {"network": {
-        "credentials": ["notion"],
-        "custom_credentials": {"notion": {
-            "upstream": "https://api.notion.com", "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
-        }},
+    assert set(network) == {"allow_domain", "credentials", "custom_credentials"}
+    assert network["credentials"] == ["notion"]
+    assert network["custom_credentials"] == {"notion": {
+        "upstream": "https://api.notion.com", "env_var": "NOTION_API_TOKEN", "credential_format": "Bearer {}",
     }}
-    # The route is this stage's, resolved from the wiki's vault: no login, no harness-profile route.
+    assert "CREDENTIAL" not in json.dumps({k: v for k, v in harvest.items() if k != "network"}).upper()
+    # The route is this stage's, filled from the wiki's vault by the skill's mapping: no login, no harness-profile route.
+    text = doc(ROOT / "sandboxes" / "notion.md")
     assert "llm-wiki-ops credentials set notion" in text
     assert "never the harness profile's" in " ".join(text.split())
     assert "~/.config/llm-wiki" not in text
 
 
 def test_enable_md_names_the_vault_not_a_login_or_a_harness_profile():
-    enable = (ROOT / "skills" / "channel-notion-tasks" / "references" / "enable.md").read_text(encoding="utf-8")
+    enable = doc(ROOT / "skills" / "channel-notion-tasks" / "references" / "enable.md")
     flat = " ".join(enable.split())
     assert "llm-wiki-ops credentials set notion" in flat
     assert "No `ntn login`, and no route in a harness profile" in flat
@@ -98,8 +87,57 @@ def job(ops, env, wiki, request):
     # A job's capture dir is keyed on TODAY: each case gets its own job, or one
     # case's items would read back as another's.
     own = request.node.name.replace("_", "-").lower()
-    return declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.workspace=harness",
-                        slug=f"harness-notion-{own}"[:60])
+    j = declared_job(ops, env, wiki, UNIT, f"{TARGET}-{own}"[:60], "options.workspace=harness",
+                     slug=f"harness-notion-{own}"[:60])
+    # `requires.credentials.routes.notion` is "required": `jobs claim` refuses a
+    # harvest this machine does not map the route for. The mapping, the token
+    # and the vault are this case's alone, gone when it ends.
+    with local_vault(ops, env):
+        mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
+        try:
+            yield j
+        finally:
+            unmapped_route(ops, env, wiki, UNIT, "notion")
+
+
+def test_a_harvest_is_refused_until_the_route_is_mapped(ops, env, wiki, job):
+    """`requires.credentials.routes.notion` is "required", on a sandbox that carries
+    the route: with nothing mapped, `jobs claim` refuses and mints no ticket;
+    mapped (enable.md step 3), the same claim mints the harvest."""
+    unmapped_route(ops, env, wiki, UNIT, "notion")
+    refused = run(ops, rooted(env, wiki), "--json", "jobs", "claim", job.slug)
+    said = refused.stdout + refused.stderr
+    assert refused.returncode == 2 and "harvest requires notion and this machine fills none of it" in said, said
+    mapped_route(ops, env, wiki, UNIT, "notion", "api.notion.com")
+    ticket_id, _cap = claimed(ops, env, wiki, job)
+    assert ticket_id
+
+
+def test_the_documented_path_maps_the_notion_route_into_the_harvest_slice(ops, env, wiki, job):
+    """The enable notes, walked through the real CLI in their order: the vault
+    named, the token stored, the route mapped, then the enable behind its
+    probe, and the route's variable in the harvest's jail holding a phantom,
+    never the token. An unmapped route fails the probe, so nothing enables."""
+    attended = {**rooted(env, wiki), "LLM_WIKI_SESSION_ATTENDED": "1"}
+    token = "harness-notion-secret"
+    unmapped_route(ops, env, wiki, UNIT, "notion")  # the job fixture's mapping: this case makes its own
+    try:
+        done = run(ops, attended, "--json", "credentials", "set", "notion",
+                   input=json.dumps({"value": token, "host": "api.notion.com"}))
+        assert done.returncode == 0, done.stdout + done.stderr
+        refused = run(ops, attended, "--json", "skills", "enable", UNIT)
+        assert refused.returncode == 2 and "its harvest probe" in refused.stdout, refused.stdout + refused.stderr
+        done = run(ops, attended, "--json", "credentials", "bind", "skill", UNIT, "notion=notion")
+        assert done.returncode == 0, done.stdout + done.stderr
+        done = run(ops, attended, "--json", "skills", "enable", UNIT)
+        assert done.returncode == 0, done.stdout + done.stderr
+        ticket_id, _cap = claimed(ops, env, wiki, job)
+        session = staged(ops, env, wiki, ticket_id, "step route printenv NOTION_API_TOKEN\n")
+    finally:
+        unmapped_route(ops, env, wiki, UNIT, "notion")
+    phantom = session.step("route")
+    assert phantom.returncode == 0 and phantom.stdout.strip(), phantom
+    assert token not in session.log
 
 
 def test_the_two_steps_make_the_days_ledger_out_of_what_the_pull_left(ops, env, wiki, job):

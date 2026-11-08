@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=process",
+  "description": "Captures YouTube videos with yt-dlp and writes a page per video from its metadata and captions.",
   "keywords": [
     "video",
     "videos",
@@ -10,7 +12,9 @@
     "host:*.youtube.com",
     "host:youtu.be"
   ],
-  "kind": "channel",
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-youtube",
   "requires": {
     "bins": [
@@ -23,19 +27,20 @@
         }
       }
     ],
-    "credential": false,
-    "ops": ">=0.1.0"
+    "credentials": {
+      "dir": "optional"
+    },
+    "ops": ">=0.15.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube",
   "stages": {
     "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube/youtube.harvest",
       "script": "scripts/capture_video.py"
     },
     "process": {}
   },
   "usage": "/channel-youtube ticket=<id>",
   "v": 1,
-  "venue": "youtube",
   "version": "0.1.0",
   "watch": {
     "defaults": {

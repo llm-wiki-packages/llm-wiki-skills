@@ -10,9 +10,29 @@ import sys
 
 import pytest
 
-from harness import MANIFEST, ROOT, SKILLS, unit_manifest
+from harness import MANIFEST, ROOT, SKILLS, doc, unit_manifest
 
-CHANNELS = [n for n in SKILLS if unit_manifest(n).get("kind") == "channel"]
+# The capture units whose body a session follows: each serves `harvest` or
+# `process`, no `routine`, and either some stage with no `script` or a
+# `watch` block, which only a unit a job is added for carries. A script-only
+# unit with no `watch` has no session body to hold to these checks; a capture
+# unit that forgot either stage stays in, for the both-stages check to catch,
+# even one whose remaining stage is a script.
+CHANNELS = [
+    n for n in SKILLS
+    if {"harvest", "process"} & set(stages := unit_manifest(n).get("stages", {}))
+    and "routine" not in stages
+    and (any("script" not in s for s in stages.values()) or unit_manifest(n).get("watch"))
+]
+ROUTINES = [n for n in SKILLS if "routine" in unit_manifest(n).get("stages", {})]
+
+
+def test_the_capture_and_routine_selections_are_not_empty():
+    """An empty parametrize skips; this fails, so a selection cannot drift to nothing unseen."""
+    assert CHANNELS, "no unit serves harvest or process, no routine, with a session stage"
+    assert ROUTINES, "no unit serves routine"
+
+
 # A unit's own tests ship too, but a test asserting a gone name is ABSENT is
 # not a unit telling a worker to look for it: the scan below skips them.
 SHIPPED = sorted(p for p in (ROOT / "skills").rglob("*") if p.is_file() and p.suffix in {".md", ".py", ".json"} and not {"__pycache__", "tests"} & set(p.parts))
@@ -40,6 +60,26 @@ GONE[r"(?<![\w.-])report\.json\b"] = "no unit writes a report; `tickets update` 
 # A dated changelog line may name what it removed; that is history, not an instruction.
 _HISTORY = re.compile(r"^\s*[-*#>]?\s*`?20\d\d-\d\d-\d\d")
 
+# The verb paths the ops CLI does not mount: the job verbs sit one level
+# down, under `jobs`, `tickets` and `denylist`, and `tick` is a verb of its
+# own. Each pattern spans any whitespace, so a doc that wraps a spelling across
+# a line break, or an argv split one token per line, is caught as well. No
+# history exemption: nothing shipped has a reason to spell one.
+RETIRED_VERBS = (
+    r"\bpipeline\s+(?:jobs|tickets|due|run|denylist)\b",
+    r"""["']pipeline["']\s*,\s*["'](?:jobs|tickets|due|run|denylist)["']""",
+    r"\bschedule\s+tick\b",
+    r"""["']schedule["']\s*,\s*["']tick["']""",
+)
+# Every file an agent or operator reads: the units, the repo's README and its
+# root `sandboxes/` tree.
+READ = sorted({*SHIPPED, ROOT / "README.md", *(p for p in (ROOT / "sandboxes").rglob("*") if p.is_file())})
+
+
+def _retired_spellings(text: str) -> list:
+    """The 1-based line of each retired spelling in `text`."""
+    return sorted(text.count("\n", 0, m.start()) + 1 for pattern in RETIRED_VERBS for m in re.finditer(pattern, text))
+
 
 @pytest.mark.parametrize("path", SHIPPED, ids=lambda p: str(p.relative_to(ROOT)))
 def test_no_shipped_file_names_a_host_that_is_gone(path):
@@ -56,6 +96,29 @@ def test_no_shipped_file_names_a_host_that_is_gone(path):
     assert not wrong, "\n".join(wrong)
 
 
+@pytest.mark.parametrize("path", READ, ids=lambda p: str(p.relative_to(ROOT)))
+def test_no_file_spells_a_verb_the_cli_does_not_mount(path):
+    lines = _retired_spellings(path.read_text(encoding="utf-8"))
+    assert not lines, "\n".join(f"{path.relative_to(ROOT)}:{n}: a retired CLI spelling" for n in lines)
+
+
+def test_each_retired_verb_pattern_catches_its_own_shape():
+    """A scan that matches nothing reports green over every file, so each
+    pattern is pointed at the shape it exists for — wrapped, or split around
+    its comma — built here so this file spells none of them."""
+    group, tick_group = "pipeline", "schedule"
+    samples = (
+        f"`llm-wiki-ops {group}\n   tickets open <id>`",
+        f'argv = [*door, "--json", "{group}" ,\n    "jobs", "claim"]',
+        f"`{tick_group}\ttick`",
+        f"call({tick_group!r},\n     'tick')",
+    )
+    for pattern, sample in zip(RETIRED_VERBS, samples, strict=True):
+        assert re.search(pattern, sample), (pattern, sample)
+    for fine in ("`llm-wiki-ops tickets open <id>`", "`llm-wiki-ops reference pipeline-ticket`", "`pipeline/jobs.py::capture_dir_for`", "`tick`"):
+        assert not _retired_spellings(fine), fine
+
+
 def test_every_copy_of_the_converter_is_the_same_file():
     """`to_markdown.py` left the plugin at the cut-over, and a unit is
     installed on its own, so each unit that needs it carries a copy. One
@@ -66,19 +129,87 @@ def test_every_copy_of_the_converter_is_the_same_file():
     assert len(digests) == 1, [str(p.relative_to(ROOT)) for p in copies]
 
 
+def _scripted(name: str) -> bool:
+    """Every stage of the unit is a `script`: the scripts open and update the ticket, and no session reads the body's steps."""
+    return all("script" in spec for spec in unit_manifest(name)["stages"].values())
+
+
 @pytest.mark.parametrize("name", CHANNELS)
 def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_ticket(name):
     """A channel unit renders its own venue's page, so it holds the pen at
     process too: the manifest declares both stages, the body documents both,
-    and the one invocation for either is `/<unit> ticket=<id>`."""
+    and the one invocation for either is `/<unit> ticket=<id>`. A unit a
+    person also runs by hand leads its frontmatter hint with that form, the
+    manifest's own, so the hint is the manifest's less the runner's `stage=`."""
     assert list(unit_manifest(name)["stages"]) == ["harvest", "process"], unit_manifest(name)["stages"]
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     front = skill.split("---", 2)[1]
-    assert re.search(r'^argument-hint:\s*"ticket=<id>"\s*$', front, re.M), front
-    assert unit_manifest(name)["usage"] == f"/{name} ticket=<id>"
     assert "allowed-tools" not in front and "disable-model-invocation" not in front
+    assert re.search(r"^### harvest\b", skill, re.M) and re.search(r"^### process\b", skill, re.M), skill[:400]
+    if _scripted(name):
+        # No session runs either stage, so `/<unit> ticket=<id>` reaches nothing: each step names its script's run line.
+        for spec in unit_manifest(name)["stages"].values():
+            assert f"run ops/skills/{name}/{spec['script']} ticket=<id>" in skill, spec
+        return
+    typed = re.sub(r" stage=\S+", "", unit_manifest(name)["argument_hint"])
+    assert typed.endswith("ticket=<id>"), typed
+    assert re.search(r'^argument-hint:\s*"' + re.escape(typed) + r'"\s*$', front, re.M), (typed, front)
+    assert unit_manifest(name)["usage"] == f"/{name} ticket=<id>"
     assert re.search(r"^## Stages", skill, re.M) and "tickets open" in skill and "tickets update" in skill
     assert re.search(r"^### harvest\b", skill, re.M) and re.search(r"^### process\b", skill, re.M), skill[:400]
+
+
+# The frontmatter is read by the model in every session in the wiki and decides
+# what it invokes; the manifest's `description` is what `skills ls` and `skills
+# search` show. So the frontmatter says WHEN, in the house opener, inside the
+# session budget the ops CLI warns past.
+OPENERS = ("Use when", "Use whenever", "Use before", "Use after", "Use at")
+SESSION_BUDGET = 200
+
+
+def _front_description(name: str) -> str:
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
+    block = re.search(r"^description:[ \t]*(.*?)(?=^\S)", front, re.M | re.S).group(1)
+    return " ".join(line.strip() for line in block.splitlines() if line.strip() not in (">", ">-", "|")).strip()
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_the_frontmatter_description_says_when_inside_the_session_budget(name):
+    described = _front_description(name)
+    assert described.startswith(OPENERS), f"{name}: {described[:70]!r}"
+    assert len(described) <= SESSION_BUDGET, f"{name}: {len(described)} chars, over {SESSION_BUDGET}"
+    # The plugin's routine is pipeline-only: a unit pointing a conversation at it is the hijack #3702 removes.
+    assert "wiki-report" not in described, described
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_pipeline_only_unit_tells_a_session_not_to_invoke_it(name):
+    if unit_manifest(name)["mode"] != ["pipeline"]:
+        return
+    assert "Never from conversation" in _front_description(name), _front_description(name)
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_the_argument_hints_name_what_the_runner_passes_and_only_the_manifest_does(name):
+    """A stage with no `script` is a session the runner starts as
+    `/<unit> … ticket=<id> stage=<stage>`; a script stage has no slash form.
+    The manifest's `argument_hint` is the whole shape, those runner tokens
+    included; the frontmatter's is what a person types, so never `stage=`,
+    and empty for a pipeline-only unit with no slashed stage."""
+    manifest = unit_manifest(name)
+    hint = manifest["argument_hint"]
+    slashed = [s for s, spec in manifest["stages"].items() if "script" not in spec]
+    if slashed:
+        assert "ticket=<id>" in hint, hint
+        named = re.search(r"stage=<?([a-z|]+)>?", hint)
+        assert named and named.group(1).split("|") == slashed, f"{name}: {hint!r} vs the slashed stages {slashed}"
+    else:
+        assert "ticket=" not in hint and "stage=" not in hint, hint
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
+    typed = (re.search(r"^argument-hint:(.*)$", front, re.M) or ["", ""])[1]
+    assert "stage=" not in typed, front
+    if not slashed and manifest["mode"] == ["pipeline"]:
+        assert typed.strip() == '""', f"{name}: the runner starts its script, so nothing is typed: {typed!r}"
 
 
 @pytest.mark.parametrize("name", CHANNELS)
@@ -89,11 +220,13 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
     two-name form is ops 1.95's, and the package's `min_ops_version` is past
     it: a unit's own floor must not fall under the package's, or a unit
     spelling the read would claim to run on a CLI that refuses it."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    if _scripted(name):
+        return  # no session reads an overlay; a script stage takes the job's options instead
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1].split("\n### harvest", 1)[0]
     assert f"\n```sh\nllm-wiki-ops policy get <stage> {name}\n```\n" in stages, f"{name}: the Stages intro does not open with the policy read"
     version = lambda text: tuple(int(b) for b in text.removeprefix(">=").split("."))  # noqa: E731
-    floor = unit_manifest(name)["requires"]["ops"]
+    floor = unit_manifest(name)["requires"].get("ops")
     assert version(floor) >= version(MANIFEST["min_ops_version"]), f"{name}: requires.ops {floor} is under the package's min_ops_version"
 
 
@@ -105,11 +238,17 @@ def test_either_step_of_a_unit_opens_with_the_policy_read(name):
 # quirks log is the one section meant to grow, one line per venue fact, and
 # is not counted.
 BUDGET = {
+    # Authored after the port with both stages as scripts: no pre-port length to scale.
+    "channel-blackboard": 180,
     "channel-circle": 312,
     "channel-frameio": 345,
     "channel-gmail": 183,
+    # Authored after the port, at 211 lines with the attended modes: no pre-port length to scale.
+    "channel-gmail-gws": 220,
     "channel-hubspot-video": 204,
     "channel-notion-tasks": 139,
+    # Authored after the port, at 167 lines with the full read-tool list: no pre-port length to scale.
+    "channel-parentsquare": 170,
     "channel-spotify": 246,
     "channel-substack": 288,
     "channel-youtube": 198,
@@ -118,7 +257,7 @@ BUDGET = {
 
 @pytest.mark.parametrize("name", CHANNELS)
 def test_a_unit_stays_under_its_budget(name):
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     lines = len(skill.split("# Quirks log\n", 1)[0].splitlines())
     assert lines <= BUDGET[name], f"{name}: {lines} lines before the quirks log, budget {BUDGET[name]} — the reasoning belongs in a reference"
 
@@ -128,7 +267,7 @@ def test_a_quirks_log_is_dated_one_liners(name):
     """One dated line per venue fact, in one shape across the units, never a
     narrative of the port: `- YYYY-MM-DD — <the fact>`. Read to the end of
     the file, so the log stays the last section."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     log = skill.split("# Quirks log\n", 1)[1] if "# Quirks log\n" in skill else ""
     entries = [line for line in log.splitlines() if line.startswith("- ")]
     undated = [line for line in entries if not re.match(r"^- 20\d\d-\d\d-\d\d — \S", line)]
@@ -141,14 +280,30 @@ def test_the_step_a_unit_is_in_is_the_stage_open_answers(name):
     with no `stage=`, and the unit follows the section named by the
     answer's own `stage` — never a `stage=` in `$ARGUMENTS`, and never a
     file in the capture directory."""
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+    if _scripted(name):
+        return  # the scripts open their own ticket
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
     stages = skill.split("\n## Stages", 1)[1]
     opener = stages.split("\n### harvest", 1)[0]
-    assert "llm-wiki-ops --json pipeline tickets open <id>" in opener, opener[:300]
+    assert "llm-wiki-ops --json tickets open <id>" in opener, opener[:300]
     assert "stage=<id>" not in opener and not re.search(r"open <id> stage=", opener), opener[:300]
     assert not re.search(r"stage=harvest\|process", skill), name
     assert not re.search(r"\$ARGUMENTS", skill), name
     assert "ticket.json" not in skill, name
+
+
+@pytest.mark.parametrize("name", ROUTINES)
+def test_a_routine_unit_opens_and_closes_its_op_and_never_commits(name):
+    """The spawner's prompt for a routine is `/<unit> <args…> ticket=<id>
+    stage=routine` (the job-record contract), so the body names that entry.
+    Under the ticket `op close` is the report and the landing commits under
+    the unit's op (`reference skill-authoring`), so the body opens and closes
+    its op, never runs `git commit`, and posts no outcome of its own."""
+    skill = doc(ROOT / "skills" / name / "SKILL.md")
+    assert "ticket=<id> stage=routine" in skill, name
+    assert f"llm-wiki-ops op open {name}" in skill and f"llm-wiki-ops op close {name} outcome=" in skill, name
+    assert "llm-wiki-ops git commit" not in skill, name
+    assert not re.search(r"tickets update <id> stage=routine status=", skill), name
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -157,7 +312,7 @@ def test_a_unit_is_reachable_by_the_invocation_its_spawner_types(name):
     `user-invocable: false` the harness answers that with no model turn at
     all — exit 0, no report — so the key that would make a unit undispatchable
     is refused here, beside the two the authoring contract already names."""
-    front = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
+    front = doc(ROOT / "skills" / name / "SKILL.md").split("---", 2)[1]
     for refused in ("user-invocable:", "disable-model-invocation:", "allowed-tools:"):
         assert refused not in front, f"{name}: {refused} makes the unit unreachable by `/{name} ticket=<id>`"
 
@@ -225,12 +380,14 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
     assert done.returncode == 0 and re.search(r"^\d+ tests? collected", done.stdout, re.M), f"{name}'s tests do not collect on their own:\n{done.stdout}{done.stderr}"
 
 
-@pytest.mark.parametrize("name", CHANNELS)
+@pytest.mark.parametrize("name", SKILLS)
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "kind", "venue", "stages", "uses", "keywords", "usage", "requires", "watch"}
-    assert set(json.loads((ROOT / "skills" / name / "manifest.json").read_text())) <= known
+    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch", "description", "mode", "argument_hint"}
+    manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
+    assert set(manifest) <= known, sorted(set(manifest) - known)
+    assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -242,7 +399,7 @@ def test_every_script_a_unit_ships_is_one_something_runs(name):
     scripts = sorted(p for p in unit.glob("scripts/*.py") if "__pycache__" not in p.parts)
     if not scripts:
         return
-    skill = (unit / "SKILL.md").read_text(encoding="utf-8")
+    skill = doc(unit / "SKILL.md")
     run_lines = "\n".join(line for line in skill.splitlines() if "llm-wiki-ops run" in line or "run ops/skills/" in line)
     dead = []
     for script in scripts:
@@ -300,6 +457,8 @@ def _holders(name: str) -> list:
         # open_ticket/post_update: every unit whose scripts talk to the
         # ticket, at the final tip (step 11).
         ("open_ticket", 11), ("post_update", 9),
+        # A unit's page found by identity before it writes: every unit script that writes an item's page.
+        ("identity_match", 4), ("left_alone", 4), ("moved_rows", 4), ("held_reason", 4),
     ],
 )
 def test_code_the_units_share_by_copying_is_one_piece_of_code(name, at_least):
@@ -343,19 +502,46 @@ def test_the_shared_title_rule_holds_what_the_host_refuses():
     assert safe("") == "Untitled" and safe("   ", fallback="x") == "x" and safe(None) == "Untitled"
 
 
+
+def _writes_a_directory_body(name: str) -> bool:
+    """Whether the unit's `capture.json` names the `items` directory as its body, in a script or its SKILL.md."""
+    unit = ROOT / "skills" / name
+    texts = [p.read_text(encoding="utf-8") for p in [*unit.glob("scripts/*.py"), unit / "SKILL.md"]]
+    return any(re.search(r'"body":\s*(?:ITEMS_DIRNAME|"items")', text) for text in texts)
+
+
+DIRECTORY_BODY = [n for n in SKILLS if _writes_a_directory_body(n)]
+
+
+def test_the_directory_body_scan_finds_the_units_it_was_written_for():
+    """A scan that matches nothing parametrizes nothing and reports green."""
+    assert DIRECTORY_BODY == ["channel-gmail", "channel-gmail-gws", "channel-notion-tasks", "channel-parentsquare"], DIRECTORY_BODY
+
+
+@pytest.mark.parametrize("name", DIRECTORY_BODY)
+def test_a_unit_with_a_directory_body_ships_transcribe_off(name):
+    """The host's transcribe stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
+    defaults = unit_manifest(name)["watch"]["defaults"]
+    assert "transcribe" in defaults and defaults["transcribe"] is None, defaults
+
+
 # Units that serve the enrich stage and nothing else: they write no page, so
-# they are not channel units, and the unit that writes the page names them.
+# they are not channel units, and the job that names one names the unit that
+# writes the page beside it.
 ENRICHERS = [n for n in SKILLS if list(unit_manifest(n).get("stages", {})) == ["enrich"]]
 
 
+def test_the_enrich_selection_finds_the_units_it_was_written_for():
+    """A selection that matches nothing parametrizes nothing and reports green."""
+    assert ENRICHERS == ["channel-youtube-watch-gemini", "channel-youtube-watch-local"], ENRICHERS
+
+
 @pytest.mark.parametrize("name", ENRICHERS)
-def test_an_enrich_unit_is_invoked_by_ticket_and_stage_and_pairs_with_a_unit_that_writes_the_page(name):
+def test_an_enrich_unit_is_named_by_no_job_as_its_skill(name):
+    """An enrich unit is a job's `enrich.skill=`, beside the unit that writes
+    the page: it declares no watch, so `jobs add` never routes a target to it."""
     manifest = unit_manifest(name)
-    assert manifest["kind"] == "media" and manifest["usage"] == f"/{name} ticket=<id> stage=enrich", manifest
-    assert unit_manifest(manifest["uses"])["kind"] == "channel", f"{name}: `uses` names no unit that writes a page"
-    skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-    front = skill.split("---", 2)[1]
-    assert re.search(r'^argument-hint:\s*"ticket=<id> stage=enrich"\s*$', front, re.M), front
+    assert manifest["mode"] == ["pipeline"] and "watch" not in manifest, manifest
 
 
 def test_the_enrich_units_carry_one_copy_of_the_files_they_share():
@@ -363,7 +549,6 @@ def test_the_enrich_units_carry_one_copy_of_the_files_they_share():
     an enrich step leaves and the question every video is asked — is carried
     by each, byte for byte. A copy fixed in one and not the other is two
     engines writing to two contracts."""
-    assert len(ENRICHERS) >= 2, ENRICHERS
     for rel in ("references/watch-notes.md", "references/question.md"):
         digests = {n: hashlib.sha256((ROOT / "skills" / n / rel).read_bytes()).hexdigest() for n in ENRICHERS}
         assert len(set(digests.values())) == 1, f"{rel} differs between {sorted(digests)}"

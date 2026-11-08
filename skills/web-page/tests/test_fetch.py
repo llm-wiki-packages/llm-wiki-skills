@@ -104,10 +104,10 @@ def _stub_ops(root: Path, ticket: dict) -> str:
         "import json, pathlib, sys\n"
         "argv = [a for a in sys.argv[1:] if a != '--json']\n"
         f"TICKET = json.loads({json.dumps(json.dumps(ticket))})\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'open']:\n"
+        "if argv[:2] == ['tickets', 'open']:\n"
         "    print(json.dumps({'ticket': TICKET}))\n"
         "    sys.exit(0)\n"
-        "if argv[:3] == ['pipeline', 'tickets', 'update']:\n"
+        "if argv[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path('update-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "    sys.exit(0)\n"
         "sys.exit('ops_stub: unhandled ' + repr(argv))\n"
@@ -198,7 +198,7 @@ def test_a_served_page_lands_as_a_capture(tmp_path, served):
     assert (cap / record["body"]).read_bytes() == PAGE
     (call,) = _updates(tmp_path)
     kv = _kv(call)
-    assert call[:5] == ["pipeline", "tickets", "update", TICKET, "stage=harvest"]
+    assert call[:4] == ["tickets", "update", TICKET, "stage=harvest"]
     assert kv["status"] == "ok" and "captured" not in kv and "missing" not in kv, result.stderr
 
 

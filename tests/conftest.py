@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from harness import AGENT_DIR, ROOT, SCRATCH, SOURCE, _cli, _ops_argv, machine_harness, machine_layer, rooted, run
+from harness import AGENT_DIR, NEUTRAL_CWD, ROOT, SCRATCH, SOURCE, _cli, _cli_python, _ops_argv, machine_harness, machine_layer, rooted, run
 
 @pytest.fixture(scope="session")
 def ops() -> list:
@@ -20,32 +20,54 @@ def ops() -> list:
     return argv
 
 
+def _cli_bin(ops: list) -> list:
+    """The directory of a CLI named by path, for PATH. A venue route's capture
+    mints its argv from the durable `llm-wiki-cli`, found on PATH when no
+    durable home holds it, and the scratch HOME holds none: `uv run` put its
+    venv's `bin` there, a console script named directly does not."""
+    return [str(Path(ops[-1]).parent)] if os.sep in ops[-1] else []
+
+
+# The gated rows the harness's own calls ask. A test home's `[approvals]` answers them
+# silently, the plugins suites' way, so no case here meets the gate it is not about:
+# the operator's knob (the plugins' machine-config contract), set on a throwaway home.
+SILENCED = (
+    "credentials bind",
+    "credentials remove",
+    "credentials set",
+    "credentials unbind",
+    "join",
+    "machine wikis vault",
+    "skills enable",
+    "skills install",
+)
+
+
+RECORD_KIND = "from llm_wiki_machine import paths; print(paths.record().kind)"
+
+
 @pytest.fixture(scope="session")
 def env(ops) -> dict:
-    home = SCRATCH / "packages-home"
-    home.mkdir()
-    mp = home / "marketplaces" / SOURCE
-    mp.parent.mkdir(parents=True)
-    mp.symlink_to(ROOT, target_is_directory=True)
-    # Every CLI call reads this box's config under HOME: a scratch one, so the
-    # suite never touches the real machine's, and uv keeps its real cache.
+    # Every CLI call reads this box's machine home: a scratch one, so the suite
+    # never touches the real machine's. `LLM_WIKI_TEST_HOME` names it, which only
+    # a CLI run from a plugins checkout with a `checkout` record honors; an
+    # installed CLI resolves its install's home whatever it is told, so the
+    # install tier refuses to run on one (below). uv keeps its real cache.
     machine_home = SCRATCH / "home"
     machine_home.mkdir()
-    machine_harness(machine_home)
     uv_cache = subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
     e = dict(os.environ)
     # A suite started from inside a wiki session must not act on THAT wiki:
     # `LLM_WIKI_ROOT` binds one ahead of the `cwd=` a `run` case uses, and
     # `CLAUDE_PROJECT_DIR` — the harness's project dir, never a wiki root, and
     # read by no CLI — goes too, so nothing downstream mistakes it for one.
-    for ambient in ("LLM_WIKI_ROOT", "CLAUDE_PROJECT_DIR"):
+    # A test home the caller's own suite set is not this one.
+    for ambient in ("LLM_WIKI_ROOT", "CLAUDE_PROJECT_DIR", "LLM_WIKI_TEST_HOME"):
         e.pop(ambient, None)
     e.update(
         HOME=str(machine_home),
         UV_CACHE_DIR=uv_cache,
-        LLM_WIKI_PACKAGES_HOME=str(home),
         LLM_WIKI_PACKAGES_OFFLINE="1",
-        LLM_WIKI_MACHINE_CONFIG=str(home / "no-machine-config.toml"),
         GIT_AUTHOR_NAME="harness",
         GIT_AUTHOR_EMAIL="harness@example.invalid",
         GIT_COMMITTER_NAME="harness",
@@ -53,8 +75,44 @@ def env(ops) -> dict:
         # The session the runner names each slice's worker after
         # (`harness-session.<ticket>`), rather than one it would mint.
         LLM_WIKI_SESSION_ID="harness-session",
-        PATH=f"{AGENT_DIR / 'bin'}{os.pathsep}{e.get('PATH', os.defpath)}",
+        PATH=os.pathsep.join([str(AGENT_DIR / "bin"), *_cli_bin(ops), e.get("PATH", os.defpath)]),
     )
+    # Before the CLI runs at all: even the seeding below logs its gate row under
+    # the home it resolves now. The record is read in the CLI's interpreter.
+    record = subprocess.run([*_cli_python(ops), "-I", "-c", RECORD_KIND], env=e, cwd=NEUTRAL_CWD,
+                            capture_output=True, text=True, check=False)
+    if record.stdout.strip() != "checkout":
+        refusal = (
+            f"the ops CLI ({' '.join(ops)}) runs on a record of kind {record.stdout.strip() or record.stderr.strip()!r}, "
+            "not `checkout`, so it would not honor a scratch home: every install case would write this machine's own. "
+            "Set LLM_WIKI_OPS to a plugins checkout's CLI, its `checkout` record written by its `scripts/checkout_home.py`"
+        )
+        if os.environ.get("LLM_WIKI_OPS"):
+            pytest.fail(refusal)
+        pytest.skip(refusal)
+    # Where the default layout puts a home, so the profile and sandbox base
+    # `machine_harness` and `machine_layer` write land in it; its state, data
+    # and cache dirs are its siblings.
+    seeded = run(_cli(ops), e, "--json", "machine", "home", "init", str(machine_home / ".config" / "llm-wiki"), "--confirm")
+    assert seeded.returncode == 0, seeded.stdout + seeded.stderr
+    dirs = seeded.data
+    e["LLM_WIKI_TEST_HOME"] = dirs["home"]
+    where = run(_cli(ops), e, "--json", "machine", "home")
+    assert where.returncode == 0 and where.data["source"] == "LLM_WIKI_TEST_HOME", where.stdout + where.stderr
+    config = Path(dirs["home"]) / "config.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\n[approvals]\n" + "".join(f'"{row}" = "silent"\n' for row in SILENCED),
+        encoding="utf-8",
+    )
+    # The checkout as a developer's clone of this package: nothing fetches into
+    # a symlinked marketplace, and `latest` is its HEAD.
+    mp = Path(dirs["data"]) / "packages" / "marketplaces" / SOURCE
+    mp.parent.mkdir(parents=True)
+    mp.symlink_to(ROOT, target_is_directory=True)
+    # `skills enable` builds a unit's script envs offline from the machine
+    # cache's uv cache: the one the CI warm step filled.
+    (Path(dirs["cache"]) / "uv").symlink_to(uv_cache, target_is_directory=True)
+    machine_harness(machine_home)
     return e
 
 
@@ -65,13 +123,10 @@ def wiki(ops, env) -> Path:
     w = SCRATCH / "wiki" / "w"
     r = run(_cli(ops), env, "init", str(w), "preset=general")  # values are key=value; init commits on its own
     assert r.returncode == 0, r.stderr
-    # `pipeline add` needs a joined checkout. `join` registers the wiki in the
-    # throwaway machine config above and seeds this box's sandbox base under
-    # `env`'s scratch HOME. It is a protected write: nobody is at a terminal
-    # for this harness process, so it asks and refuses unless the session is
-    # marked attended.
-    join_env = {**env, "LLM_WIKI_SESSION_ATTENDED": "1"}
-    r = run(ops, join_env, "join", "key=harness", cwd=w)
+    # `jobs add` needs a joined checkout. `join` registers the wiki in the
+    # scratch machine home above and seeds its sandbox base; a protected
+    # write, its row is in `SILENCED`.
+    r = run(ops, env, "join", "key=harness", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
     machine_layer(ops, Path(env["HOME"]), env["UV_CACHE_DIR"])
     # A wiki must declare its packages with a pinned version, and `@latest`
@@ -85,12 +140,12 @@ def wiki(ops, env) -> Path:
     r = run(ops, rooted(env, w), "git", "commit", ".llm-wiki.toml",
             "message=harness: declare this checkout's package", cwd=w)
     assert r.returncode == 0, r.stdout + r.stderr
-    # `[pipeline] model` is the committed fallback ADR-0014 falls to where a
-    # unit declares no `stages.<stage>.model` (plugins main, post-#2487) — a
-    # `config set` writes the LOCAL manifest only, and this key is read from
-    # the COMMITTED one, so it is hand-written and committed like a peer's edit.
+    # `[jobs.defaults] model` is the wiki's rung of the model chain, the one
+    # ADR-0014 falls to where a unit declares no `stages.<stage>.model`.
+    # `config set` names a two-part key and this one has three, so it is
+    # hand-written and committed like a peer's edit.
     (w / ".llm-wiki.toml").write_text(
-        (w / ".llm-wiki.toml").read_text(encoding="utf-8") + '\n[pipeline]\nmodel = "harness-model"\n',
+        (w / ".llm-wiki.toml").read_text(encoding="utf-8") + '\n[jobs.defaults]\nmodel = "harness-model"\n',
         encoding="utf-8",
     )
     r = run(ops, rooted(env, w), "git", "commit", ".llm-wiki.toml",

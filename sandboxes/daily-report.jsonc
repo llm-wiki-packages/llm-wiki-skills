@@ -1,0 +1,28 @@
+// daily-report: the catalog template for the daily-report unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/daily-report.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    // The scheduled morning run, with nobody at the keyboard. No host: the
+    // harness profile supplies the model hosts.
+    "routine": {
+      "extends": "routine",
+      "filesystem": {
+        // Each tree by name: a bare $WORKDIR grants nothing. `.git` fixes the
+        // window, `research/` holds the ledgers and the digest, `sources/` is
+        // what the report lints beside `wiki/`. The overlay is `_base`'s
+        // `$OPS/policy` read, so it needs no entry here.
+        "read": [
+          "$WORKDIR/.git",
+          "$WORKDIR/research",
+          "$WORKDIR/sources"
+        ],
+        // `wiki/` alone: the report, its promotions, and the log and index
+        // entries. An overlay is the operator's to write.
+        "allow": ["$WORKDIR/wiki"]
+      }
+    }
+  }
+}

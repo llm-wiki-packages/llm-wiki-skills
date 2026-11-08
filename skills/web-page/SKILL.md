@@ -1,14 +1,14 @@
 ---
 name: web-page
-description: One page, by url — the plain-url harvester behind a job that names no channel unit.
-argument-hint: "ticket=<id>"
+description: Use when a pipeline ticket's harvest fetches a plain url: the runner starts this unit's script itself, with no session or slash form. Never from conversation — to follow a page, use /{{@brain-plugin}}:add.
+argument-hint: ""
 ---
 
 # web-page
 
 You are the plain-url harvest ticket's unit. Unlike every channel unit,
 your one stage runs with no model session at all: the pass starts
-`scripts/fetch.py` directly — `llm-wiki-ops run ops/skills/web-page/scripts/fetch.py
+`scripts/fetch.py` directly — `{{@brain-cli-ops}} run ops/skills/web-page/scripts/fetch.py
 ticket=<id>` (G2) — in the harvest stage's jail, and that script reads the
 ticket, fetches, and posts `tickets update` itself. There is no hand-run
 form: the script runs only through the runner, and `tickets run <id>
@@ -17,11 +17,11 @@ spawn=self` is refused for this unit's ticket.
 ## Running a ticket
 
 ```sh
-llm-wiki-ops --json pipeline run job=<slug> wait=<s>
-llm-wiki-ops --json pipeline tickets run <id> wait=<s>
+{{@brain-cli-ops}} --json jobs run job=<slug> wait=<s>
+{{@brain-cli-ops}} --json tickets run <id> wait=<s>
 ```
 
-Either starts the stage jailed. The host's `close` (`pipeline tickets close <id>`) reads whatever `tickets update` the
+Either starts the stage jailed. The host's `close` (`tickets close <id>`) reads whatever `tickets update` the
 script posted and routes it: `ok` mints the process ticket the plugin's own
 `scripts/extract.py` runs; `failed` with attempts left re-queues; `gone` (a
 refresh only) lands the page as gone. The script never closes its own ticket.
@@ -40,5 +40,5 @@ refresh does differently.
 
 ## Reference
 
-`llm-wiki-ops reference pipeline-ticket` for the worker loop and the
+`{{@brain-cli-ops}} reference pipeline-ticket` for the worker loop and the
 report every worker leaves.

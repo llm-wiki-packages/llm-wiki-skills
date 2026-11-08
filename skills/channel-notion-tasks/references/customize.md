@@ -17,18 +17,23 @@ so nobody "fixes" it with `skills install --force`.
 
 ## Sandbox
 
-`stages.harvest.sandbox_ref` is
-`llm-wiki-packages/llm-wiki-skills:notion/notion.harvest`. What the stage
-reaches, and why:
+The manifest's `sandbox_ref` is `llm-wiki-packages/llm-wiki-skills:notion`.
+`skills install` validates that template and writes it as the unit's
+`sandbox.jsonc`; `skills enable` shows what each stage adds to its stock
+base and asks. What the stages reach, and why:
 
 ```sh
-llm-wiki-ops reference llm-wiki-packages/llm-wiki-skills:references/sandboxes/notion/notion.harvest.md
+{{@brain-cli-ops}} reference llm-wiki-packages/llm-wiki-skills:sandboxes/notion.md
 ```
 
-`/llm-wiki:sandbox channel-notion-tasks` reviews it into a wiki sandbox, and
-`/llm-wiki:enable channel-notion-tasks` binds the stage. The wiki sandbox
-holds only the `## Profile` block — the wiki writes no credential route at
-all here. A harvest also needs a `notion` route in this machine's harness
-profile (see the reference's `## Credential` section); prefer the profile
-scoped to this wiki alone. `process` names no sandbox and runs with no
-network.
+Widening is a committed edit to the unit's `sandbox.jsonc` followed by
+`skills enable`. `process` extends the stock `process` base, which opens no
+host.
+
+The `notion` route is on the template's harvest stage, and the manifest
+declares `requires.credentials.routes.notion` `"required"`. The template's
+probe, `ntn whoami`, runs after the yes at `skills enable` and spends the
+wiki's vault entry `notion` through the mapped route, so on each machine name
+the vault, store the token and map the route BEFORE `/{{@brain-plugin}}:enable` (steps 2 and 3 of `{{@brain-cli-ops}} reference
+channel-notion-tasks/enable`). No route in a harness profile: the route is
+the stage's.

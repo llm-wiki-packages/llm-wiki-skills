@@ -1,0 +1,26 @@
+// blackboard: the catalog template for the channel-blackboard unit. `skills
+// install` validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/blackboard.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      // Playwright's browser build, which bb.py launches.
+      "machine_reads": ["playwright-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other. The
+        // institution's own host is the job's target, minted per ticket.
+        "allow_domain": [
+          // Blackboard-hosted sites, and the CDN every /bbcswebdav/ file redirects to.
+          "blackboard.com",
+          "*.blackboard.com",
+          "*.blackboardcdn.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

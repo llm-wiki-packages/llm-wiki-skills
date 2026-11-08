@@ -1,12 +1,18 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Pulls tasks from a Notion workspace once a day and writes that day's ledger of what is due, open or done.",
   "keywords": [
     "notion",
     "task",
     "tasks",
     "todo",
-    "workspace"
+    "workspace",
+    "ledger",
+    "host:api.notion.com"
   ],
-  "kind": "channel",
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-notion-tasks",
   "requires": {
     "bins": [
@@ -18,22 +24,25 @@
         }
       }
     ],
-    "credential": false,
-    "ops": ">=0.1.0"
-  },
-  "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:notion/notion.harvest"
+    "credentials": {
+      "routes": {
+        "notion": "required"
+      }
     },
+    "ops": ">=0.10.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:notion",
+  "stages": {
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-notion-tasks ticket=<id>",
   "v": 1,
-  "venue": "notion",
   "version": "0.1.0",
   "watch": {
     "defaults": {
-      "every": "1d"
+      "every": "1d",
+      "transcribe": null
     },
     "dest": "research/channels/{slug}",
     "inputs": {

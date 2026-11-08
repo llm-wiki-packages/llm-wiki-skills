@@ -1,0 +1,21 @@
+// gmail: the catalog template for the channel-gmail unit. `skills install`
+// validates it, spells every default out and writes it as the unit's
+// `sandbox.jsonc`; `sandboxes/gmail.md` is its help prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "harvest": {
+      "extends": "harvest",
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue: the Gmail connector's MCP endpoint.
+          "gmailmcp.googleapis.com"
+        ]
+      }
+    },
+    "process": {"extends": "process"},
+    "routine": {"extends": "routine"}
+  }
+}

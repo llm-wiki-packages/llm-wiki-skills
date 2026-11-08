@@ -46,7 +46,7 @@ def processed(ops, env, wiki, job, cap):
     session = staged(ops, env, wiki, process_id, f"""\
 rm -f "$CAP/page.md" "$CAP/written.json"
 step note "$OPS" run {NOTE} . --capture-dir "$CAP" --dest {job.dest} --ticket "$TICKET"
-step update "$OPS" --json pipeline tickets update "$TICKET" stage=process status=ok written_from=written.json
+step update "$OPS" --json tickets update "$TICKET" stage=process status=ok written_from=written.json
 """)
     for name in ("note", "update"):
         done = session.step(name)
@@ -75,9 +75,11 @@ def test_a_harvested_video_becomes_the_staged_page(ops, env, wiki):
     # ONE frontmatter block — the page verb's — and the body after it is ours, verbatim.
     assert text.startswith("---\n")
     _, front, body = text.split("---\n", 2)
-    assert "status: draft" in front and ITEM in front and "Progressive Overload, Explained" in front
+    assert ITEM in front and "Progressive Overload, Explained" in front
+    # Staged, not accepted: none of the three facts `status` derives from (note-format: the state map).
+    assert "\nstatus:" not in f"\n{front}" and "\nverified:" not in f"\n{front}"
     # the facts the unit knows are ON THE PAGE, not re-guessed from the body
-    assert "type: video" in front and "published: '2026-06-18'" in front and "extracted: 'true'" in front
+    assert "type: video" in front and "published: '2026-06-18'" in front and "ops:\n  extracted: 'true'" in front
     assert body.strip() == (cap / "page.md").read_text(encoding="utf-8").strip()
     # The description is a blockquote, so the page verb's two fences are all there are.
     assert len(re.findall(r"^---$", text, re.M)) == 2, "the two fences of the one frontmatter block"

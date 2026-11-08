@@ -1,4 +1,6 @@
 {
+  "argument_hint": "ticket=<id> stage=<harvest|process>",
+  "description": "Captures Frame.io guest shares: walks the share's folders, downloads each video, image or document, and writes a page for the share.",
   "keywords": [
     "frame",
     "share",
@@ -9,7 +11,9 @@
     "host:frame.io",
     "host:*.frame.io"
   ],
-  "kind": "channel",
+  "mode": [
+    "pipeline"
+  ],
   "name": "channel-frameio",
   "requires": {
     "bins": [
@@ -22,18 +26,15 @@
         }
       }
     ],
-    "credential": false,
-    "ops": ">=0.1.0"
+    "ops": ">=0.10.0"
   },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio",
   "stages": {
-    "harvest": {
-      "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio/frameio.harvest"
-    },
+    "harvest": {},
     "process": {}
   },
   "usage": "/channel-frameio ticket=<id>",
   "v": 1,
-  "venue": "frameio",
   "version": "0.1.0",
   "watch": {
     "defaults": {

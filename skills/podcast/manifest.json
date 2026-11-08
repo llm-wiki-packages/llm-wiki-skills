@@ -1,0 +1,33 @@
+{
+  "argument_hint": "[focus] [ticket=<id> stage=routine]",
+  "description": "Turns a handful of pages, such as a week's lectures, into one podcast episode page: show notes linking back to every page it drew on and a two-host script written for the ear, asking the plugin's narrate engine for its audio. Runs on a schedule or by hand.",
+  "keywords": [
+    "podcast",
+    "audio",
+    "episode",
+    "narrate",
+    "tts",
+    "speech",
+    "lectures",
+    "listen",
+    "hosts",
+    "summary"
+  ],
+  "mode": [
+    "pipeline",
+    "session"
+  ],
+  "name": "podcast",
+  "requires": {
+    "ops": ">=0.11.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:podcast",
+  "stages": {
+    "routine": {
+      "model": "frontier"
+    }
+  },
+  "usage": "/podcast [focus]",
+  "v": 1,
+  "version": "0.1.0"
+}

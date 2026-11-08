@@ -748,8 +748,8 @@ def settle_titles(capture_dir: Path, plan: dict) -> None:
 # exists — so nothing pulls this job a second time by itself.
 RESUME = (
     "an `every: once` job (this unit's default) is NOT pulled again by itself: re-queue this ticket with "
-    "`llm-wiki-ops pipeline tickets retry {ticket}` (refused once a ticket has had 3 attempts), or give the job a "
-    "period with `llm-wiki-ops pipeline jobs edit {slug} every=1d` until the course is held; either run skips what "
+    "`llm-wiki-ops tickets retry {ticket}` (refused once a ticket has had 3 attempts), or give the job a "
+    "period with `llm-wiki-ops jobs edit {slug} every=1d` until the course is held; either run skips what "
     "is on disk or in known[]"
 )
 
@@ -969,7 +969,7 @@ def open_ticket(ticket: str, stage: str | None = None) -> dict:
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit reaches the plugin")
-    argv = [*door, "--json", "pipeline", "tickets", "open", ticket]
+    argv = [*door, "--json", "tickets", "open", ticket]
     if stage:
         argv.append(f"stage={stage}")
     cp = subprocess.run(argv, capture_output=True, text=True)
@@ -1000,7 +1000,7 @@ def post_update(
     door = front_door()
     if not door:
         sys.exit(f"{me}: `{OPS}` is not on PATH and `LLM_WIKI_OPS` names nothing — the front door is how this unit posts progress")
-    argv = [*door, "--json", "pipeline", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
+    argv = [*door, "--json", "tickets", "update", ticket, f"stage={stage}", f"status={status}"]
     if reason:
         argv.append(f"reason={reason}")
     for directory in captured:
