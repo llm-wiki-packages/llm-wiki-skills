@@ -29,3 +29,13 @@
    `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps nothing
    and lists the skill's `dir` slot as unmapped with a `bind skill` line;
    leave that line unrun.
+
+3. Optional — watch notes. Name an enrich unit and the page carries a
+   "Watch notes" section written from the video itself:
+   `{{@brain-cli-ops}} jobs edit <slug> enrich.skill=channel-youtube-watch-gemini`
+   (Google's model watches it; needs a key) or
+   `enrich.skill=channel-youtube-watch-local` (frames and captions read on this
+   machine). Each unit's own `references/enable.md` is the setup; keep
+   `skill=channel-youtube` on the job, and never put an enrich unit there.
+   Enrich is a stage of the rail, not an extra: a job that names one waits on
+   it, and a capture whose enrich keeps failing stays out of process.

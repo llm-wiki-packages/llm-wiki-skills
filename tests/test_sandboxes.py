@@ -30,8 +30,13 @@ def _hosts(name: str) -> list[str]:
     return [k.removeprefix("host:") for k in unit_manifest(name)["keywords"] if k.startswith("host:")]
 
 
+def _egress(name: str) -> str:
+    """The one stage of a unit that may reach the network: harvest, or an enrich unit's enrich."""
+    return "enrich" if list(unit_manifest(name).get("stages", {})) == ["enrich"] else "harvest"
+
+
 def _network(name: str) -> dict:
-    return template(template_name(name))["stages"].get("harvest", {}).get("network", {})
+    return template(template_name(name))["stages"].get(_egress(name), {}).get("network", {})
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -50,7 +55,7 @@ def test_every_template_is_one_a_unit_names():
     shipped = {p.stem for p in TEMPLATES.iterdir()}
     assert shipped == named, shipped ^ named
     assert {p.suffix for p in TEMPLATES.iterdir()} == {".jsonc", ".md"}
-    assert len(named) == len(SKILLS) == 17, (len(named), len(SKILLS))
+    assert len(named) == len(SKILLS) == 19, (len(named), len(SKILLS))
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -70,8 +75,8 @@ def test_no_template_names_a_model_endpoint(name):
 
 
 # What each template's stages reach beyond the stock bases, explicitly: a grant
-# dropped or added shows here. Hosts are the harvest stage's `allow_domain`;
-# no other stage names a host.
+# dropped or added shows here. Hosts are the egress stage's `allow_domain` (an
+# enrich unit's enrich, every other unit's harvest); no other stage names a host.
 HOSTS = {
     "blackboard": ["blackboard.com", "*.blackboard.com", "*.blackboardcdn.com"],
     "circle": ["circle.so", "*.circle.so"],
@@ -90,6 +95,8 @@ HOSTS = {
     "substack": ["substack.com", "*.substack.com", "substackcdn.com"],
     "web-page": [],
     "youtube": ["youtube.com", "*.youtube.com", "youtu.be", "*.googlevideo.com", "*.ytimg.com"],
+    "youtube-watch-gemini": ["generativelanguage.googleapis.com"],
+    "youtube-watch-local": ["youtube.com", "*.youtube.com", "youtu.be", "*.googlevideo.com"],
 }
 
 # `(template, stage) -> machine_reads tokens`; absent means none.
@@ -100,6 +107,7 @@ MACHINE_READS = {
     ("hubspot-cms", "harvest"): ["playwright-cache"],
     ("substack", "harvest"): ["playwright-cache"],
     ("youtube", "harvest"): ["yt-dlp-cache", "playwright-cache"],
+    ("youtube-watch-local", "enrich"): ["yt-dlp-cache"],
 }
 
 # `(template, stage) -> filesystem`; absent means none.
@@ -135,9 +143,9 @@ def test_a_template_reaches_exactly_the_hosts_it_is_expected_to(name):
     tname = template_name(name)
     for stage, body in template(tname)["stages"].items():
         hosts = body.get("network", {}).get("allow_domain", [])
-        assert hosts == (HOSTS[tname] if stage == "harvest" else []), f"{tname}.{stage}: hosts {hosts}"
+        assert hosts == (HOSTS[tname] if stage == _egress(name) else []), f"{tname}.{stage}: hosts {hosts}"
     if HOSTS[tname]:
-        assert HOSTS[tname] == _network(name)["allow_domain"], f"{tname}: harvest lost its network block"
+        assert HOSTS[tname] == _network(name)["allow_domain"], f"{tname}: {_egress(name)} lost its network block"
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -153,7 +161,7 @@ CREDENTIAL_KEYS = ("credentials",)
 
 
 @pytest.mark.parametrize("name", [n for n in SKILLS if any(unit_manifest(n)["requires"].get(k) for k in CREDENTIAL_KEYS)])
-def test_a_credentialed_unit_claims_an_exact_host_its_harvest_stage_reaches(name):
+def test_a_credentialed_unit_claims_an_exact_host_its_egress_stage_reaches(name):
     claims = [h for h in _hosts(name) if not h.startswith("*")]
     assert set(claims) & set(_network(name).get("allow_domain", [])), f"{name}: no exact host: claim is reached, so dispatch refuses a job with no host"
 
@@ -169,7 +177,7 @@ def test_a_route_is_named_by_the_stage_and_the_manifest_declares_its_binding(nam
     else:
         assert sorted(declared) == sorted(routes), f"{name}: requires.credentials.routes {sorted(declared)} vs the template's {sorted(routes)}"
     for route, body in network.get("custom_credentials", {}).items():
-        assert set(body) <= {"upstream", "env_var", "credential_format", "endpoint_rules"}, (name, route, sorted(body))
+        assert set(body) <= {"upstream", "env_var", "credential_format", "inject_header", "endpoint_rules"}, (name, route, sorted(body))
         assert body["upstream"].startswith("https://") and body["credential_format"].count("{}") == 1, (name, route, body)
 
 

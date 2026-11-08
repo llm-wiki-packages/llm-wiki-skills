@@ -1,0 +1,26 @@
+// youtube-watch-local: the catalog template for the channel-youtube-watch-local
+// unit. `skills install` validates it, spells every default out and writes it
+// as the unit's `sandbox.jsonc`; `sandboxes/youtube-watch-local.md` is its help
+// prose.
+{
+  "v": 2,
+  "kind": "skill",
+  "stages": {
+    "enrich": {
+      "extends": "enrich",
+      // yt-dlp's cache directory.
+      "machine_reads": ["yt-dlp-cache"],
+      "network": {
+        // Allow-list mode: naming any host denies every other.
+        "allow_domain": [
+          // The venue, as yt-dlp reaches it for a low-resolution fetch.
+          "youtube.com",
+          "*.youtube.com",
+          "youtu.be",
+          "*.googlevideo.com"
+        ]
+      }
+    },
+    "routine": {"extends": "routine"}
+  }
+}

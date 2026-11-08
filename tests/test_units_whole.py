@@ -523,3 +523,32 @@ def test_a_unit_with_a_directory_body_ships_transcribe_off(name):
     """The host's transcribe stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
     defaults = unit_manifest(name)["watch"]["defaults"]
     assert "transcribe" in defaults and defaults["transcribe"] is None, defaults
+
+
+# Units that serve the enrich stage and nothing else: they write no page, so
+# they are not channel units, and the job that names one names the unit that
+# writes the page beside it.
+ENRICHERS = [n for n in SKILLS if list(unit_manifest(n).get("stages", {})) == ["enrich"]]
+
+
+def test_the_enrich_selection_finds_the_units_it_was_written_for():
+    """A selection that matches nothing parametrizes nothing and reports green."""
+    assert ENRICHERS == ["channel-youtube-watch-gemini", "channel-youtube-watch-local"], ENRICHERS
+
+
+@pytest.mark.parametrize("name", ENRICHERS)
+def test_an_enrich_unit_is_named_by_no_job_as_its_skill(name):
+    """An enrich unit is a job's `enrich.skill=`, beside the unit that writes
+    the page: it declares no watch, so `jobs add` never routes a target to it."""
+    manifest = unit_manifest(name)
+    assert manifest["mode"] == ["pipeline"] and "watch" not in manifest, manifest
+
+
+def test_the_enrich_units_carry_one_copy_of_the_files_they_share():
+    """Two units install on their own, so the judgment they share — the files
+    an enrich step leaves and the question every video is asked — is carried
+    by each, byte for byte. A copy fixed in one and not the other is two
+    engines writing to two contracts."""
+    for rel in ("references/watch-notes.md", "references/question.md"):
+        digests = {n: hashlib.sha256((ROOT / "skills" / n / rel).read_bytes()).hexdigest() for n in ENRICHERS}
+        assert len(set(digests.values())) == 1, f"{rel} differs between {sorted(digests)}"

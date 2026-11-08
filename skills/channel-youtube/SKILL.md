@@ -43,7 +43,7 @@ it in the stage's jail as
 `{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
 and `scripts/capture_video.py` is the whole worker. It reads the ticket (`item`, `capture_dir`,
 `known[]`, `refresh`), clears what an earlier run left in the capture
-directory, runs both `yt-dlp` commands (Capture, below) with the item as one
+directory (`enrich/` too: it was made from the old bytes), runs both `yt-dlp` commands (Capture, below) with the item as one
 argv element, writes the capture record, and posts `tickets update` itself:
 
 - `ok` — `metadata.json` landed; captions are process's question, not this one's.
@@ -91,11 +91,11 @@ It writes the body as `page.md` beside the bytes, then the page under `dest`:
 `page edit` of the job's page for the video (`page ls resource=`), wherever
 a person renamed it, else `page create`. It leaves the paths in `written.json`.
 One JSON line out — `written`, `page`, `has_transcript`, `chapters`,
-`description`, and `left` where a page a person moved or holds, or the ticket's
+`description`, `watch_notes`, and `left` where a page a person moved or holds, or the ticket's
 `held[]` names, was left alone
 (`written` empty: post `ok` with `reason=left_alone`). A non-zero exit means
 NOTHING landed: post `failed` with its last stderr line. The page's shape is
-`{{@brain-cli-ops}} reference channel-youtube/note-shape`.
+`{{@brain-cli-ops}} reference channel-youtube/note-shape`, enrich's Watch notes too.
 
 **4. Post progress — last.**
 
@@ -148,7 +148,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   facts list, the description as a blockquote (URLs linkified, the creator's own
   TIMESTAMPS turned into a list, hashtag pile removed), and the transcript as
   chapter-headed timestamped sections.
-- **No summary.** An unfilled placeholder is worse than no section.
+- **No summary**, but an enrich unit's Watch notes. An unfilled placeholder is worse than no section.
 
 ### Media
 

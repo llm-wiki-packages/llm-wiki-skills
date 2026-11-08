@@ -1,0 +1,49 @@
+{
+  "argument_hint": "ticket=<id> stage=enrich",
+  "description": "Enriches a captured YouTube video on this machine: yt-dlp fetches it small, ffmpeg cuts stills, and the session reads frames and captions into Watch notes that channel-youtube folds into the page.",
+  "keywords": [
+    "watch",
+    "frames",
+    "summary",
+    "summarize",
+    "visual"
+  ],
+  "mode": [
+    "pipeline"
+  ],
+  "name": "channel-youtube-watch-local",
+  "requires": {
+    "bins": [
+      {
+        "bin": "yt-dlp",
+        "source": "https://github.com/yt-dlp/yt-dlp",
+        "installers": {
+          "brew": "yt-dlp",
+          "pip": "yt-dlp"
+        }
+      },
+      {
+        "bin": "ffmpeg",
+        "source": "https://ffmpeg.org",
+        "installers": {
+          "brew": "ffmpeg"
+        }
+      },
+      {
+        "bin": "ffprobe",
+        "source": "https://ffmpeg.org",
+        "installers": {
+          "brew": "ffmpeg"
+        }
+      }
+    ],
+    "ops": ">=0.15.0"
+  },
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube-watch-local",
+  "stages": {
+    "enrich": {}
+  },
+  "usage": "/channel-youtube-watch-local ticket=<id>",
+  "v": 1,
+  "version": "0.1.0"
+}

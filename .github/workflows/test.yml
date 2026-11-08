@@ -116,6 +116,8 @@ jobs:
       # without it every staged harness case skips, saying so.
       - name: Install the binaries the manifests declare
         run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
           uv tool install yt-dlp
           uv tool install parentsquare-mcp==0.4.0
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
