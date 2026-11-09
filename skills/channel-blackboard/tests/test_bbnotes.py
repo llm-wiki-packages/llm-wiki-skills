@@ -232,6 +232,8 @@ def front_door(tmp_path, ticket):
         "    print(json.dumps({'path': kv['dest'] + '/' + kv['title'] + '.md'})); sys.exit(0)\n"
         "if verb[:2] == ['page', 'edit']:\n"
         "    print(json.dumps({'path': verb[2]})); sys.exit(0)\n"
+        "if verb[:3] == ['page', 'root', 'apply']:\n"
+        "    print(json.dumps({'changed': 0})); sys.exit(0)\n"
         "if verb[:2] == ['page', 'ls']:\n"
         "    under = next(a.split(':', 1)[1] for a in verb if a.startswith('filter=under:'))\n"
         "    roots = [p.as_posix() for p in sorted(pathlib.Path(under).rglob('*.md')) if p.read_text().split('\\n---', 1)[0].count('\\n  root: ') and 'true' in p.read_text().split('\\n  root: ', 1)[1].split('\\n', 1)[0]]\n"

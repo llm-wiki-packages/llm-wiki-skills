@@ -45,3 +45,27 @@ def test_a_portal_courses_subject_tags_are_lent_from_its_root(monkeypatch):
     create = seen[0]
     assert "tags=psychology" in create and "ops.lends=current,course,tags" in create
     assert "dest=sources/courses/school/PSY2301" in create
+
+
+def test_a_new_root_fills_the_pages_already_below_it(monkeypatch):
+    # The pass lands a course's captures in any order: most of its pages can be written before its root.
+    seen = calls(monkeypatch)
+    assert process.create_root("sources/c", {"title": "PSY", "abstract": "a", "body": "b"}, {"current": "true"}) is None
+    assert seen[-1] == ("page", "root", "apply", "sources/c")
+
+
+def test_a_root_whose_fill_is_refused_says_so(monkeypatch):
+    def fake(*args, stdin=None):
+        return (2, {"error": "refused"}) if args[:3] == ("page", "root", "apply") else (0, {"path": "sources/c/README.md"})
+
+    monkeypatch.setattr(process, "ops_json", fake)
+    assert "refused" in process.create_root("sources/c", {"title": "PSY", "abstract": "a", "body": "b"}, {"current": "true"})
+
+
+def test_written_from_names_the_file_inside_the_capture_not_a_wiki_path():
+    # `tickets update` reads `written_from=` against the ticket's capture directory: a wiki-relative path doubles.
+    import inspect
+
+    source = inspect.getsource(process)
+    assert "/" not in process.WRITTEN
+    assert source.count("written_from=WRITTEN") == 3 and "capture / WRITTEN).as_posix()" not in source

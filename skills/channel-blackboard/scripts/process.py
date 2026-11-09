@@ -262,13 +262,17 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
 
 def create_root(folder: str, made: dict, keys: dict) -> str | None:
     """`README.md` in `folder` with `keys`, then its title: the filename is the title at create. Every key but the
-    `ops` settings is named in `ops.lends`, the keys a page made below copies."""
+    `ops` settings is named in `ops.lends`, the keys a page made below copies; pages already there get them through
+    `page root apply`."""
     lends = [k for k in keys if not k.startswith("ops.")]
     pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"] + ([f"ops.lends={','.join(lends)}"] if lends else [])
     rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={folder}", "type=document", *pairs,
                           "--stdin", stdin=made["body"])
     if rc == 0:
         rc, answer = ops_json("page", "edit", answer.get("path") or f"{folder.rstrip('/')}/{ROOT}", f"title={made['title']}")
+    if rc == 0:
+        # The pass lands a course's captures in any order, so pages below may predate their root: fill them now.
+        rc, answer = ops_json("page", "root", "apply", folder)
     return f"{folder.rstrip('/')}/{ROOT}: {answer.get('error') or answer}" if rc != 0 else None
 
 
@@ -330,11 +334,11 @@ def removed(ticket_id: str, capture: Path, cap: dict, known: dict[str, dict]) ->
     if refused:
         # Not dated: the next pull posts the stamp again.
         post_update(ticket_id, "process", "partial" if written else "failed", reason="; ".join(refused)[:400],
-                    written_from=(capture / WRITTEN).as_posix())
+                    written_from=WRITTEN)
         return 0
     dated.write_text(json.dumps(cap["removed"]) + "\n", encoding="utf-8")
     post_update(ticket_id, "process", "ok", reason=f"{', '.join(written)}: no longer in the course since {cap['removed']}"[:600],
-                written_from=(capture / WRITTEN).as_posix())
+                written_from=WRITTEN)
     return 0
 
 
@@ -426,7 +430,7 @@ def main(argv: list[str]) -> int:
     (capture / WRITTEN).write_text(json.dumps(written) + "\n", encoding="utf-8")
     status = "failed" if refused and not (written or clashed) else "partial" if refused or thin or clashed else "ok"
     reason = "; ".join(clashed + refused + thin + left)[:600] or None
-    post_update(ticket_id, "process", status, reason=reason, written_from=(capture / WRITTEN).as_posix())
+    post_update(ticket_id, "process", status, reason=reason, written_from=WRITTEN)
     return 0
 
 
