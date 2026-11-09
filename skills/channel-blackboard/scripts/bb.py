@@ -62,6 +62,11 @@ EXIT_AUTH, EXIT_USAGE, EXIT_API = 2, 3, 4
 ATTACHABLE = ("resource/x-bb-file", "resource/x-bb-assignment", "resource/x-bb-syllabus")
 MAX_NEST = 3
 DOWNLOAD_TIMEOUT_MS = 300_000
+# A file the site answers with one of these is not there for this student: a re-run cannot fetch it, so it is gone, not failed.
+GONE_STATUSES = (403, 404, 410)
+# A busy or failing site, worth asking again within the run; the waits between the tries, in seconds.
+RETRY_STATUSES = (429, 500, 502, 503, 504)
+RETRY_WAITS_S = (3, 10)
 SYLLABUS_HANDLER = "resource/x-bb-syllabus"
 # Files an Ultra document embeds live in the body as content-collection links.
 BODY_FILE_RE = re.compile(r"""(?:href|src|data-bbfile-url)\s*=\s*["']([^"']*(?:/bbcswebdav/|/xid-)[^"']*)["']""", re.I)
@@ -158,6 +163,29 @@ def filename_from(disposition: str | None, url: str) -> str:
     return safe_name(unquote(urlsplit(url).path.rsplit("/", 1)[-1]) or "file")
 
 
+def read_json(path: Path, default):
+    """A JSON file a previous pull wrote, or `default` where it is absent, unreadable or the wrong shape."""
+    try:
+        found = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return default
+    return found if isinstance(found, type(default)) else default
+
+
+def reusable(row: dict | None, owner, out: Path, dest: Path, prior_modified: dict, now_modified: dict) -> Path | None:
+    """The file `row` names, kept from the last pull: on disk, still in the folder this pull files it under, and owned by
+    something unchanged. A content item says so by `modified`; an announcement, post or attempt has no such date here, so its
+    file's own collection path stands as its identity."""
+    if not row or not row.get("path"):
+        return None
+    found = out / row["path"]
+    if not found.is_file() or found.parent != dest:
+        return None
+    if owner in now_modified and prior_modified.get(owner) != now_modified[owner]:
+        return None
+    return found
+
+
 def is_syllabus(item: dict) -> bool:
     handler = (item.get("contentHandler") or {}).get("id", "")
     return handler == SYLLABUS_HANDLER or "syllabus" in (item.get("title") or "").lower()
@@ -205,6 +233,27 @@ def read_site(profile: Path, host: str | None = None) -> str:
         sys.exit(f"{profile}: no {SITE} — run `bb.py login <base_url> --profile {profile}` first")
 
 
+def proxy_from_env(environ) -> dict | None:
+    """Playwright's `proxy` for a jail's egress proxy: Chromium and the context's request client ignore the env variables, and a
+    jail refuses every direct socket. Credentials go in their own keys, which the request client needs; None outside a jail."""
+    raw = environ.get("HTTPS_PROXY") or environ.get("https_proxy") or environ.get("HTTP_PROXY") or environ.get("http_proxy")
+    if not raw:
+        return None
+    parts = urlsplit(raw)
+    if not parts.hostname:
+        return None
+    netloc = parts.hostname + (f":{parts.port}" if parts.port else "")
+    found = {"server": f"{parts.scheme or 'http'}://{netloc}"}
+    if parts.username:
+        found["username"] = unquote(parts.username)
+    if parts.password:
+        found["password"] = unquote(parts.password)
+    bypass = environ.get("NO_PROXY") or environ.get("no_proxy")
+    if bypass:
+        found["bypass"] = bypass
+    return found
+
+
 def write_private(path: Path, text: str) -> None:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as fh:
@@ -217,6 +266,9 @@ class Session:
     def __init__(self, playwright, profile: Path, base_url: str, *, headed: bool = False, chrome: bool = False):
         self.profile, self.base = profile, base_url.rstrip("/")
         opts = dict(LAUNCH, headless=not headed)
+        proxy = proxy_from_env(os.environ)
+        if proxy:
+            opts["proxy"] = proxy
         if chrome:
             opts["channel"] = "chrome"
         self.ctx = playwright.chromium.launch_persistent_context(str(profile), accept_downloads=True, **opts)
@@ -244,6 +296,22 @@ class Session:
             # Its message carries the call log: every header, the session cookie among them.
             raise ApiError(0, urlsplit(url).path, str(e).splitlines()[0][:160]) from None
 
+    def _get_retrying(self, url: str, timeout_ms: int = 60_000):
+        """`_get`, asked again after a dropped connection or a busy-site status, `RETRY_WAITS_S` apart: the last answer, or
+        the last connection error once the tries are spent."""
+        for wait in (*RETRY_WAITS_S, None):
+            try:
+                r = self._get(url, timeout_ms)
+            except ApiError:
+                if wait is None:
+                    raise
+                time.sleep(wait)
+                continue
+            if r.status not in RETRY_STATUSES or wait is None:
+                return r
+            time.sleep(wait)
+        raise AssertionError("unreachable")
+
     def me(self) -> dict | None:
         r = self._get(f"{self.base}{API}/v1/users/me")
         return r.json() if r.status == 200 else None
@@ -268,7 +336,7 @@ class Session:
     def api(self, path: str) -> dict:
         url = path if path.startswith("http") else f"{self.base}{path if path.startswith('/') else API + '/' + path}"
         time.sleep(PAUSE_S)
-        r = self._get(url)
+        r = self._get_retrying(url)
         if r.status == 401:
             raise AuthError(f"401 on {path}")
         if r.status >= 400:
@@ -287,11 +355,8 @@ class Session:
     def download(self, url: str, dest_dir: Path, taken: set[str], name: str | None = None) -> Path:
         time.sleep(PAUSE_S)
         where = urlsplit(url).path  # the query is a signature, never logged
-        try:
-            r = self._get(url, DOWNLOAD_TIMEOUT_MS)
-        except ApiError:  # the CDN drops a connection now and then; once more, then it counts
-            time.sleep(3)
-            r = self._get(url, DOWNLOAD_TIMEOUT_MS)
+        # The CDN drops a connection now and then, and a busy site answers 429 or 5xx: asked again before it counts.
+        r = self._get_retrying(url, DOWNLOAD_TIMEOUT_MS)
         if r.status == 401:
             raise AuthError(f"401 downloading {where}")
         if r.status >= 400:
@@ -348,6 +413,19 @@ def cmd_whoami(s: Session, args) -> int:
 def cmd_courses(s: Session, args) -> int:
     user = s.ensure()
     rows = []
+    terms: dict[str, dict | None] = {}
+
+    def term_dates(term_id):
+        """The term's own dates, which a course set to "use the term" has in place of its own; None where a student may not read it."""
+        if not term_id:
+            return None
+        if term_id not in terms:
+            try:
+                terms[term_id] = (s.api(f"v1/terms/{term_id}").get("availability") or {}).get("duration")
+            except ApiError:
+                terms[term_id] = None
+        return terms[term_id]
+
     for m in s.api_all(f"v1/users/{user['id']}/courses?expand=course"):
         c = m.get("course") or {}
         rows.append({
@@ -359,6 +437,13 @@ def cmd_courses(s: Session, args) -> int:
             "term": c.get("termId"),
             "available": (c.get("availability") or {}).get("available"),
             "url": c.get("externalAccessUrl"),
+            # What the portal job reads to tell a running course from a finished one.
+            "member_available": (m.get("availability") or {}).get("available"),
+            "duration": (c.get("availability") or {}).get("duration"),
+            "term_duration": term_dates(c.get("termId")),
+            "organization": c.get("organization"),
+            "created": c.get("created"),
+            "last_accessed": m.get("lastAccessed"),
         })
     print(json.dumps(rows, indent=2))
     return 0
@@ -380,6 +465,48 @@ def cmd_harvest(s: Session, args) -> int:
     external: list[dict] = []
     fetched: set[str] = set()
     taken_by_dir: dict[Path, set[str]] = {}
+    # What the last pull into this directory left: a file is fetched again only where something says it may have changed.
+    prior_files = read_json(out / "files.json", [])
+    prior_modified = {r.get("id"): r.get("modified") for r in read_json(out / "contents.json", []) if isinstance(r, dict) and r.get("id")}
+    by_src = {r["src"]: r for r in prior_files if isinstance(r, dict) and r.get("src")}
+    by_attachment = {(r.get("item"), r.get("attachment")): r for r in prior_files if isinstance(r, dict) and r.get("attachment")}
+    now_modified: dict[str, str | None] = {}
+    reused = [0]
+    # Files the site no longer has for this student, by collection path or attachment: skipped while their owner is unchanged.
+    gone: list[dict] = []
+    prior_gone = [r for r in read_json(out / "gone.json", []) if isinstance(r, dict)]
+    gone_by_src = {r["src"]: r for r in prior_gone if r.get("src")}
+    gone_by_attachment = {(r.get("item"), r.get("attachment")): r for r in prior_gone if r.get("attachment")}
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+
+    def still_gone(row: dict | None, owner) -> bool:
+        """A file an earlier pull found gone, whose owner has not changed since: not asked for again. An owner that changed
+        (an instructor who edited the announcement may have fixed it) is asked again."""
+        if not row:
+            return False
+        if owner in now_modified and prior_modified.get(owner) != now_modified[owner]:
+            return False
+        gone.append(row)
+        return True
+
+    def download(what, fn, row: dict):
+        """`fn()`'s file; None where it failed (an error, which a re-run retries) or is gone (recorded, never an error)."""
+        try:
+            return fn()
+        except ApiError as e:
+            if e.status in GONE_STATUSES:
+                gone.append({**row, "status": e.status, "since": today})
+            else:
+                errors.append({"what": what, "status": e.status, "error": str(e)})
+            return None
+
+    def kept(row: dict | None, owner, dest: Path) -> Path | None:
+        """The file a previous pull left for `row`, where its owner has not changed since; None means fetch it."""
+        found = reusable(row, owner, out, dest, prior_modified, now_modified)
+        if found:
+            reused[0] += 1
+            taken_by_dir.setdefault(dest, set()).add(found.name.lower())
+        return found
 
     def attempt(what, fn, default=None):
         try:
@@ -404,7 +531,10 @@ def cmd_harvest(s: Session, args) -> int:
             return
         fetched.add(key)
         taken = taken_by_dir.setdefault(dest, set())
-        p = attempt(f"download {kind} {key}", lambda: s.download(url, dest, taken, name))
+        if still_gone(gone_by_src.get(key), owner):
+            return
+        p = kept(by_src.get(key), owner, dest) or download(
+            f"download {kind} {key}", lambda: s.download(url, dest, taken, name), {"item": owner, "kind": kind, "src": key})
         if not p:
             return
         files.append({"item": owner, "kind": kind, "path": str(p.relative_to(out)), "src": key})
@@ -447,6 +577,7 @@ def cmd_harvest(s: Session, args) -> int:
                 walk(k["id"], k["_path"], depth + 1)
 
     walk(None, [], 0)
+    now_modified.update({it.get("id"): it.get("modified") for it in items})
 
     bodies = out / "bodies"
     bodies.mkdir(exist_ok=True)
@@ -460,9 +591,13 @@ def cmd_harvest(s: Session, args) -> int:
             taken = taken_by_dir.setdefault(dest, set())
             for a in attempt(f"attachments {it['id']}", lambda it=it: s.api_all(f"v1/courses/{cid}/contents/{it['id']}/attachments"), []):
                 url = f"{s.base}{API}/v1/courses/{cid}/contents/{it['id']}/attachments/{a['id']}/download"
-                p = attempt(f"download attachment {a['id']}", lambda url=url, a=a, taken=taken: s.download(url, dest, taken, a.get("fileName")))
+                if still_gone(gone_by_attachment.get((it["id"], a["id"])), it["id"]):
+                    continue
+                p = kept(by_attachment.get((it["id"], a["id"])), it["id"], dest) or download(
+                    f"download attachment {a['id']}", lambda url=url, a=a, taken=taken: s.download(url, dest, taken, a.get("fileName")),
+                    {"item": it["id"], "kind": "attachment", "attachment": a["id"], "name": a.get("fileName")})
                 if p:
-                    files.append({"item": it["id"], "kind": "attachment", "path": str(p.relative_to(out)), "mime": a.get("mimeType")})
+                    files.append({"item": it["id"], "kind": "attachment", "attachment": a["id"], "path": str(p.relative_to(out)), "mime": a.get("mimeType")})
         if ch.get("url"):
             link = urljoin(s.base + "/", ch["url"])
             if is_collection_url(link, s.base):
@@ -531,12 +666,14 @@ def cmd_harvest(s: Session, args) -> int:
     dump("files.json", files)
     dump("external.json", dedupe_external(external))
     dump("errors.json", errors)
+    dump("gone.json", gone)
     summary = {
         "course": {"id": cid, "courseId": (course or {}).get("courseId"), "name": (course or {}).get("name")},
         "items": len(flat),
         "handlers": _count(f["handler"] for f in flat),
         "syllabus": [f["path"] for f in flat if f["syllabus"]],
         "files": len(files),
+        "files_reused": reused[0],
         "file_kinds": _count(f["kind"] for f in files),
         "announcements": len(announcements),
         "discussions": len(discussions),
@@ -546,6 +683,7 @@ def cmd_harvest(s: Session, args) -> int:
         "external_links": len(dedupe_external(external)),
         "external_videos": sorted({e["url"] for e in external if e["video"]}),
         "errors": len(errors),
+        "gone": len(gone),
     }
     dump("summary.json", summary)
     s.save_state()

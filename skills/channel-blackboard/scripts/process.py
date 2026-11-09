@@ -349,6 +349,13 @@ def main(argv: list[str]) -> int:
         post_update(ticket_id, "process", "failed", reason=f"{capture} holds no {bbnotes.CAPTURE}, or the job names no dest")
         return 0
     cap = json.loads((capture / bbnotes.CAPTURE).read_text(encoding="utf-8"))
+    # A portal job: each course lives in its own folder under the job's dest, and that folder is the dest of everything below.
+    folder = cap.get("course_folder")
+    if folder:
+        if "/" in folder or folder in (".", ".."):
+            post_update(ticket_id, "process", "failed", reason=f"capture names an unusable course folder: {folder!r}")
+            return 0
+        dest = f"{dest.rstrip('/')}/{folder}"
     held = {h["resource"]: h for h in t.get("held") or [] if h.get("resource")}
     if cap["item"] in held:
         post_update(ticket_id, "process", "ok", reason=f"{held_why(held[cap['item']])}: nothing written")
@@ -379,8 +386,18 @@ def main(argv: list[str]) -> int:
     if cap.get("kind") == "course":
         record = json.loads((capture / cap["body"]).read_text(encoding="utf-8"))
         overview = links.get(bbnotes.cap_key(cap))
-        if why := write_root(capture, cap, dest, t.get("options") or {}, t.get("root") or {}, overview):
+        # A portal job knows whether each course is running; a one-course job's answer is its `current` option.
+        root_options = {**(t.get("options") or {}), **({"current": cap["course_current"]} if "course_current" in cap else {})}
+        # The course's subject tags go on its root once, at creation; every page below inherits them, and a person's edit stands.
+        root_keys = {**(t.get("root") or {}), **({"tags": ",".join(cap["course_tags"])} if cap.get("course_tags") else {})}
+        if why := write_root(capture, cap, dest, root_options, root_keys, overview):
             refused.append(why)
+        flip = "false" if cap.get("course_ended") else "true" if cap.get("course_reopened") else None
+        if flip and (Path(dest) / ROOT).is_file():
+            # The pull that finds a course resting, or running again, says so on its root, once; a person's later edit stands.
+            rc, answer = ops_json("page", "edit", f"{dest.rstrip('/')}/{ROOT}", f"current={flip}")
+            if rc != 0:
+                refused.append(f"{dest.rstrip('/')}/{ROOT}: {answer.get('error') or answer}")
         refused += write_module_roots(capture, cap, dest, record, folders, overview)
         left += [f"{twin} differs from {dest} only by case: one folder on a case-insensitive disk, two to git" for twin in case_twins(dest)]
     fields = dict(cap.get("fields") or {})

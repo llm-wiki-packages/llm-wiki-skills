@@ -36,3 +36,12 @@ def test_a_new_page_copies_its_roots_keys_and_a_re_pull_does_not(monkeypatch, tm
     process.write_page(page, "bb:1", "sources/c", "sources/c/Lecture.md")
     assert "--inherit" in seen[0] and seen[0][:2] == ("page", "create")
     assert seen[-1][:2] == ("page", "edit") and "--inherit" not in seen[-1]
+
+
+def test_a_portal_courses_subject_tags_are_lent_from_its_root(monkeypatch):
+    seen = calls(monkeypatch)
+    keys = {"current": "true", "course": "PSY 2301", "tags": "psychology"}
+    assert process.create_root("sources/courses/school/PSY2301", {"title": "PSY", "abstract": "a", "body": "b"}, keys) is None
+    create = seen[0]
+    assert "tags=psychology" in create and "ops.lends=current,course,tags" in create
+    assert "dest=sources/courses/school/PSY2301" in create
