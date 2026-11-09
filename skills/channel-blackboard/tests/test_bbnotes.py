@@ -1065,3 +1065,44 @@ def test_a_held_later_part_is_left_alone_and_the_rest_written(tmp_path):
     written = [c for c in calls if c["argv"][1:3] in (["page", "create"], ["page", "edit"])]
     assert written and not [c for c in written if "part 2)" in " ".join(c["argv"])]
     assert any("(part 2).md: a person touched this page" in a for a in updates[0]), updates[0]
+
+
+DIARIZED = """WEBVTT
+
+NOTE llm-wiki transcript
+diarized=true
+
+00:00:01.000 --> 00:00:03.000
+<v Speaker 1>Hello and welcome.</v>
+
+00:00:03.000 --> 00:00:05.000
+<v Speaker 1>Glad you are here.</v>
+
+00:00:05.000 --> 00:00:07.000
+<v Speaker 2>My name is Rachel.</v>
+
+00:00:07.000 --> 00:00:09.000
+<v Speaker 1>Thanks, Rachel.</v>
+"""
+
+
+def test_a_transcript_with_two_speakers_keeps_who_said_what(bb, tmp_path):
+    track = tmp_path / "talk.transcript.webvtt"
+    track.write_text(DIARIZED)
+    assert bb.vtt_text(track).split("\n\n") == [
+        "**Speaker 1:** Hello and welcome. Glad you are here.",
+        "**Speaker 2:** My name is Rachel.",
+        "**Speaker 1:** Thanks, Rachel.",
+    ]
+
+
+def test_a_transcript_with_one_speaker_carries_no_labels(bb, tmp_path):
+    track = tmp_path / "talk.transcript.webvtt"
+    track.write_text(DIARIZED.replace("Speaker 2", "Speaker 1"))
+    assert bb.vtt_text(track) == "Hello and welcome. Glad you are here. My name is Rachel. Thanks, Rachel."
+
+
+def test_a_caption_track_with_no_voices_reads_as_before(bb, tmp_path):
+    track = tmp_path / "talk.en.vtt"
+    track.write_text("WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nHello there.\n\n2\n00:00:02.000 --> 00:00:03.000\nHello there.\n\n3\n00:00:03.000 --> 00:00:04.000\nGeneral Kenobi.\n")
+    assert bb.vtt_text(track) == "Hello there. General Kenobi."
