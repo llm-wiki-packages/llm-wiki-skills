@@ -283,15 +283,15 @@ def vtt_text(path: Path) -> str:
         if words and (line == words[-1][1] or words[-1][1].endswith(line)):
             continue
         words.append((voice, line))
-    labelled = len({v for v, _ in words if v}) > 1
+    labeled = len({v for v, _ in words if v}) > 1
     paras, cur, who = [], "", None
     for v, w in words:
-        if labelled and v != who and cur:
+        if labeled and v != who and cur:
             paras.append(cur)
             cur = ""
-        if labelled and not cur and v != who:
+        if labeled and not cur and v != who:
             cur = f"**{v}:**" if v else ""
-        who = v if labelled else who
+        who = v if labeled else who
         cur = f"{cur} {w}".strip()
         if len(cur) > 600 and cur[-1:] in ".?!":
             paras.append(cur)
