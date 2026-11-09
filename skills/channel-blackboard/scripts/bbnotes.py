@@ -1330,7 +1330,7 @@ def _term(term: dict) -> str | None:
 
 
 def root_page(cap: dict, record: dict, current: bool, overview: str | None = None) -> dict:
-    """The course's bundle root (`README.md` in the job's dest): the keys every page below inherits, and a line on what it is.
+    """The course's bundle root (`README.md` in the job's dest): the keys every page made below copies, and a line on what it is.
     `overview` is the link target of the course overview page; its title where none is given."""
     c = record.get("course") or {}
     title = course_title(c) if c.get("name") else _course_of(cap)
@@ -1354,13 +1354,13 @@ def root_page(cap: dict, record: dict, current: bool, overview: str | None = Non
                        "— the course's pages from Blackboard Learn.")
     target = overview or cap["title"]
     link = f"[[{target}]]" if target == cap["title"] else f"[[{target}|{cap['title']}]]"
-    body = (f"# {title}\n\nThis course's pages from Blackboard Learn. The keys above are read by every page in this folder: "
+    body = (f"# {title}\n\nThis course's pages from Blackboard Learn. Each page made here copies the keys above: "
             f"set `current: false` when the course is over. The outline, with every page in course order, the gradebook and the calendar: {link}.\n")
     return {"title": title, "fields": fields, "abstract": summary, "body": body}
 
 
 def module_root(cap: dict, module: dict, overview: str | None = None) -> dict:
-    """A module folder's bundle root (`README.md`): the module's keys, lent to every page in the folder over the course root's."""
+    """A module folder's bundle root (`README.md`): the module's keys, copied into every page made in the folder beside the course root's."""
     course = _course_of(cap)
     fields = {"ops.root": "true", "module": module["title"], "module_order": module.get("order"), "module_position": module.get("position"),
               "module_kind": module.get("kind"), "released": module.get("released"), "module_id": module["id"]}
@@ -1370,8 +1370,8 @@ def module_root(cap: dict, module: dict, overview: str | None = None) -> dict:
     return {"title": f"{module['title']} ({cap.get('course') or course})", "fields": fields,
             "abstract": abstract(f"Module {module['title']} of {course}, from Blackboard Learn" +
                                  (f", first seen with its items {module['released']}." if module.get("released") else ".")),
-            "body": f"# {one_line(module['title'])}\n\nThis module's pages in {one_line(course)}. The keys above are read by every page in "
-                    f"this folder. The course outline, in order, with due dates: {link}.\n"}
+            "body": f"# {one_line(module['title'])}\n\nThis module's pages in {one_line(course)}. Each page made in "
+                    f"this folder copies the keys above. The course outline, in order, with due dates: {link}.\n"}
 
 
 def _render_file(cap: dict, path: Path) -> list[dict]:
