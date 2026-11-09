@@ -223,7 +223,7 @@ def course_folder(row: dict, taken: set[str]) -> str:
 def pull_course(t: dict, site: str, course: str, harvest: Path, items: Path, chosen: dict, options: dict, layout: dict, profile: str,
                 stamp: dict | None = None, force_course: bool = False) -> dict:
     """One course: `bb.py harvest`, the split, and which items to post. Answers `error` (`auth`, `timeout`, or `bb.py`'s words) or the counts."""
-    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--profile", profile, "--site", site]
+    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(absolute(harvest)), "--profile", profile, "--site", site]
     if chosen["files"] == "skip":
         argv_bb.append("--no-files")
     if chosen["discussions"] == "skip":
@@ -283,6 +283,20 @@ def pull_course(t: dict, site: str, course: str, harvest: Path, items: Path, cho
     # Files the site no longer has for this student (`bb.py`'s `gone.json`): named in the reason, never a reason to pull again.
     gone = json.loads((harvest / "gone.json").read_text(encoding="utf-8")) if (harvest / "gone.json").is_file() else []
     return {"error": None, "captured": captured, "changed": len(captured) - removed - forced_unchanged, "unchanged": unchanged, "moved": moved, "frozen": frozen, "removed": removed, "listed": listed, "errors": errors, "gone": len(gone)}
+
+
+def absolute(path: Path, environ=os.environ) -> Path:
+    """`path` made absolute against the wiki root: a ticket names its capture relative to it, and inside a macOS jail
+    `getcwd` can still fail at the wiki root (seen 2026-11-09 under a slice whose profile grants the root's metadata), so
+    `bb.py`'s own `resolve()` of a relative `--out` fails. A readable working directory is what a relative path means;
+    the root stands in only where it cannot be read."""
+    if path.is_absolute():
+        return path
+    try:
+        return Path.cwd() / path
+    except OSError:
+        base = environ.get("LLM_WIKI_ROOT")
+        return Path(base) / path if base else path
 
 
 def write_ledger(path: Path, ledger: dict) -> None:

@@ -130,3 +130,17 @@ def test_a_course_quiet_for_six_weeks_rests_and_is_checked_weekly():
     assert harvest.should_pull("dormant", {"last_pull": "2026-10-30T00:00:00Z"}, NOW)
     assert not harvest.should_pull("dormant", {"last_pull": "2026-11-05T00:00:00Z"}, NOW)
     assert harvest.should_pull("dormant", {}, NOW)
+
+
+def test_a_relative_capture_is_made_absolute_against_a_readable_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert harvest.absolute(Path("_raw/x"), {"LLM_WIKI_ROOT": "/w"}) == tmp_path / "_raw/x"
+    assert harvest.absolute(Path("/abs/x"), {"LLM_WIKI_ROOT": "/w"}) == Path("/abs/x")
+
+
+def test_the_wiki_root_stands_in_for_an_unreadable_cwd(monkeypatch):
+    def refused():
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(harvest.Path, "cwd", staticmethod(refused))
+    assert harvest.absolute(Path("_raw/x"), {"LLM_WIKI_ROOT": "/w"}) == Path("/w/_raw/x")
