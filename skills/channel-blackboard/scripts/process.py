@@ -262,13 +262,17 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
 
 def create_root(folder: str, made: dict, keys: dict) -> str | None:
     """`README.md` in `folder` with `keys`, then its title: the filename is the title at create. Every key but the
-    `ops` settings is named in `ops.lends`, the keys a page made below copies."""
+    `ops` settings is named in `ops.lends`, the keys a page made below copies; pages already there get them through
+    `page root apply`."""
     lends = [k for k in keys if not k.startswith("ops.")]
     pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"] + ([f"ops.lends={','.join(lends)}"] if lends else [])
     rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={folder}", "type=document", *pairs,
                           "--stdin", stdin=made["body"])
     if rc == 0:
         rc, answer = ops_json("page", "edit", answer.get("path") or f"{folder.rstrip('/')}/{ROOT}", f"title={made['title']}")
+    if rc == 0:
+        # The pass lands a course's captures in any order, so pages below may predate their root: fill them now.
+        rc, answer = ops_json("page", "root", "apply", folder)
     return f"{folder.rstrip('/')}/{ROOT}: {answer.get('error') or answer}" if rc != 0 else None
 
 
@@ -330,11 +334,11 @@ def removed(ticket_id: str, capture: Path, cap: dict, known: dict[str, dict]) ->
     if refused:
         # Not dated: the next pull posts the stamp again.
         post_update(ticket_id, "process", "partial" if written else "failed", reason="; ".join(refused)[:400],
-                    written_from=(capture / WRITTEN).as_posix())
+                    written_from=WRITTEN)
         return 0
     dated.write_text(json.dumps(cap["removed"]) + "\n", encoding="utf-8")
     post_update(ticket_id, "process", "ok", reason=f"{', '.join(written)}: no longer in the course since {cap['removed']}"[:600],
-                written_from=(capture / WRITTEN).as_posix())
+                written_from=WRITTEN)
     return 0
 
 
@@ -349,6 +353,13 @@ def main(argv: list[str]) -> int:
         post_update(ticket_id, "process", "failed", reason=f"{capture} holds no {bbnotes.CAPTURE}, or the job names no dest")
         return 0
     cap = json.loads((capture / bbnotes.CAPTURE).read_text(encoding="utf-8"))
+    # A portal job: each course lives in its own folder under the job's dest, and that folder is the dest of everything below.
+    folder = cap.get("course_folder")
+    if folder:
+        if "/" in folder or folder in (".", ".."):
+            post_update(ticket_id, "process", "failed", reason=f"capture names an unusable course folder: {folder!r}")
+            return 0
+        dest = f"{dest.rstrip('/')}/{folder}"
     held = {h["resource"]: h for h in t.get("held") or [] if h.get("resource")}
     if cap["item"] in held:
         post_update(ticket_id, "process", "ok", reason=f"{held_why(held[cap['item']])}: nothing written")
@@ -379,8 +390,18 @@ def main(argv: list[str]) -> int:
     if cap.get("kind") == "course":
         record = json.loads((capture / cap["body"]).read_text(encoding="utf-8"))
         overview = links.get(bbnotes.cap_key(cap))
-        if why := write_root(capture, cap, dest, t.get("options") or {}, t.get("root") or {}, overview):
+        # A portal job knows whether each course is running; a one-course job's answer is its `current` option.
+        root_options = {**(t.get("options") or {}), **({"current": cap["course_current"]} if "course_current" in cap else {})}
+        # The course's subject tags go on its root once, at creation; every page below inherits them, and a person's edit stands.
+        root_keys = {**(t.get("root") or {}), **({"tags": ",".join(cap["course_tags"])} if cap.get("course_tags") else {})}
+        if why := write_root(capture, cap, dest, root_options, root_keys, overview):
             refused.append(why)
+        flip = "false" if cap.get("course_ended") else "true" if cap.get("course_reopened") else None
+        if flip and (Path(dest) / ROOT).is_file():
+            # The pull that finds a course resting, or running again, says so on its root, once; a person's later edit stands.
+            rc, answer = ops_json("page", "edit", f"{dest.rstrip('/')}/{ROOT}", f"current={flip}")
+            if rc != 0:
+                refused.append(f"{dest.rstrip('/')}/{ROOT}: {answer.get('error') or answer}")
         refused += write_module_roots(capture, cap, dest, record, folders, overview)
         left += [f"{twin} differs from {dest} only by case: one folder on a case-insensitive disk, two to git" for twin in case_twins(dest)]
     fields = dict(cap.get("fields") or {})
@@ -409,7 +430,7 @@ def main(argv: list[str]) -> int:
     (capture / WRITTEN).write_text(json.dumps(written) + "\n", encoding="utf-8")
     status = "failed" if refused and not (written or clashed) else "partial" if refused or thin or clashed else "ok"
     reason = "; ".join(clashed + refused + thin + left)[:600] or None
-    post_update(ticket_id, "process", status, reason=reason, written_from=(capture / WRITTEN).as_posix())
+    post_update(ticket_id, "process", status, reason=reason, written_from=WRITTEN)
     return 0
 
 

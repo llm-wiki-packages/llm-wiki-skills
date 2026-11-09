@@ -135,9 +135,9 @@ def test_the_seeded_routine_runs_in_its_sandbox_and_lands_the_days_report(ops, e
     assert commit.returncode != 0 and "a ticketed run commits nothing" in commit.stdout + commit.stderr, commit
 
     assert session.update["status"] == "ok", session.update
-    assert {PROMOTED, REPORT, BRIEF, LOG} <= set(session.update["written"]), session.update
     record = shown(ops, env, wiki, ran["ticket"])
     assert record["state"] == "done", json.dumps(record)[:800]
+    assert {PROMOTED, REPORT, BRIEF, LOG} <= set(record["written"]), (session.update, record.get("written"))  # the landing joins the verbs' record (plugin #4333); the report's own written[] no longer carries it
     assert "frontier" in (record.get("model_from") or ""), record.get("model_from")
     # The landing stamps what the run created, and only that.
     assert f"\n  job: {slug}" in _frontmatter((wiki / REPORT).read_text(encoding="utf-8")), (wiki / REPORT).read_text()[:600]

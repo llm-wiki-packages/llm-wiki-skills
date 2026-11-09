@@ -102,6 +102,11 @@ FILES = {
 }
 
 
+# Answers a test queues for one path, each used once and in order, before the path answers as usual; and every path asked.
+QUEUED: dict[str, list[int]] = {}
+HITS: dict[str, int] = {}
+
+
 class Learn(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -109,6 +114,11 @@ class Learn(BaseHTTPRequestHandler):
     def do_GET(self):
         if not SIGNED_IN["on"] or "BbRouter=ok" not in (self.headers.get("Cookie") or ""):
             self.send_response(401)
+            self.end_headers()
+            return
+        HITS[self.path] = HITS.get(self.path, 0) + 1
+        if QUEUED.get(self.path):
+            self.send_response(QUEUED[self.path].pop(0))
             self.end_headers()
             return
         if self.path in FILES:
@@ -142,8 +152,11 @@ def learn(tmp_path):
         {"name": "BbRouter", "value": "ok", "domain": "127.0.0.1", "path": "/", "expires": -1, "httpOnly": True, "secure": False, "sameSite": "Lax"},
     ]}))
     SIGNED_IN["on"] = True
+    QUEUED.clear()
+    HITS.clear()
     yield profile
     server.shutdown()
+    QUEUED.clear()
 
 
 def run(*argv):
@@ -155,8 +168,7 @@ def test_courses_lists_memberships_through_saved_session(learn):
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == [{
         "id": "_55_1", "courseId": "BIO101", "name": "Biology", "role": "Student",
-        "ultra": None, "term": None, "available": None, "url": None,
-    }]
+        "ultra": None, "term": None, "available": None, "url": None, "member_available": None, "duration": None, "term_duration": None, "organization": None, "created": None, "last_accessed": None}]
 
 
 def test_harvest_walks_pages_children_attachments_and_body_files(learn, tmp_path):
@@ -206,3 +218,40 @@ def test_credential_names_the_profile_and_its_host_through_the_front_door(learn,
     assert json.loads(seen.read_text()) == ["--json", "credentials", "info", "bb"]
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout)["name"] == "Ada L"
+
+
+def test_a_file_the_site_no_longer_has_is_gone_not_failed_and_is_not_asked_again(learn, tmp_path):
+    out = tmp_path / "out"
+    QUEUED["/bbcswebdav/xid-p_1"] = [404]
+    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    assert r.returncode == 0, r.stderr
+    summary = json.loads(r.stdout)
+    assert (summary["errors"], summary["gone"]) == (0, 1), (out / "errors.json").read_text()
+    assert json.loads((out / "gone.json").read_text()) == [
+        {"item": "_m_1", "kind": "embedded", "src": "/bbcswebdav/xid-p_1", "status": 404, "since": json.loads((out / "gone.json").read_text())[0]["since"]}]
+    # The next pull remembers it: the post has no date to say it changed, so the file is not asked for again.
+    asked = HITS["/bbcswebdav/xid-p_1"]
+    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["gone"] == 1 and HITS["/bbcswebdav/xid-p_1"] == asked
+
+
+def test_a_busy_site_is_asked_again_before_a_download_counts_as_failed(learn, tmp_path):
+    out = tmp_path / "out"
+    QUEUED["/bbcswebdav/xid-9_1"] = [503]
+    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    assert r.returncode == 0, r.stderr
+    summary = json.loads(r.stdout)
+    assert (summary["errors"], summary["gone"]) == (0, 0)
+    assert (out / "files/Week 1/Reading/chapter 1.pdf").read_bytes() == b"chapter-bytes"
+    assert HITS["/bbcswebdav/xid-9_1"] == 2
+
+
+def test_a_site_that_stays_busy_is_an_error_a_re_run_retries(learn, tmp_path):
+    out = tmp_path / "out"
+    QUEUED["/bbcswebdav/xid-9_1"] = [503, 503, 503]
+    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    assert r.returncode == 0, r.stderr
+    summary = json.loads(r.stdout)
+    assert (summary["errors"], summary["gone"]) == (1, 0)
+    assert json.loads((out / "errors.json").read_text())[0]["status"] == 503

@@ -90,7 +90,7 @@ def test_the_routine_regenerates_the_list_pages_into_its_dest_under_its_op(ops, 
     assert "GitHub list — Stars.md" in written and "GitHub list — agent-skills.md" not in written, written  # by_category needs 3
     stars = (wiki / dest / "GitHub list — Stars.md").read_text(encoding="utf-8")
     assert "type: list" in stars and "[[example-org--agent-kit|example-org/agent-kit]]" in stars and "mcp-db" not in stars, stars[:1200]
-    assert ran["update"]["status"] == "ok" and set(ran["update"]["written"]) >= {f"{dest}/GitHub list — Stars.md"}, ran["update"]
+    assert ran["update"]["status"] == "ok" and set(record["written"]) >= {f"{dest}/GitHub list — Stars.md"}, (ran["update"], record.get("written"))
     latest = run(ops, rooted(env, wiki), "--json", "op", "latest", UNIT, "filter=outcome:ok")
     assert latest.returncode == 0 and latest.data["found"] is True, latest.stdout + latest.stderr
     subject = subprocess.run(["git", "-C", str(wiki), "log", "-1", "--format=%B", "--", f"{dest}/GitHub list — Stars.md"],

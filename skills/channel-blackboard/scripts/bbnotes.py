@@ -254,28 +254,44 @@ def file_text(path: Path) -> tuple[str, str | None]:
 
 
 CUE_TIME = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?[.,]\d{3}\s+-->")
+VOICE = re.compile(r"<v(?:\.[^ >]*)?\s+([^>]+)>")
 
 
 def vtt_text(path: Path) -> str:
-    """A caption track's words, in paragraphs: timings, cue numbers, NOTE blocks and repeated auto-caption lines dropped."""
-    words: list[str] = []
+    """A caption track's words, in paragraphs: timings, cue numbers, NOTE blocks and repeated auto-caption lines dropped.
+
+    A diarized track (`<v Speaker 1>`) with two or more voices keeps who said
+    what: a new paragraph at each change of speaker, led by `**<voice>:**`.
+    One voice, or none, reads as plain paragraphs.
+    """
+    words: list[tuple[str | None, str]] = []
     note = False
+    voice = None
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = re.sub(r"<[^>]+>", "", raw).strip()
         if raw.startswith(("WEBVTT", "NOTE", "STYLE", "REGION")):
             note = raw.startswith(("NOTE", "STYLE", "REGION"))
             continue
-        if not line:
+        if not raw.strip():
             note = False
             continue
-        if note or CUE_TIME.match(line) or line.isdigit():
+        if (said := VOICE.search(raw)) is not None:
+            voice = html.unescape(said.group(1)).strip() or None
+        line = re.sub(r"<[^>]+>", "", raw).strip()
+        if note or not line or CUE_TIME.match(line) or line.isdigit():
             continue
         line = html.unescape(line)
-        if words and (line == words[-1] or words[-1].endswith(line)):
+        if words and (line == words[-1][1] or words[-1][1].endswith(line)):
             continue
-        words.append(line)
-    paras, cur = [], ""
-    for w in words:
+        words.append((voice, line))
+    labeled = len({v for v, _ in words if v}) > 1
+    paras, cur, who = [], "", None
+    for v, w in words:
+        if labeled and v != who and cur:
+            paras.append(cur)
+            cur = ""
+        if labeled and not cur and v != who:
+            cur = f"**{v}:**" if v else ""
+        who = v if labeled else who
         cur = f"{cur} {w}".strip()
         if len(cur) > 600 and cur[-1:] in ".?!":
             paras.append(cur)

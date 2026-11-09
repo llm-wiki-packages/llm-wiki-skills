@@ -13,8 +13,8 @@ sends. No institution-registered REST app, no OAuth app key.
 A followed course runs as a job with two script stages and no model session:
 `harvest.py` pulls the course and splits it into one capture per item, the
 plugin's transcribe stage speaks a video with no captions, and `process.py`
-writes each capture's page. By hand, this skill signs in, lists courses, and
-harvests or converts one course in a session.
+writes each capture's page; one portal job can follow every enrolled course
+(`references/portal.md`). By hand, this skill signs in, lists, and harvests.
 
 Arguments: `$ARGUMENTS`.
 
