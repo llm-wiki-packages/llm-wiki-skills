@@ -126,9 +126,9 @@ def test_the_routine_runs_in_its_sandbox_and_lands_the_episode(ops, env, wiki, r
     assert commit.returncode != 0 and "a ticketed run commits nothing" in commit.stdout + commit.stderr, commit
 
     assert session.update["status"] == "ok", session.update
-    assert EPISODE in session.update["written"], session.update
     record = shown(ops, env, wiki, ran["ticket"])
     assert record["state"] == "done", json.dumps(record)[:800]
+    assert EPISODE in record["written"], (session.update, record.get("written"))  # the landing joins the verbs' record (plugin #4333); the report's own written[] no longer carries it
     assert "frontier" in (record.get("model_from") or ""), record.get("model_from")
 
 
