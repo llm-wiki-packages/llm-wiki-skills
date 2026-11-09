@@ -36,8 +36,9 @@ The course overview's capture also makes the course's bundle root, once:
 option: true, false, yes or no; default true), `term`, `term_start`,
 `term_end`, `course`, `course_title`, `course_id`, `section`, `group`,
 `group_type: course`, `channel: blackboard`, `source_host` and `course_url`,
-and the job record's own `root` keys over them, which every page below
-inherits. A root already there (`page ls filter=prop:ops.root`) is left
+and the job record's own `root` keys over them, each named in the root's
+`ops.lends`, so every page this pull makes below it copies them
+(`page create … --inherit`). A root already there (`page ls filter=prop:ops.root`) is left
 alone, and `root-made.json` in the course capture records that the question
 was settled, so a root a person deleted is never made again. Each released
 module's folder root (`module`, `module_order`, `module_position`,
@@ -70,7 +71,7 @@ import bbnotes  # noqa: E402
 from door import open_ticket, ops_json, post_update  # noqa: E402
 
 WRITTEN = "written.json"
-# The course's bundle root in the job's dest (the note format's Bundle roots): `ops.root: true`, and the keys its pages inherit.
+# The course's bundle root in the job's dest (the note format's Bundle roots): `ops.root: true`, and the keys its new pages copy.
 ROOT = "README.md"
 # In the course capture's own directory: the root was made (or found) once, so a pull never makes it again.
 ROOT_MADE = "root-made.json"
@@ -206,7 +207,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
         rc, answer = ops_json("page", "edit", path, *pairs, *titled, *clears, "--stdin", stdin=page["body"])
     else:
         folder, _, stem = f"{dest.rstrip('/')}/{place or page['title']}".rpartition("/")
-        rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--stdin", stdin=page["body"])
+        # A new page copies its roots' offered keys; a re-pull edits a page a person may have changed, so never there.
+        rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--inherit", "--stdin", stdin=page["body"])
         if rc == 0 and stem != page["title"]:
             # The filename is the title at create; the page's own title is the course's whole name for it.
             rc, answer = ops_json("page", "edit", answer.get("path") or path, f"title={page['title']}")
@@ -259,8 +261,10 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
 
 
 def create_root(folder: str, made: dict, keys: dict) -> str | None:
-    """`README.md` in `folder` with `keys`, then its title: the filename is the title at create."""
-    pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"]
+    """`README.md` in `folder` with `keys`, then its title: the filename is the title at create. Every key but the
+    `ops` settings is named in `ops.lends`, the keys a page made below copies."""
+    lends = [k for k in keys if not k.startswith("ops.")]
+    pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"] + ([f"ops.lends={','.join(lends)}"] if lends else [])
     rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={folder}", "type=document", *pairs,
                           "--stdin", stdin=made["body"])
     if rc == 0:
