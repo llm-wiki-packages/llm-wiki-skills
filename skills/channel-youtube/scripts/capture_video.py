@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["playwright==1.63.0"]
-# ///
 """The YouTube harvest stage: one video's metadata and captions through
 `yt-dlp`, the capture record beside them, and the progress post — no model
 session. Nothing in a harvest is left for a model to judge, so the stage
@@ -24,19 +20,21 @@ carrying `&` or a quote is never a shell line. A failure is one `failed`
 update: `missing=<host>,<url>,<why>`, `why` read off yt-dlp's own stderr
 (`denied`, `timeout`, `auth`, else `error`).
 
-A ticket bound to a `dir` credential (`credential_dir`, a browser profile the
-slice may write) spends it as a Netscape `cookies.txt` IN that directory:
-exported once by `export_cookies.py`, run on this script's own interpreter
-(the unit env, which has Playwright), when the jar is missing, then handed to
-every yt-dlp call as `--cookies <jar>`. The profile is reopened only to
-export again, and nothing of it lands in the capture dir. The jar is the live
-session once yt-dlp has written rotated cookies back into it, so no failure
-deletes it; a `credentials login` since the export, read as the profile's
-cookie DB being newer than the jar, is what makes the next run export anew. An export that fails is
-`credential_store_error`. Unbound, every argv is as before.
+A ticket bound to a `dir` credential (`credential_dir`, granted read-write)
+spends its saved browser state as a Netscape `cookies.txt` IN that
+directory: written fresh each run from `credentials browser-state get`, the
+YouTube, Google and media-CDN cookies only, and handed to every yt-dlp call
+as `--cookies <jar>`. yt-dlp writes the cookies YouTube rotates back into the
+jar, and the run merges them into the state with `credentials browser-state
+put` once the calls are done, so the state stays the live session for a run
+that comes after a `credentials login` too. No browser opens here: YouTube
+rotates a session under any open tab, so a jar never shares one. A jar
+newer than the state is a killed run's rotation, saved before the new jar is
+written. A state that does not answer or holds no YouTube cookie is
+`credential_store_error`. Nothing of the directory lands in the capture
+dir. Unbound, every argv is as before.
 
-Its own code is stdlib; the block is `export_cookies.py`'s, which runs on
-the env `skills enable` builds from it.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -48,7 +46,7 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
+import tempfile
 import urllib.parse
 from pathlib import Path
 
@@ -63,10 +61,17 @@ TIMEOUT_MARKERS = ("timed out", "timeout")
 # YouTube's IP-reputation wall carries the words "sign in" too, but a logged-in jar hits it as well: throttling, not an auth wall.
 BOT_CHECK_MARKERS = ("not a bot",)
 NOTE = Path(__file__).with_name("youtube_note.py")
-EXPORT = Path(__file__).with_name("export_cookies.py")
+# yt-dlp's cookie file, in the credential directory: never in the capture dir.
 JAR = "cookies.txt"
-# Where Chromium keeps the profile's cookies; a `credentials login` writes one of these.
-COOKIE_DBS = ("Default/Cookies", "Default/Network/Cookies")
+JAR_HEADER = "# Netscape HTTP Cookie File\n"
+# curl's and yt-dlp's marker for an HttpOnly cookie's line.
+HTTPONLY = "#HttpOnly_"
+# The cookies the jar carries: YouTube's, Google's account cookies and the media CDN's.
+DOMAINS = ("youtube.com", "google.com", "googlevideo.com")
+
+
+class StoreError(Exception):
+    """The credential's store would not yield or keep a jar: never `auth`, since no fresh login fixes it."""
 
 
 def front_door() -> list:
@@ -167,48 +172,141 @@ def yt_dlp(args: list[str], *, stdout_to: Path | None = None) -> tuple[int, str]
     return cp.returncode, cp.stderr.decode("utf-8", "replace")
 
 
-def login_newer_than(jar: Path) -> bool:
-    """Whether the profile's cookie DB was written after the jar: a
-    `credentials login` since the last export, the one event that makes the
-    profile fresher than the jar yt-dlp has been writing rotated cookies into."""
-    stamp = jar.stat().st_mtime_ns
-    return any((jar.parent / db).is_file() and (jar.parent / db).stat().st_mtime_ns > stamp for db in COOKIE_DBS)
+def wanted(domain: str) -> bool:
+    host = domain.lstrip(".").lower()
+    return any(host == d or host.endswith("." + d) for d in DOMAINS)
 
 
-def cookie_jar(ticket: dict) -> tuple[Path | None, str | None]:
-    """The jar a bound `dir` credential is spent as: exported from the profile
-    when there is none, when the one there is not a Netscape file, or when
-    the profile saw a login since. `(None, None)` unbound; `(None, error)`
-    where the store cannot yield one."""
+def _key(cookie: dict) -> tuple:
+    return (cookie.get("name"), cookie.get("domain"), cookie.get("path"))
+
+
+def netscape_line(cookie: dict) -> str:
+    domain = cookie["domain"]
+    expires = cookie.get("expires", -1)
+    expiry = 0 if expires is None or expires < 0 else int(expires)
+    return "\t".join([
+        (HTTPONLY if cookie.get("httpOnly") else "") + domain,
+        "TRUE" if domain.startswith(".") else "FALSE",
+        cookie.get("path") or "/",
+        "TRUE" if cookie.get("secure") else "FALSE",
+        str(expiry),
+        cookie["name"],
+        cookie.get("value", ""),
+    ])
+
+
+def write_jar(jar: Path, cookies: list[dict]) -> None:
+    """The cookies as a Netscape file, 0600, written whole through a temp file then renamed."""
+    body = JAR_HEADER + "".join(netscape_line(c) + "\n" for c in cookies)
+    fd, tmp = tempfile.mkstemp(prefix=".cookies-", suffix=".tmp", dir=str(jar.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(body)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, jar)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def read_jar(jar: Path, saved: dict) -> list[dict]:
+    """The jar's cookies as browser-state cookies, each over the saved one of its key, so what a Netscape line cannot
+    carry (`sameSite`) is kept."""
+    cookies = []
+    for line in jar.read_text(encoding="utf-8").splitlines():
+        if line.startswith(HTTPONLY):
+            line, http_only = line[len(HTTPONLY):], True
+        elif not line.strip() or line.startswith("#"):
+            continue
+        else:
+            http_only = False
+        fields = line.split("\t")
+        if len(fields) != 7:
+            continue
+        domain, _, path, secure, expiry, name, value = fields
+        found = {"name": name, "value": value, "domain": domain, "path": path,
+                 "expires": float(expiry) if expiry.isdigit() and int(expiry) > 0 else -1,
+                 "httpOnly": http_only, "secure": secure == "TRUE"}
+        cookies.append({**saved.get(_key(found), {}), **found})
+    return cookies
+
+
+def state_verb(verb: str, stdin: str | None = None) -> subprocess.CompletedProcess:
+    """`credentials browser-state <verb>` through the front door; inside the slice it finds the credential from the
+    run's slot, never by name."""
+    try:
+        return subprocess.run([*front_door(), "--json", "credentials", "browser-state", verb], input=stdin,
+                              capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise StoreError(f"credentials browser-state {verb} did not run: {exc}") from None
+
+
+def keep_rotation(jar: Path, saved: dict) -> None:
+    """`save_jar` after the yt-dlp calls. A save that does not land fails nothing: the jar stays newer than the state,
+    and the next run saves it first."""
+    try:
+        save_jar(jar, saved)
+    except (StoreError, OSError) as exc:
+        print(f"capture_video: the rotated cookies were not saved back ({exc}); the next run saves them", file=sys.stderr)
+
+
+def browser_state() -> tuple[dict, Path | None]:
+    """The credential's saved browser state and its file, through `credentials browser-state get`; raises
+    `StoreError` where the verb does not answer one."""
+    cp = state_verb("get")
+    try:
+        answer = json.loads(cp.stdout)
+    except ValueError:
+        answer = None
+    if cp.returncode != 0 or not isinstance(answer, dict) or not isinstance(answer.get("state"), dict):
+        said = (cp.stderr or cp.stdout or "").strip().splitlines() or [f"exited {cp.returncode}"]
+        raise StoreError(f"credentials browser-state get: {said[-1][:200]}")
+    where = answer.get("path")
+    return answer["state"], Path(where) if isinstance(where, str) and where else None
+
+
+def save_jar(jar: Path, saved: dict) -> None:
+    """The jar's cookies merged back into the credential's state, through `credentials browser-state put`: yt-dlp
+    writes the cookies YouTube rotates into the jar, and the state is where the next run reads them from."""
+    cp = state_verb("put", stdin=json.dumps({"cookies": read_jar(jar, saved), "origins": []}))
+    if cp.returncode != 0:
+        said = (cp.stderr or cp.stdout or "").strip().splitlines() or [f"exited {cp.returncode}"]
+        raise StoreError(f"credentials browser-state put: {said[-1][:200]}")
+
+
+def newer(jar: Path, state: Path | None) -> bool:
+    return jar.is_file() and (state is None or not state.is_file() or jar.stat().st_mtime_ns > state.stat().st_mtime_ns)
+
+
+def cookie_jar(ticket: dict) -> tuple[Path | None, dict]:
+    """The jar a bound `dir` credential is spent as, written fresh from the credential's browser state, and the saved
+    cookies by key. A jar newer than the state is a run's rotation that was never saved back (the run was killed
+    first): it is saved before the new one is written. `(None, {})` unbound; raises `StoreError` where the store
+    cannot yield one."""
     profile = ticket.get("credential_dir")
     if not isinstance(profile, str) or not profile:
-        return None, None
+        return None, {}
     jar = Path(profile) / JAR
+    state, where = browser_state()
+    saved = {_key(c): c for c in state.get("cookies") or [] if isinstance(c, dict)}
     try:
+        good = False
         if jar.is_file():
             with jar.open("rb") as handle:
                 good = handle.readline().startswith(b"# Netscape")
-            if good and not login_newer_than(jar):
-                return jar, None
+        if good and newer(jar, where):
+            save_jar(jar, saved)
+            state, where = browser_state()
+            saved = {_key(c): c for c in state.get("cookies") or [] if isinstance(c, dict)}
+        cookies = [c for c in saved.values() if wanted(c.get("domain", ""))]
+        if not cookies:
+            raise StoreError(f"the credential holds no cookies for {', '.join(DOMAINS)}: not logged in to youtube.com")
+        write_jar(jar, cookies)
     except OSError as exc:
         # The dir is granted read-write to this slice; a dir that cannot be read is the store's problem, not a login's.
-        return None, f"credential dir cannot be read: {exc}"
-    try:
-        cp = subprocess.run([sys.executable, str(EXPORT), profile, str(jar)], capture_output=True, text=True, timeout=CALL_TIMEOUT, check=False)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return None, f"export_cookies.py could not run: {exc}"
-    if cp.returncode != 0 or not jar.is_file():
-        last = (cp.stderr.strip().splitlines() or [f"export_cookies.py exited {cp.returncode} leaving no jar"])[-1]
-        return None, last[:200]
-    # Opening the profile made Chromium write its cookie DB on close; stamp the jar after that
-    # write, or the next run would read the export itself as a login and export again.
-    try:
-        newest = max([(jar.parent / db).stat().st_mtime_ns for db in COOKIE_DBS if (jar.parent / db).is_file()] or [0])
-        stamp = max(time.time_ns(), newest + 1)
-        os.utime(jar, ns=(stamp, stamp))
-    except OSError as exc:
-        return None, f"credential dir cannot be stamped: {exc}"
-    return jar, None
+        raise StoreError(f"credential dir cannot be read or written: {exc}") from None
+    return jar, saved
 
 
 def run_ticketed(ticket_id: str) -> int:
@@ -238,10 +336,20 @@ def run_ticketed(ticket_id: str) -> int:
     if not ticket.get("refresh") and already_held(ticket, item):
         return post_update(ticket_id, "harvest", "ok", reason="known: item is already a page of this job")
 
-    jar, store_error = cookie_jar(ticket)
-    if store_error:
+    try:
+        jar, saved = cookie_jar(ticket)
+    except StoreError as exc:
         # Never `auth`: a fresh login cannot fix a store that will not yield a jar.
-        return post_update(ticket_id, "harvest", "failed", reason=f"credential_store_error: {store_error}", missing=[(host, item, "error")])
+        return post_update(ticket_id, "harvest", "failed", reason=f"credential_store_error: {exc}", missing=[(host, item, "error")])
+    try:
+        return fetch(ticket_id, capture_rel, directory, item, host, jar)
+    finally:
+        if jar is not None:
+            keep_rotation(jar, saved)
+
+
+def fetch(ticket_id: str, capture_rel: str, directory: Path, item: str, host: str, jar: Path | None) -> int:
+    """yt-dlp's two calls and the capture record, and the update that says how they went."""
     cookies = ["--cookies", str(jar)] if jar else []
 
     metadata = directory / "metadata.json"
@@ -252,8 +360,6 @@ def run_ticketed(ticket_id: str) -> int:
         if why == "auth" and jar and any(marker in err.lower() for marker in BOT_CHECK_MARKERS):
             # A bot check with a live jar is throttling: retryable, and no login fixes it.
             why = "error"
-        # The jar is kept on every failure: it is the live session (yt-dlp writes rotated cookies
-        # back into it), and only a login newer than it (`login_newer_than`) replaces it.
         detail = (err.strip().splitlines() or ["yt-dlp failed"])[-1][:200]
         return post_update(ticket_id, "harvest", "failed", reason=f"{why}: {detail}", missing=[(host, item, why)])
 

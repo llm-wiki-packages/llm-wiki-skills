@@ -13,7 +13,6 @@ Each runs as `{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/<script>
 | :--- | :--- | :--- |
 | `capture_video.py` | harvest | `ticket=<id>`, as the runner starts it; the whole worker, posting its own update |
 | `youtube_note.py` | process | `. --capture-dir <capture_dir> --dest <dest> --ticket <id> [--format-transcript PATH]`; the `.` is the wiki root, `<capture_dir>` the ticket's own, wiki-relative; `--record` is the harvest arm `capture_video.py` runs |
-| `export_cookies.py` | harvest | `<profile_dir> <out_file>`; run by `capture_video.py` on its own interpreter, not by hand |
 
 ## Knobs
 
