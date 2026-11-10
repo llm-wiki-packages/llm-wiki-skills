@@ -90,8 +90,9 @@ def document_ext(name, doc_url):
 
 
 def main() -> int:
-    from playwright.sync_api import sync_playwright
     import httpx
+    import llm_wiki_browser
+    from playwright.sync_api import sync_playwright
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("url", help="Frame.io .../view/<asset-id> URL")
@@ -113,9 +114,11 @@ def main() -> int:
 
     net_urls = []
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, channel="chrome")
-        page = browser.new_page()
+    # A guest share needs no credential: the launcher's in-memory context. No `channel="chrome"`: the bundled
+    # Chromium answers yes to the H.264 an HLS player checks for before it asks for the master playlist (measured
+    # on Playwright 1.63's headless build, 2026-11-10).
+    with sync_playwright() as p, llm_wiki_browser.open_context(p) as context:
+        page = context.new_page()
         page.on("request", lambda r: net_urls.append(r.url))
         try:
             page.goto(args.url, wait_until="commit", timeout=args.timeout_ms)
@@ -124,7 +127,6 @@ def main() -> int:
         page.wait_for_timeout(6000)
         title = page.title()
         final_url = page.url
-        browser.close()
 
     hls = next((u for u in net_urls if HLS_MASTER_RE.search(u)), None)
     doc = next((u for u in net_urls if DOC_PROXY_RE.search(u)), None)

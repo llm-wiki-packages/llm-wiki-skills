@@ -39,16 +39,17 @@ def _module(path, name=None):
 # --------------------------------------------------------------------------- #
 
 #: What a unit script may import: the stdlib it uses, its PEP 723
-#: dependencies, and the one sibling module. Nothing of the plugin's.
+#: dependencies, the one sibling module, and the plugin's browser launcher,
+#: the one module `run` puts on a unit script's path. Nothing else of the plugin's.
 ALLOWED_IMPORTS = {
-    "argparse", "fnmatch", "hashlib", "json", "re", "shlex", "shutil", "subprocess",
+    "argparse", "fnmatch", "hashlib", "importlib", "json", "re", "shlex", "shutil", "subprocess",
     "sys", "time", "datetime", "pathlib", "urllib",
     # `os`/`signal`: a child with a deadline is killed by process GROUP, and
     # `report.json` is written through `os.replace`. `unicodedata`: stdlib,
     # for folding a title's Unicode form in the page-name rule (APFS folds it).
     "os", "signal", "unicodedata",
     "playwright", "httpx", "pptx", "openpyxl", "pypdf",
-    "capture_record",
+    "capture_record", "llm_wiki_browser",
 }
 
 
@@ -225,3 +226,70 @@ def test_the_document_extension_falls_back_to_the_proxy_route():
     assert mod.document_ext("Deck Q3", doc) == "pptx"
     # And nothing is invented where neither source carries an extension.
     assert mod.document_ext(None, "https://assets.frame.io/x/y/z?sig=1") == "bin"
+
+
+# --------------------------------------------------------------------------- #
+# the browser: the plugin's launcher, and a child that can import it
+# --------------------------------------------------------------------------- #
+
+def test_a_child_is_handed_the_launchers_directory(tmp_path, monkeypatch):
+    (tmp_path / "llm_wiki_browser.py").write_text("")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    record = _module(SCRIPTS / "capture_record.py", "capture_record_env_probe")
+    env = record.child_env({"PYTHONPATH": "/elsewhere", "KEEP": "1"})
+    assert env["PYTHONPATH"].split(":") == [str(tmp_path), "/elsewhere"] and env["KEEP"] == "1"
+
+
+class _Page:
+    url = "https://next.frame.io/share/abc/view/def"
+
+    def __init__(self, seen):
+        self.seen = seen
+
+    def on(self, event, handler):
+        handler(type("R", (), {"url": "https://assets.frame.io/pdf/abc/pdf_proxy.pdf?sig=1"})())
+
+    def goto(self, *a, **k):
+        pass
+
+    def wait_for_timeout(self, *a):
+        pass
+
+    def title(self):
+        return "Deck"
+
+    def evaluate(self, *a):
+        return []
+
+
+@pytest.mark.parametrize("script", ["capture_asset.py", "enumerate_tree.py"])
+def test_the_browser_is_the_launchers_own_with_no_channel(script, tmp_path, monkeypatch):
+    import contextlib
+    import types
+
+    opened = []
+
+    @contextlib.contextmanager
+    def open_context(playwright, **kwargs):
+        opened.append(kwargs)
+        yield types.SimpleNamespace(new_page=lambda: _Page(opened))
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        yield object()
+
+    def stream(*a, **k):
+        raise RuntimeError("no network here")
+
+    sync_api = types.ModuleType("playwright.sync_api")
+    sync_api.sync_playwright = sync_playwright
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", sync_api)
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(stream=stream))
+    monkeypatch.setitem(sys.modules, "llm_wiki_browser", types.SimpleNamespace(open_context=open_context))
+    mod = _module(SCRIPTS / script, f"{script[:-3]}_launch_probe")
+    share = "https://next.frame.io/share/0f0f0f0f-0000-4000-8000-000000000001"
+    argv = [f"{share}/view/def" if script == "capture_asset.py" else share, f"--out={tmp_path / 'out'}"]
+    monkeypatch.setattr(sys, "argv", [script, *argv])
+    mod.main()
+    assert opened == [{}]

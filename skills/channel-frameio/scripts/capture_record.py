@@ -45,6 +45,7 @@ nothing here reads or writes them.
 
 import unicodedata
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -180,7 +181,8 @@ def run(cmd, timeout=None):
     deadline than their own, so the innermost expires first and every level
     gets to say what happened.
     """
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+                            env=child_env())
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -192,6 +194,17 @@ def run(cmd, timeout=None):
         note = f"timeout: killed after {timeout:.0f}s"
         return TIMED_OUT, (out or "").strip(), f"{(err or '').strip()}\n{note}".strip()
     return proc.returncode, out.strip(), err.strip()
+
+
+def child_env(environ=None) -> dict:
+    """The environment a child starts in: the plugin's browser launcher importable. `run` puts `llm_wiki_browser`
+    on a unit script's path through its boot, which a script started by `uv run` does not get; a jail drops
+    PYTHONPATH only from the process it starts, so each level hands it on."""
+    env = dict(os.environ if environ is None else environ)
+    spec = importlib.util.find_spec("llm_wiki_browser")
+    if spec is not None and spec.origin:
+        env["PYTHONPATH"] = os.pathsep.join(filter(None, [os.path.dirname(spec.origin), env.get("PYTHONPATH")]))
+    return env
 
 
 def inner_deadline(seconds, margin: float = 10.0):
