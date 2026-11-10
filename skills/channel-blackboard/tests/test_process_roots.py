@@ -29,13 +29,14 @@ def test_a_root_names_its_keys_but_not_its_settings_in_ops_lends(monkeypatch):
     assert "--inherit" not in create
 
 
-def test_a_new_page_copies_its_roots_keys_and_a_re_pull_does_not(monkeypatch, tmp_path):
+def test_no_write_asks_for_its_roots_keys(monkeypatch, tmp_path):
+    # The plugin applies a root's lent keys on every write (llm-wiki-plugins#4434): `--inherit` is gone.
     seen = calls(monkeypatch)
     page = {"title": "Lecture", "type": "document", "body": "b"}
     process.write_page(page, "bb:1", "sources/c", None)
     process.write_page(page, "bb:1", "sources/c", "sources/c/Lecture.md")
-    assert "--inherit" in seen[0] and seen[0][:2] == ("page", "create")
-    assert seen[-1][:2] == ("page", "edit") and "--inherit" not in seen[-1]
+    assert seen[0][:2] == ("page", "create") and seen[-1][:2] == ("page", "edit")
+    assert not any("--inherit" in call for call in seen)
 
 
 def test_a_portal_courses_subject_tags_are_lent_from_its_root(monkeypatch):
@@ -47,16 +48,17 @@ def test_a_portal_courses_subject_tags_are_lent_from_its_root(monkeypatch):
     assert "dest=sources/courses/school/PSY2301" in create
 
 
-def test_a_new_root_fills_the_pages_already_below_it(monkeypatch):
-    # The pass lands a course's captures in any order: most of its pages can be written before its root.
+def test_a_new_root_is_made_and_titled_and_nothing_else(monkeypatch):
+    # The pages already below a new root get its keys in the root's own write (the plugin's fan-out): no `page root`.
     seen = calls(monkeypatch)
     assert process.create_root("sources/c", {"title": "PSY", "abstract": "a", "body": "b"}, {"current": "true"}) is None
-    assert seen[-1] == ("page", "root", "apply", "sources/c")
+    assert [call[:2] for call in seen] == [("page", "create"), ("page", "edit")]
+    assert seen[-1] == ("page", "edit", "sources/c/x.md", "title=PSY")
 
 
-def test_a_root_whose_fill_is_refused_says_so(monkeypatch):
+def test_a_root_whose_title_edit_is_refused_says_so(monkeypatch):
     def fake(*args, stdin=None):
-        return (2, {"error": "refused"}) if args[:3] == ("page", "root", "apply") else (0, {"path": "sources/c/README.md"})
+        return (2, {"error": "refused"}) if args[:2] == ("page", "edit") else (0, {"path": "sources/c/README.md"})
 
     monkeypatch.setattr(process, "ops_json", fake)
     assert "refused" in process.create_root("sources/c", {"title": "PSY", "abstract": "a", "body": "b"}, {"current": "true"})
