@@ -2,7 +2,7 @@
 
 The sandbox for the Circle venue's `harvest` stage. A Circle.so community's
 harvest: the SPA's pages, its signed HLS media and its asset CDN, rendered
-in a persistent-profile Chrome.
+in a persistent-profile Chromium.
 
 `process` and `routine` add nothing to their stock bases.
 
@@ -29,7 +29,7 @@ mapped to the job (`credentials bind job <slug> dir=<domain>`), it is
 granted to this slice read-write and the ticket hands it over as
 `credential_dir`, which `capture_lesson.py` reads off `tickets open`.
 Unmapped, this machine claims no harvest of the job. A slot and not a route:
-the profile carries the `cf_clearance` Chrome replays, and no proxy can
+the profile carries the `cf_clearance` Chromium replays, and no proxy can
 inject a browser session.
 
 ## Customize

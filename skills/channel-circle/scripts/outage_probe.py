@@ -17,11 +17,11 @@ access/licensing issue the wrapper would instead show an upgrade CTA, not
 be empty. So the fix signal is: the wrapper gains real child content AND no
 5xx responses are seen.
 
-Loads the page with the persistent auth profile (channel="chrome" + the
-per-domain profile that earned cf_clearance; created by
-`llm-wiki-ops credentials login <domain>`, and granted as the ticket's
-`credential_dir`), records every >=500 response, and measures the wrapper's
-rendered size.
+Loads the page through the plugin's launcher (`llm_wiki_browser`) on the
+persistent auth profile (the per-domain profile that earned cf_clearance;
+created by `llm-wiki-ops credentials login <domain>`, and granted as the
+ticket's `credential_dir`), records every >=500 response, and measures the
+wrapper's rendered size.
 
 Usage:
   llm-wiki-ops run ops/skills/channel-circle/scripts/outage_probe.py \
@@ -65,6 +65,8 @@ from urllib.parse import urlsplit
 # The front door, by the bare name every SKILL.md already runs this script
 # under — never a path.
 OPS = "llm-wiki-ops"
+# The run's `dir` slot, which the plugin's launcher opens.
+SLOT_DIR_ENV = "LLM_WIKI_SLOT_DIR"
 
 
 def front_door() -> list:
@@ -132,6 +134,12 @@ def profile_dir(root, ticket_id, domain):
     return Path(granted), None
 
 
+def use_profile(profile: Path) -> None:
+    """The launcher opens the run's `dir` slot; the ticket's grant is that directory, and stands in for a run that
+    carries none."""
+    os.environ.setdefault(SLOT_DIR_ENV, str(profile))
+
+
 def domain_of(url: str) -> str:
     # The domain is the dir credential's name the absent hint suggests, which
     # the CLI validates against [a-z0-9][a-z0-9._-]*: `.hostname` already
@@ -191,19 +199,13 @@ def main() -> int:
         print(json.dumps({"fixed": False, "error": refused[1]}))
         return 0
 
+    import llm_wiki_browser  # here: every early answer above comes without it
+
     errors_5xx = []
+    use_profile(profile)
 
-    with sync_playwright() as p:
-        launch_kw = dict(
-            headless=not args.headed,
-            args=["--disable-blink-features=AutomationControlled"],
-            ignore_default_args=["--enable-automation"],
-        )
-        try:
-            context = p.chromium.launch_persistent_context(str(profile), channel="chrome", **launch_kw)
-        except Exception:
-            context = p.chromium.launch_persistent_context(str(profile), **launch_kw)
-
+    # Persistent, as `capture_lesson.py` is: the login's profile is what carries cf_clearance.
+    with sync_playwright() as p, llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True) as context:
         page = context.pages[0] if context.pages else context.new_page()
 
         def on_response(r):
@@ -247,8 +249,6 @@ def main() -> int:
             }""")
         except Exception as e:
             wrapper = {"found": False, "children": -1, "chars": -1, "err": e.__class__.__name__}
-
-        context.close()
 
     # Dedupe 5xx by URL for a compact sample.
     seen, sample = set(), []

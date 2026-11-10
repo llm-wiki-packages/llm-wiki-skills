@@ -3,7 +3,7 @@
 1. **Auth walkthrough** — Circle content is licensed, so do it now:
    `{{@brain-cli-ops}} credentials set <domain> kind=dir login=browser host=<domain>`
    once, then `{{@brain-cli-ops}} credentials login <domain>` (attended, macOS only)
-   opens a real Chrome window; the operator logs in (solving any Turnstile/2FA), opens a
+   opens a Chromium window; the operator logs in (solving any Turnstile/2FA), opens a
    gated lesson to confirm access, then presses Enter in the terminal. This
    saves the storage state AND the persistent per-domain profile — on
    Circle the profile is the load-bearing half (Cloudflare's `cf_clearance`
