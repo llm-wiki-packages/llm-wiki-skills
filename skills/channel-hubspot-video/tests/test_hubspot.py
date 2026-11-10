@@ -18,6 +18,7 @@ the network: the rendered page is a fixture.
 from __future__ import annotations
 
 import calendar
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -29,6 +30,7 @@ import stat
 import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -161,6 +163,56 @@ def test_render_reads_the_page_off_the_ticket_the_front_door_opens(tmp_path, mon
     verb and refuses any other argv, so a misspelled one exits here."""
     monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path, ticket(tmp_path / "_raw" / "s" / "leaf", tmp_path, item=LESSON)))
     assert capturer.ticket_item("0123456789ab") == LESSON
+
+
+class _Page:
+    url = LESSON
+
+    def on(self, event, handler):
+        pass
+
+    def goto(self, *a, **k):
+        return types.SimpleNamespace(status=200)
+
+    def frame_locator(self, *a):
+        raise RuntimeError("no player here")
+
+    def wait_for_timeout(self, *a):
+        pass
+
+    def content(self):
+        return "<html></html>"
+
+    def title(self):
+        return "Lesson"
+
+    def evaluate(self, *a):
+        return None
+
+
+def test_render_opens_the_launchers_context_with_its_viewport(tmp_path, monkeypatch):
+    opened = []
+
+    @contextlib.contextmanager
+    def open_context(playwright, **kwargs):
+        opened.append(kwargs)
+        yield types.SimpleNamespace(new_page=_Page)
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        yield object()
+
+    sync_api = types.ModuleType("playwright.sync_api")
+    sync_api.sync_playwright = sync_playwright
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", sync_api)
+    monkeypatch.setitem(sys.modules, "llm_wiki_browser", types.SimpleNamespace(open_context=open_context))
+    leaf = tmp_path / "_raw" / "s" / "leaf"
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path, ticket(leaf, tmp_path, item=LESSON)))
+    args = types.SimpleNamespace(capture_dir=str(leaf), leaf=None, ticket="0123456789ab", timeout=1, settle=0, headed=False)
+    assert capturer.render(args) == 4  # rendered, no video resolved
+    assert opened == [{"headless": True, "context": {"viewport": {"width": 1440, "height": 900}}}]
+    assert json.loads((leaf / "meta.json").read_text())["final_url"] == LESSON
 
 
 # ------------------------------------------------------------ pure logic

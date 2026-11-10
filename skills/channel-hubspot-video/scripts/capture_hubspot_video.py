@@ -206,6 +206,7 @@ def is_player(url):
 def render(args):
     # Imported here, not at the top: `patch-assets` is pure JSON and must run
     # where no browser is installed.
+    import llm_wiki_browser
     from playwright.sync_api import sync_playwright
 
     cap = Path(args.capture_dir)
@@ -226,9 +227,10 @@ def render(args):
     cap.mkdir(parents=True, exist_ok=True)
     reqs = []
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=not args.headed)
-        ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    # A public page needs no credential: the launcher's in-memory context, through the slice's proxy.
+    with sync_playwright() as p, llm_wiki_browser.open_context(
+        p, headless=not args.headed, context={"viewport": {"width": 1440, "height": 900}}
+    ) as ctx:
         page = ctx.new_page()
         page.on("request", lambda r: reqs.append({"url": r.url, "type": r.resource_type, "method": r.method}))
         fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -279,8 +281,6 @@ def render(args):
             PLAYER_ORIGIN,
         )
         final_url = page.url
-        ctx.close()
-        browser.close()
 
     (cap / "page.html").write_text(html, encoding="utf-8")
     (cap / "net.json").write_text(json.dumps(reqs, indent=1))
