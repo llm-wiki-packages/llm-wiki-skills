@@ -78,6 +78,7 @@ History:
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -172,6 +173,23 @@ def use_profile(profile: Path) -> None:
     """The launcher opens the run's `dir` slot; the ticket's grant is that directory, and stands in for a run that
     carries none."""
     os.environ.setdefault(SLOT_DIR_ENV, str(profile))
+
+
+def keeping_session(opened, save_failed):
+    """`opened`, the launcher's context, with a state save that does not land at its exit said in one
+    `credential_store_error` line rather than raised: the persistent profile keeps the session either way, so what
+    this run captured, and the exit it chose, stand."""
+
+    @contextlib.contextmanager
+    def held():
+        try:
+            with opened as context:
+                yield context
+        except save_failed as exc:
+            print(f"credential_store_error: the browser state was not saved back ({exc}); the profile keeps the session",
+                  file=sys.stderr)
+
+    return held()
 
 
 def domain_of(url: str) -> str:
@@ -337,7 +355,9 @@ def main() -> int:
     # Persistent: Cloudflare binds cf_clearance to the browser that cleared its challenge, so the login's own profile,
     # in the same bundled Chromium, is what replays it; a context rebuilt from saved cookies is a new browser to it.
     # It holds the credential for one run at a time, which the manifest's absent `sharing` (exclusive) says.
-    with sync_playwright() as p, llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True) as context:
+    with sync_playwright() as p, keeping_session(
+        llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True), llm_wiki_browser.SaveFailed
+    ) as context:
         page = context.pages[0] if context.pages else context.new_page()
         page.on(
             "request",

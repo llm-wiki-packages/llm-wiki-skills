@@ -29,7 +29,7 @@ argv = sys.argv[1:]
 pathlib.Path(os.environ["FAKE_LOG"]).open("a").write(json.dumps(argv) + "\\n")
 if "--cookies" in argv and os.environ.get("FAKE_ROTATE"):
     jar = pathlib.Path(argv[argv.index("--cookies") + 1])
-    jar.write_text(jar.read_text().replace("\\tSID\\tsid-value", "\\tSID\\t" + os.environ["FAKE_ROTATE"]))
+    jar.write_text(jar.read_text().replace("\\tSID\\tsid-value", "\\tSID\\t" + os.environ["FAKE_ROTATE"]).replace("#HttpOnly_", ""))  # yt-dlp's save writes no marker
 if os.environ.get("FAKE_YT_FAIL"):
     print(os.environ["FAKE_YT_FAIL"], file=sys.stderr)
     sys.exit(1)
@@ -234,7 +234,7 @@ def test_the_cookies_yt_dlp_rotated_are_saved_back_with_what_the_jar_cannot_carr
     assert {c["name"] for c in put["cookies"]} == {"SID", "YSC", "NID", "gv"} and put["origins"] == []
     saved = {c["name"]: c for c in json.loads(state_path.read_text())["cookies"]}
     assert saved["SID"]["value"] == "sid-rotated" and saved["SID"]["sameSite"] == "None" and saved["SID"]["httpOnly"] is True
-    assert saved["YSC"]["expires"] == -1 and saved["other"]["value"] == "other-value"
+    assert saved["YSC"]["expires"] == -1 and saved["YSC"]["httpOnly"] is False and saved["other"]["value"] == "other-value"
 
 
 def test_a_failed_call_still_saves_the_rotation_back(tmp_path):

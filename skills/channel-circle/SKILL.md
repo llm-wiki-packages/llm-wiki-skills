@@ -178,6 +178,9 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
   launcher (`persistent=True`), in the same bundled Chromium the login ran,
   because the profile carries the `cf_clearance` the human's login earned and
   that clearance is fingerprint-bound. Never attempt to solve a challenge.
+- **After the move off real Chrome**, a profile real Chrome wrote may not open
+  in bundled Chromium (macOS encrypts Chrome's cookies; unmeasured): an
+  `auth_expired` on such a profile is fixed by one `credentials login <domain>`.
 - **A capture inside the jail is unverified end to end**: whether Chromium
   launches on the granted profile under the jail the runner composes
   has not been measured. Where `capture_lesson.py` exits 5, or a browser that

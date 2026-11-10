@@ -212,7 +212,8 @@ def write_jar(jar: Path, cookies: list[dict]) -> None:
 
 def read_jar(jar: Path, saved: dict) -> list[dict]:
     """The jar's cookies as browser-state cookies, each over the saved one of its key, so what a Netscape line cannot
-    carry (`sameSite`) is kept."""
+    carry (`sameSite`) is kept. yt-dlp writes no `#HttpOnly_` marker back, so a line without one keeps the saved
+    `httpOnly`; a new cookie without one is not HttpOnly."""
     cookies = []
     for line in jar.read_text(encoding="utf-8").splitlines():
         if line.startswith(HTTPONLY):
@@ -226,9 +227,11 @@ def read_jar(jar: Path, saved: dict) -> list[dict]:
             continue
         domain, _, path, secure, expiry, name, value = fields
         found = {"name": name, "value": value, "domain": domain, "path": path,
-                 "expires": float(expiry) if expiry.isdigit() and int(expiry) > 0 else -1,
-                 "httpOnly": http_only, "secure": secure == "TRUE"}
-        cookies.append({**saved.get(_key(found), {}), **found})
+                 "expires": float(expiry) if expiry.isdigit() and int(expiry) > 0 else -1, "secure": secure == "TRUE"}
+        cookie = {"httpOnly": False, **saved.get(_key(found), {}), **found}
+        if http_only:
+            cookie["httpOnly"] = True
+        cookies.append(cookie)
     return cookies
 
 

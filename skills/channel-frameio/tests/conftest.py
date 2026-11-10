@@ -7,14 +7,16 @@ import sys
 
 import pytest
 
-# `child_env` as the plugin's launcher rules it: the environment, its own directory first on PYTHONPATH.
+# `child_env` as the plugin's launcher has it: its own directory first on PYTHONPATH, once; other entries kept.
 STAND_IN = '''import os
 
 
 def child_env(environ=None):
     env = dict(os.environ if environ is None else environ)
     here = os.path.dirname(os.path.abspath(__file__))
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, [here, env.get("PYTHONPATH")]))
+    given = env.get("PYTHONPATH")
+    rest = [entry for entry in given.split(os.pathsep) if entry != here] if given else []
+    env["PYTHONPATH"] = os.pathsep.join([here, *rest])
     return env
 '''
 

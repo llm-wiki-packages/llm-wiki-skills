@@ -51,6 +51,7 @@ History:
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -140,6 +141,23 @@ def use_profile(profile: Path) -> None:
     os.environ.setdefault(SLOT_DIR_ENV, str(profile))
 
 
+def keeping_session(opened, save_failed):
+    """`opened`, the launcher's context, with a state save that does not land at its exit said in one
+    `credential_store_error` line rather than raised: the persistent profile keeps the session either way, so what
+    this run captured, and the exit it chose, stand."""
+
+    @contextlib.contextmanager
+    def held():
+        try:
+            with opened as context:
+                yield context
+        except save_failed as exc:
+            print(f"credential_store_error: the browser state was not saved back ({exc}); the profile keeps the session",
+                  file=sys.stderr)
+
+    return held()
+
+
 def domain_of(url: str) -> str:
     # The domain is the dir credential's name the absent hint suggests, which
     # the CLI validates against [a-z0-9][a-z0-9._-]*: `.hostname` already
@@ -205,7 +223,9 @@ def main() -> int:
     use_profile(profile)
 
     # Persistent, as `capture_lesson.py` is: the login's profile is what carries cf_clearance.
-    with sync_playwright() as p, llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True) as context:
+    with sync_playwright() as p, keeping_session(
+        llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True), llm_wiki_browser.SaveFailed
+    ) as context:
         page = context.pages[0] if context.pages else context.new_page()
 
         def on_response(r):
