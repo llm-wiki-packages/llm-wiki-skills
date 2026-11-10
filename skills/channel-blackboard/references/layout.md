@@ -63,7 +63,7 @@ sources/courses/<slug>/
 - A module's pages go to the folder whose `README.md` carries the module's
   `module_id`, wherever that is: a person may rename a module folder.
 
-## Each root's keys are copied into the pages a pull makes below it.
+## Each root's keys are on every page below it.
 
 The course root (`README.md` in `dest`) is made by the first pull, once,
 and is the person's after: `ops.root`, `current`, `term` (the course's dates,
@@ -71,8 +71,10 @@ never a name derived from them), `term_start`, `term_end`, `course`
 (`PSY 2301`), `course_title`, `course_id`, `section`, `group`,
 `group_type: course`, `channel: blackboard`, `source_host`, `course_url`, and
 the job record's own `root.<key>` answers over them, all named in its
-`ops.lends`; each new page copies them when it is made (`--inherit`), and a
-re-pull never touches them. `filter=group:PSY 2301`
+`ops.lends`. The plugin applies them on every write to a page below, and
+records in the page's `ops.lent` which values came from a root, so a root edit
+reaches every page and removes the old value; a page's own tags stay beside
+them. `page explain <path>` says where each value came from. `filter=group:PSY 2301`
 scopes a search to the course. `areas` and `tags` are the job's `meta`
 (`jobs add … meta.tags=course/psy2301`), which the CLI stamps on every page.
 

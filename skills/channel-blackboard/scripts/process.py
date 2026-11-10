@@ -37,8 +37,8 @@ option: true, false, yes or no; default true), `term`, `term_start`,
 `term_end`, `course`, `course_title`, `course_id`, `section`, `group`,
 `group_type: course`, `channel: blackboard`, `source_host` and `course_url`,
 and the job record's own `root` keys over them, each named in the root's
-`ops.lends`, so every page this pull makes below it copies them
-(`page create … --inherit`). A root already there (`page ls filter=prop:ops.root`) is left
+`ops.lends`, so every page below it carries them: the plugin applies a root's
+lent keys on every write, and records them in each page's `ops.lent`. A root already there (`page ls filter=prop:ops.root`) is left
 alone, and `root-made.json` in the course capture records that the question
 was settled, so a root a person deleted is never made again. Each released
 module's folder root (`module`, `module_order`, `module_position`,
@@ -207,8 +207,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
         rc, answer = ops_json("page", "edit", path, *pairs, *titled, *clears, "--stdin", stdin=page["body"])
     else:
         folder, _, stem = f"{dest.rstrip('/')}/{place or page['title']}".rpartition("/")
-        # A new page copies its roots' offered keys; a re-pull edits a page a person may have changed, so never there.
-        rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--inherit", "--stdin", stdin=page["body"])
+        # The plugin applies the roots' lent keys on this write, as on every write: nothing to ask for here.
+        rc, answer = ops_json("page", "create", f"title={stem}", f"dest={folder}", *pairs, "--stdin", stdin=page["body"])
         if rc == 0 and stem != page["title"]:
             # The filename is the title at create; the page's own title is the course's whole name for it.
             rc, answer = ops_json("page", "edit", answer.get("path") or path, f"title={page['title']}")
@@ -262,17 +262,14 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
 
 def create_root(folder: str, made: dict, keys: dict) -> str | None:
     """`README.md` in `folder` with `keys`, then its title: the filename is the title at create. Every key but the
-    `ops` settings is named in `ops.lends`, the keys a page made below copies; pages already there get them through
-    `page root apply`."""
+    `ops` settings is named in `ops.lends`, the keys every page below carries. Pages already below (the pass lands a
+    course's captures in any order) get them in the root's own write: the plugin fans a root's lends out to its folder."""
     lends = [k for k in keys if not k.startswith("ops.")]
     pairs = [f"{k}={v}" for k, v in keys.items()] + [f"abstract={made['abstract']}"] + ([f"ops.lends={','.join(lends)}"] if lends else [])
     rc, answer = ops_json("page", "create", f"title={ROOT.removesuffix('.md')}", f"dest={folder}", "type=document", *pairs,
                           "--stdin", stdin=made["body"])
     if rc == 0:
         rc, answer = ops_json("page", "edit", answer.get("path") or f"{folder.rstrip('/')}/{ROOT}", f"title={made['title']}")
-    if rc == 0:
-        # The pass lands a course's captures in any order, so pages below may predate their root: fill them now.
-        rc, answer = ops_json("page", "root", "apply", folder)
     return f"{folder.rstrip('/')}/{ROOT}: {answer.get('error') or answer}" if rc != 0 else None
 
 
