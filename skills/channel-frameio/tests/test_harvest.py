@@ -42,7 +42,7 @@ def _module(path, name=None):
 #: dependencies, the one sibling module, and the plugin's browser launcher,
 #: the one module `run` puts on a unit script's path. Nothing else of the plugin's.
 ALLOWED_IMPORTS = {
-    "argparse", "fnmatch", "hashlib", "importlib", "json", "re", "shlex", "shutil", "subprocess",
+    "argparse", "fnmatch", "hashlib", "json", "re", "shlex", "shutil", "subprocess",
     "sys", "time", "datetime", "pathlib", "urllib",
     # `os`/`signal`: a child with a deadline is killed by process GROUP, and
     # `report.json` is written through `os.replace`. `unicodedata`: stdlib,
@@ -232,12 +232,11 @@ def test_the_document_extension_falls_back_to_the_proxy_route():
 # the browser: the plugin's launcher, and a child that can import it
 # --------------------------------------------------------------------------- #
 
-def test_a_child_is_handed_the_launchers_directory(tmp_path, monkeypatch):
-    (tmp_path / "llm_wiki_browser.py").write_text("")
-    monkeypatch.syspath_prepend(str(tmp_path))
+def test_a_child_can_import_the_launcher_its_parent_could(launcher, monkeypatch):
+    monkeypatch.delenv("PYTHONPATH")  # only `child_env` puts it there
     record = _module(SCRIPTS / "capture_record.py", "capture_record_env_probe")
-    env = record.child_env({"PYTHONPATH": "/elsewhere", "KEEP": "1"})
-    assert env["PYTHONPATH"].split(":") == [str(tmp_path), "/elsewhere"] and env["KEEP"] == "1"
+    code, out, err = record.run([sys.executable, "-c", "import llm_wiki_browser, os; print(os.path.dirname(llm_wiki_browser.__file__))"], timeout=30)
+    assert (code, out) == (0, str(launcher)), err
 
 
 class _Page:

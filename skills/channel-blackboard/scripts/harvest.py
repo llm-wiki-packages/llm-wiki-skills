@@ -68,7 +68,6 @@ Its own code is stdlib; the block is bb.py's pin, so the browser it launches has
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -224,14 +223,12 @@ def course_folder(row: dict, taken: set[str]) -> str:
 
 
 def bb_env(profile: str) -> dict:
-    """`bb.py`'s environment: the granted profile as its slot, and the plugin's launcher importable. `run` puts
-    `llm_wiki_browser` on this script's path through its boot, which a child started on the bare interpreter does not
-    get; a jail drops PYTHONPATH only from the process it starts, so a child is handed it here."""
-    env = dict(os.environ)
+    """`bb.py`'s environment: the launcher's `child_env`, which keeps `llm_wiki_browser` importable in a child `run`'s
+    boot never started, with the granted profile as the slot where the run carries none."""
+    import llm_wiki_browser
+
+    env = llm_wiki_browser.child_env()
     env.setdefault(SLOT_DIR_ENV, profile)
-    spec = importlib.util.find_spec("llm_wiki_browser")
-    if spec is not None and spec.origin:
-        env["PYTHONPATH"] = os.pathsep.join(filter(None, [os.path.dirname(spec.origin), env.get("PYTHONPATH")]))
     return env
 
 

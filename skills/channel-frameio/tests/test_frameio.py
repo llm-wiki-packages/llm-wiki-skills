@@ -1005,7 +1005,7 @@ print(json.dumps({{"ok": True, "kind": "document", "bytes": 614, "title": args.n
 
 
 # ---- the real argv chain: harvest_share -> capture_job -> frameio_doc_note ---------------
-def test_the_real_argv_chain_carries_a_file_named_like_an_option(tmp_path):
+def test_the_real_argv_chain_carries_a_file_named_like_an_option(tmp_path, launcher):
     """Every driver test above replaces `run`, so the argv the three scripts
     hand each other was never parsed by the script it was meant for. A file
     called `-rf.pdf` in a folder called `--help`, as separate argv items, is an
@@ -1024,7 +1024,7 @@ def test_the_real_argv_chain_carries_a_file_named_like_an_option(tmp_path):
     done = subprocess.run(
         [sys.executable, str(scripts / "harvest_share.py"), "_raw/talks/share-0000--deadbeef", "--pause-seconds=0",
          "--author=-Ada", f"--ticket={ticket['ticket']}"],
-        cwd=root, env={**OFFLINE, **door}, capture_output=True, text=True,
+        cwd=root, env={**OFFLINE, "PYTHONPATH": str(launcher), **door}, capture_output=True, text=True,
     )
     assert done.returncode == 0, done.stderr
     calls = [json.loads(line) for line in seen.read_text().splitlines()]

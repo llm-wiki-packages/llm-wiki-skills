@@ -98,14 +98,11 @@ def test_a_missing_or_moved_file_is_fetched_again(tmp_path):
     assert bb.reusable({"path": "other/a.pdf"}, "x", tmp_path, dest, {}, {}) is None
 
 
-def test_bb_is_handed_the_profile_as_its_slot_and_the_launcher_on_its_path(tmp_path, monkeypatch):
-    (tmp_path / "llm_wiki_browser.py").write_text("")
-    monkeypatch.syspath_prepend(str(tmp_path))
+def test_bb_is_handed_the_launchers_child_env_with_the_profile_as_its_slot(launcher, monkeypatch):
     monkeypatch.delenv("LLM_WIKI_SLOT_DIR", raising=False)
-    monkeypatch.setenv("PYTHONPATH", "/elsewhere")
     env = harvest.bb_env("/granted/profile")
     assert env["LLM_WIKI_SLOT_DIR"] == "/granted/profile"
-    assert env["PYTHONPATH"].split(":") == [str(tmp_path), "/elsewhere"]
+    assert env["PYTHONPATH"].split(":")[0] == str(launcher)
 
 
 def test_a_slot_the_runner_handed_is_kept(monkeypatch):
