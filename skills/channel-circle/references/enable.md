@@ -10,6 +10,9 @@
    is fingerprint-bound to it; see the SKILL.md's Auth section).
    The credential store never syncs, so every harvesting machine repeats
    this once, and maps the profile to the job once the job exists (step 3).
+   A profile real Chrome wrote, before the captures moved to bundled
+   Chromium, may not open there (macOS encrypts Chrome's cookies; unmeasured):
+   an `auth_expired` on it is fixed by one `credentials login <domain>`.
 2. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <space-root-url> slug=<community> description="<what this is>"
    skill=channel-circle` — the skill's manifest supplies `every=once`,
