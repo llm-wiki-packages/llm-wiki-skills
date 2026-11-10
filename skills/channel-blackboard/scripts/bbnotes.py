@@ -122,7 +122,7 @@ class _Text(HTMLParser):
             href, start = self.href.pop(), self.link_text.pop()
             text = "".join(self.out[start:]).strip()
             if href and href.startswith(("http://", "https://", "mailto:")) and href.rstrip("/") not in text:
-                self.out.append(f" ({href})")
+                self.out.append(f" ({shown_url(href)})")
 
     def handle_data(self, data):
         if not self.skip:
@@ -400,10 +400,17 @@ MEETING_HOSTS = re.compile(r"(^|\.)(zoom\.us|zoomgov\.com|teams\.microsoft\.com|
 
 
 def shown_url(url: str | None) -> str | None:
+    """`url` as a page shows it: a meeting link without its passcode, and a course file without its signature.
+
+    Blackboard signs a `/bbcswebdav/` link for each request: three query keys, one an expiry hours away. Kept, the
+    link is dead by the next day and differs on every pull, so every page that links a file re-renders each time.
+    The bare path opens the same file in a signed-in browser, and stays the same."""
     if not url:
         return url
     parts = urlsplit(url)
     if parts.hostname and MEETING_HOSTS.search(parts.hostname):
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    if "/bbcswebdav/" in parts.path and (parts.query or parts.fragment):
         return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
     return url
 

@@ -451,6 +451,17 @@ def test_a_meeting_link_loses_its_passcode(bb):
     assert bb.shown_url("https://example.edu/a?b=c") == "https://example.edu/a?b=c"
 
 
+def test_a_course_file_link_loses_its_signature_so_a_re_pull_leaves_the_page_alone(bb):
+    # Blackboard signs each `/bbcswebdav/` link per request, with an expiry hours away: kept, every pull rewrites the page.
+    signed = "https://bb.example.edu/bbcswebdav/pid-1-dt-content-rid-2_1/xid-2_1?Kq3cZcYS15=a&VxJw3wfC56=1794214823&3cCnGYSz89=s%3D"
+    again = signed.replace("1794214823", "1794268556").replace("s%3D", "t%3D")
+    bare = "https://bb.example.edu/bbcswebdav/pid-1-dt-content-rid-2_1/xid-2_1"
+    assert bb.shown_url(signed) == bb.shown_url(again) == bare
+    assert bb.html_text(f'<p>Read <a href="{signed}">the guide</a></p>') == bb.html_text(f'<p>Read <a href="{again}">the guide</a></p>')
+    assert f"({bare})" in bb.html_text(f'<p>Read <a href="{signed}">the guide</a></p>')
+    assert bb.shown_url("https://example.edu/other/x?y=1") == "https://example.edu/other/x?y=1"
+
+
 def test_discussions_skip_fetches_no_board_and_makes_no_page(tmp_path):
     cp, _, updates = run_stage(tmp_path, "harvest.py", harvest_ticket(tmp_path, options={"discussions": "skip"}))
     assert cp.returncode == 0, cp.stderr
