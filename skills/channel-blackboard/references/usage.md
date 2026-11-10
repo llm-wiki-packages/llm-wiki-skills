@@ -8,19 +8,21 @@ script runs as `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.
 
 | command | argv |
 | :--- | :--- |
-| `bb.py login` | `<base_url> (--profile DIR \| --credential NAME) [--chrome] [--timeout-min 15]` |
-| `bb.py whoami` | `(--profile DIR \| --credential NAME) [--chrome] [--headed]` |
+| `bb.py whoami` | `[--credential NAME] [--headed]` |
 | `bb.py courses` | the same |
 | `bb.py get` | `<api-path> [--all]` and the same; `v1/...` is under `/learn/api/public`, a leading `/` is a site path |
 | `bb.py harvest` | `<course id> --out DIR [--no-files] [--no-discussions]` and the same |
 
-Every command above also takes `--site <base url>`, over the profile's
-`bb-site.json`; the harvest stage passes the job target's.
+Every command above also takes `--site <base url>`, over the credential's
+`host`; the harvest stage passes the job target's.
 
-`--credential NAME` reads the profile directory off `{{@brain-cli-ops}}
-credentials info NAME` (a `kind=dir` credential). Exit 0 ok; 2 not signed in
-or the session expired; 3 usage or an unreadable profile; 4 an API error
-that is not auth.
+The credential is the run's `dir` slot, as the harvest stage hands it.
+`--credential NAME` names one where the run was handed none: its directory
+off `{{@brain-cli-ops}} credentials info NAME` (a `kind=dir login=browser`
+credential), and its `host` the site. Exit 0 ok; 2 not signed in or the
+session expired (`credentials login` again); 3 usage, or no credential; 4 an
+API error that is not auth; 5 the session could not be saved back to the
+credential.
 
 ## What `harvest` writes
 

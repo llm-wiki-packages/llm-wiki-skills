@@ -2,7 +2,7 @@
 
 The sandbox for the Blackboard venue's `harvest` stage: `bb.py` driving
 Playwright's browser build against the institution's Blackboard host, on the
-signed-in profile.
+signed-in credential.
 
 `process` and `routine` add nothing to their stock bases: `process.py`
 reads the capture and writes pages, with no network.
@@ -26,8 +26,9 @@ on macOS), which `bb.py` launches.
 
 ## Credential
 
-`requires.credentials.dir` is `"required"`: the persistent browser profile the
-operator signed in to, plus the session cookies `bb.py` saves beside it.
+`requires.credentials.dir` is `"required"`: the credential the operator
+signed in to with `credentials login`, whose saved browser state `bb.py`'s
+launcher seeds Chromium from and saves back to.
 Mapped to the job (`credentials bind job <slug> dir=<credential>`), it is
 granted to this slice read-write and the ticket hands it over as
 `credential_dir`. Unmapped, this machine claims no harvest of the job.

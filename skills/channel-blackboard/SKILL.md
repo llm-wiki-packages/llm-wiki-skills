@@ -1,7 +1,7 @@
 ---
 name: channel-blackboard
 description: Use when asked to sign in to Blackboard Learn, list its courses, follow a course, or turn a course's content, syllabus, files, videos, discussions or grades into pages.
-argument-hint: "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>"
+argument-hint: "<whoami|courses|harvest <courseId>|notes <harvest dir>>"
 ---
 
 # Channel: Blackboard
@@ -31,19 +31,15 @@ Their argv: `{{@brain-cli-ops}} reference channel-blackboard/references/usage.md
 
 ```sh
 {{@brain-cli-ops}} credentials set blackboard kind=dir login=browser host=<host>   # first time only
-bb login https://<host> --credential blackboard
+{{@brain-cli-ops}} credentials login blackboard
 ```
 
-A headed Chromium opens at the site; the operator signs in (SSO, MFA). The
-command polls `v1/users/me` and returns on the first 200 with the signed-in
-user as JSON; it needs no keypress. Exit 2 = timed out unsigned.
-`{{@brain-cli-ops}} credentials login blackboard` works too: `bb` reads the
-site from the credential's `host`.
-
-The profile keeps `bb-site.json` (the base URL) and `bb-state.json` (the
-session's cookies: Blackboard's `BbRouter` is a session cookie, which a
-closed profile drops). Both are secrets of the credential dir; never copy
-them into the wiki.
+A browser opens at the site; the operator signs in (SSO, MFA) and says when
+they are done. The login saves the session's cookies and storage as the
+credential's browser state, and every `bb` command opens Chromium through
+the plugin's launcher, seeded from that state and saved back after. `bb`
+reads the site from the credential's `host`. The state is a secret of the
+credential dir; never copy it into the wiki.
 
 ## 2. Check, list
 

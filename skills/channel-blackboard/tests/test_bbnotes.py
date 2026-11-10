@@ -254,6 +254,7 @@ def fake_browser(tmp_path, exit_code=0):
         "import json, os, shutil, sys\n"
         "argv = sys.argv[1:]\n"
         "open(os.environ['FAKE_BB'], 'a').write(json.dumps(argv) + '\\n')\n"
+        "open(os.environ['FAKE_BB'] + '.slot', 'a').write(os.environ.get('LLM_WIKI_SLOT_DIR', '') + '\\n')\n"
         f"if {exit_code}:\n"
         "    print('auth: session expired', file=sys.stderr); sys.exit(" + str(exit_code) + ")\n"
         "out = argv[argv.index('--out') + 1]\n"
@@ -288,7 +289,7 @@ def test_a_harvest_posts_every_capture_and_runs_bb_on_the_granted_profile(tmp_pa
     assert cp.returncode == 0, cp.stderr
     (bb_call,) = [json.loads(line) for line in (tmp_path / "bb.log").read_text().splitlines()]
     assert bb_call[1:3] == ["harvest", CID] and bb_call[bb_call.index("--site") + 1] == "https://learn.example.edu"
-    assert bb_call[bb_call.index("--profile") + 1] == str(tmp_path / "profile")
+    assert "--profile" not in bb_call and (tmp_path / "bb.log.slot").read_text().splitlines() == [str(tmp_path / "profile")]
     (update,) = updates
     assert "status=ok" in update
     captured = [a.split("=", 1)[1] for a in update if a.startswith("captured=")]

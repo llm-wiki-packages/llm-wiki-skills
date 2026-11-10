@@ -2,31 +2,30 @@
 # requires-python = ">=3.10"
 # dependencies = ["playwright==1.63.0"]
 # ///
-"""Blackboard Learn through a signed-in browser profile: no admin-registered REST app.
+"""Blackboard Learn through a signed-in browser session: no admin-registered REST app.
 
 The Learn REST API (`/learn/api/public/...`) answers a GET carrying the web
 session's cookies, the same requests the Ultra UI sends. A person signs in
-once in a headed Chromium (`login`); every later command runs headless on the
-same profile and calls the API through the browser context's own request
-client, so cookies, SSO redirects and TLS are the browser's.
-
-Blackboard's `BbRouter` session cookie has no expiry, and a persistent
-Chromium profile drops such cookies when it closes. So `login`, and every
-command after a good call, saves the context's storage state into the profile
-as `bb-state.json`, and a launch adds those cookies back before its first call.
+once with `llm-wiki-ops credentials login <credential>`; every command here
+runs headless through the plugin's launcher (`llm_wiki_browser`), which seeds
+the context from that credential's saved browser state and saves it back, and
+calls the API through the context's own request client, so cookies, SSO
+redirects and TLS are the browser's.
 
 Usage:
-  bb.py login <base_url> --profile DIR [--chrome] [--timeout-min 15]
-  bb.py whoami   --profile DIR
-  bb.py courses  --profile DIR
-  bb.py get <api-path> --profile DIR [--all]
-  bb.py harvest <courseId> --out DIR --profile DIR [--no-files] [--no-discussions]
+  bb.py whoami   [--credential NAME] [--site URL]
+  bb.py courses  [--credential NAME] [--site URL]
+  bb.py get <api-path> [--all] [--credential NAME] [--site URL]
+  bb.py harvest <courseId> --out DIR [--no-files] [--no-discussions] [--credential NAME] [--site URL]
 
-`--credential NAME` in place of `--profile` reads the directory off
-`llm-wiki-ops credentials info NAME` (a `kind=dir` credential).
+The credential is the run's `dir` slot (`LLM_WIKI_SLOT_DIR`), as a job's
+harvest hands it. `--credential NAME` names one where the run was handed
+none: its directory off `llm-wiki-ops credentials info NAME`, and its `host`
+the site unless `--site` says otherwise.
 
-Exit: 0 ok; 2 not signed in, or the session expired (run `login` again);
-3 usage or unreadable profile; 4 an API error that is not auth.
+Exit: 0 ok; 2 not signed in, or the session expired (run `credentials login`
+again); 3 usage, or no credential; 4 an API error that is not auth; 5 the
+browser state could not be saved back to the credential.
 """
 
 from __future__ import annotations
@@ -46,15 +45,11 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 API = "/learn/api/public"
 OPS = "llm-wiki-ops"
-STATE = "bb-state.json"
-SITE = "bb-site.json"
+# The run's `dir` slot, which the plugin's launcher and `credentials browser-state` read.
+SLOT_DIR_ENV = "LLM_WIKI_SLOT_DIR"
 PAGE_LIMIT = 100
 PAUSE_S = 0.25
-LAUNCH = {
-    "args": ["--disable-blink-features=AutomationControlled"],
-    "ignore_default_args": ["--enable-automation"],
-}
-EXIT_AUTH, EXIT_USAGE, EXIT_API = 2, 3, 4
+EXIT_AUTH, EXIT_USAGE, EXIT_API, EXIT_STORE = 2, 3, 4, 5
 
 # Handlers whose item can carry attachments; asking a folder or a link for
 # them is a 4xx per item and nothing else.
@@ -208,9 +203,24 @@ def front_door() -> list:
     return [found] if found else []
 
 
-def resolve_profile(args) -> Path:
-    if args.profile:
-        return Path(args.profile).expanduser().resolve()
+def as_site(host: str) -> str:
+    host = host.rstrip("/")
+    return host if "://" in host else f"https://{host}"
+
+
+def resolve_credential(args) -> str | None:
+    """The site the named credential's `host` gives, after pointing this run's slot at its directory; None with no name.
+
+    A run a job or `run credential=` handed its slot keeps that one: a name beside it is refused, as the plugin's
+    `credentials browser-state` refuses one."""
+    if os.environ.get(SLOT_DIR_ENV):
+        if args.credential:
+            print(f"this run was handed its credential as {SLOT_DIR_ENV}: drop --credential", file=sys.stderr)
+            sys.exit(EXIT_USAGE)
+        return None
+    if not args.credential:
+        print("no credential: run under a job, or pass --credential NAME (a `kind=dir login=browser` credential)", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
     proc = subprocess.run([*(front_door() or [OPS]), "--json", "credentials", "info", args.credential], capture_output=True, text=True)
     try:
         info = json.loads(proc.stdout)
@@ -218,74 +228,24 @@ def resolve_profile(args) -> Path:
         info = {}
     found = info.get("path") if isinstance(info, dict) else None
     if proc.returncode != 0 or not isinstance(found, str) or not Path(found).is_dir():
-        sys.exit(f"credential {args.credential!r}: no directory ({proc.returncode}) {(proc.stderr or proc.stdout)[:300]}")
-    # A profile `credentials login` minted has no bb-site.json; the dir's `host` is the site.
-    args.credential_host = info.get("host") if isinstance(info.get("host"), str) else None
-    return Path(found)
-
-
-def read_site(profile: Path, host: str | None = None) -> str:
-    try:
-        return json.loads((profile / SITE).read_text())["base_url"]
-    except (OSError, ValueError, KeyError):
-        if host:
-            return host.rstrip("/") if "://" in host else f"https://{host}"
-        sys.exit(f"{profile}: no {SITE} — run `bb.py login <base_url> --profile {profile}` first")
-
-
-def proxy_from_env(environ) -> dict | None:
-    """Playwright's `proxy` for a jail's egress proxy: Chromium and the context's request client ignore the env variables, and a
-    jail refuses every direct socket. Credentials go in their own keys, which the request client needs; None outside a jail."""
-    raw = environ.get("HTTPS_PROXY") or environ.get("https_proxy") or environ.get("HTTP_PROXY") or environ.get("http_proxy")
-    if not raw:
-        return None
-    parts = urlsplit(raw)
-    if not parts.hostname:
-        return None
-    netloc = parts.hostname + (f":{parts.port}" if parts.port else "")
-    found = {"server": f"{parts.scheme or 'http'}://{netloc}"}
-    if parts.username:
-        found["username"] = unquote(parts.username)
-    if parts.password:
-        found["password"] = unquote(parts.password)
-    bypass = environ.get("NO_PROXY") or environ.get("no_proxy")
-    if bypass:
-        found["bypass"] = bypass
-    return found
-
-
-def write_private(path: Path, text: str) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(text)
+        print(f"credential {args.credential!r}: no directory ({proc.returncode}) {(proc.stderr or proc.stdout)[:300]}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+    # The launcher and the state verb it saves through both find the credential here.
+    os.environ[SLOT_DIR_ENV] = found
+    host = info.get("host")
+    return as_site(host) if isinstance(host, str) and host else None
 
 
 class Session:
-    """One persistent-profile browser context, and the API reached through it."""
+    """One browser context the plugin's launcher opened, and the API reached through it."""
 
-    def __init__(self, playwright, profile: Path, base_url: str, *, headed: bool = False, chrome: bool = False):
-        self.profile, self.base = profile, base_url.rstrip("/")
-        opts = dict(LAUNCH, headless=not headed)
-        proxy = proxy_from_env(os.environ)
-        if proxy:
-            opts["proxy"] = proxy
-        if chrome:
-            opts["channel"] = "chrome"
-        self.ctx = playwright.chromium.launch_persistent_context(str(profile), accept_downloads=True, **opts)
-        state = profile / STATE
-        if state.exists():
-            try:
-                cookies = json.loads(state.read_text()).get("cookies", [])
-                if cookies:
-                    self.ctx.add_cookies(cookies)
-            except (OSError, ValueError):
-                pass
-
-    def close(self):
-        self.ctx.close()
+    def __init__(self, ctx, base_url: str):
+        self.ctx, self.base = ctx, base_url.rstrip("/")
 
     def save_state(self):
-        write_private(self.profile / STATE, json.dumps(self.ctx.storage_state()))
+        import llm_wiki_browser
+
+        llm_wiki_browser.save_state(self.ctx)
 
     def _get(self, url: str, timeout_ms: int = 60_000):
         from playwright.sync_api import Error as PlaywrightError
@@ -371,33 +331,6 @@ class Session:
 
 
 # --- commands ---------------------------------------------------------------
-
-
-def cmd_login(pw, args) -> int:
-    profile = Path(args.profile).expanduser().resolve() if args.profile else resolve_profile(args)
-    profile.mkdir(parents=True, exist_ok=True)
-    base = args.base_url.rstrip("/")
-    if urlsplit(base).scheme != "https":
-        sys.exit("base_url must be https://<your-blackboard-host>")
-    write_private(profile / SITE, json.dumps({"base_url": base}))
-    s = Session(pw, profile, base, headed=True, chrome=args.chrome)
-    try:
-        page = s.ctx.pages[0] if s.ctx.pages else s.ctx.new_page()
-        page.goto(base, wait_until="commit")
-        print(f"Sign in to {base} in the browser window (SSO / MFA as usual). Waiting up to {args.timeout_min} min...", file=sys.stderr)
-        deadline = time.time() + args.timeout_min * 60
-        while time.time() < deadline:
-            page.wait_for_timeout(2000)
-            user = s.me()
-            if user:
-                page.wait_for_timeout(1500)  # let the post-login redirects settle their cookies
-                s.save_state()
-                print(json.dumps({"signed_in": True, "user": _user_brief(user), "profile": str(profile)}, indent=2))
-                return 0
-        print("timed out waiting for sign-in", file=sys.stderr)
-        return EXIT_AUTH
-    finally:
-        s.close()
 
 
 def _user_brief(u: dict) -> dict:
@@ -686,7 +619,6 @@ def cmd_harvest(s: Session, args) -> int:
         "gone": len(gone),
     }
     dump("summary.json", summary)
-    s.save_state()
     print(json.dumps(summary, indent=2))
     return 0
 
@@ -703,17 +635,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(p):
-        g = p.add_mutually_exclusive_group(required=True)
-        g.add_argument("--profile", help="the browser profile directory")
-        g.add_argument("--credential", help="a kind=dir credential whose directory is the profile")
-        p.add_argument("--chrome", action="store_true", help="real Chrome instead of bundled Chromium")
+        p.add_argument("--credential", help="a kind=dir credential, where the run was handed none")
         p.add_argument("--headed", action="store_true")
-        p.add_argument("--site", help="the site's base url, over the profile's bb-site.json (a job's target names it)")
+        p.add_argument("--site", help="the site's base url, over the credential's host (a job's target names it)")
         return p
 
-    p = common(sub.add_parser("login", help="headed sign-in; saves the session"))
-    p.add_argument("base_url")
-    p.add_argument("--timeout-min", type=int, default=15)
     common(sub.add_parser("whoami"))
     common(sub.add_parser("courses"))
     p = common(sub.add_parser("get", help="one raw API GET, e.g. v1/users/me"))
@@ -726,24 +652,29 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-discussions", action="store_true", help="fetch no discussion board, so no classmate's name or post")
     args = ap.parse_args(argv)
 
+    host_site = resolve_credential(args)
+    site = as_site(args.site) if args.site else host_site
+    if not site:
+        print("no site: pass --site https://<your-blackboard-host>, or name a credential whose host is the site", file=sys.stderr)
+        return EXIT_USAGE
+
+    # Here, not at the top: every helper above runs, and is tested, without a browser.
+    import llm_wiki_browser
     from playwright.sync_api import sync_playwright
 
-    with sync_playwright() as pw:
-        if args.cmd == "login":
-            return cmd_login(pw, args)
-        profile = resolve_profile(args)
-        site = args.site.rstrip("/") if args.site else read_site(profile, getattr(args, "credential_host", None))
-        s = Session(pw, profile, site, headed=args.headed, chrome=args.chrome)
-        try:
-            return {"whoami": cmd_whoami, "courses": cmd_courses, "get": cmd_get, "harvest": cmd_harvest}[args.cmd](s, args)
-        except AuthError as e:
-            print(f"auth: {e} — run `bb.py login <base_url> --profile {profile}` again", file=sys.stderr)
-            return EXIT_AUTH
-        except ApiError as e:
-            print(f"api: {e}", file=sys.stderr)
-            return EXIT_API
-        finally:
-            s.close()
+    command = {"whoami": cmd_whoami, "courses": cmd_courses, "get": cmd_get, "harvest": cmd_harvest}[args.cmd]
+    try:
+        with sync_playwright() as pw, llm_wiki_browser.open_context(pw, headless=not args.headed, context={"accept_downloads": True}) as ctx:
+            return command(Session(ctx, site), args)
+    except AuthError as e:
+        print(f"auth: {e} — a person runs `llm-wiki-ops credentials login <credential>` again", file=sys.stderr)
+        return EXIT_AUTH
+    except ApiError as e:
+        print(f"api: {e}", file=sys.stderr)
+        return EXIT_API
+    except llm_wiki_browser.SaveFailed as e:
+        print(f"credential_store_error: {e}", file=sys.stderr)
+        return EXIT_STORE
 
 
 if __name__ == "__main__":
