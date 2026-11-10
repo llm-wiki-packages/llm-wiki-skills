@@ -42,7 +42,7 @@
   },
   "usage": "/channel-blackboard <whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "watch": {
     "dest": "sources/courses/{slug}",
     "defaults": {
