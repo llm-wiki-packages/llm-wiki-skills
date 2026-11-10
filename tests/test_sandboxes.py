@@ -106,7 +106,7 @@ MACHINE_READS = {
     ("frameio", "harvest"): ["playwright-cache"],
     ("hubspot-cms", "harvest"): ["playwright-cache"],
     ("substack", "harvest"): ["playwright-cache"],
-    ("youtube", "harvest"): ["yt-dlp-cache", "playwright-cache"],
+    ("youtube", "harvest"): ["yt-dlp-cache"],
     ("youtube-watch-local", "enrich"): ["yt-dlp-cache"],
 }
 
