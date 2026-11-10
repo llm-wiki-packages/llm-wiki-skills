@@ -113,6 +113,7 @@ def card_name(text: str, is_folder: bool) -> str:
 
 
 def main() -> int:
+    import llm_wiki_browser
     from playwright.sync_api import sync_playwright
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -127,9 +128,9 @@ def main() -> int:
     leaves = []
     visited = set()
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, channel="chrome")
-        page = browser.new_page()
+    # A guest share needs no credential: the launcher's in-memory context.
+    with sync_playwright() as p, llm_wiki_browser.open_context(p) as context:
+        page = context.new_page()
 
         def list_cards(url):
             page.goto(url, wait_until="commit", timeout=args.timeout_ms)
@@ -172,7 +173,6 @@ def main() -> int:
                     )
 
         walk(args.url, [])
-        browser.close()
 
     manifest = {
         "share_id": share_id,

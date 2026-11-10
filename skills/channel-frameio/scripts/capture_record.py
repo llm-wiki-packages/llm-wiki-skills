@@ -180,7 +180,10 @@ def run(cmd, timeout=None):
     deadline than their own, so the innermost expires first and every level
     gets to say what happened.
     """
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    import llm_wiki_browser  # `run` puts it on a unit script's path; `child_env` keeps it there for the child
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+                            env=llm_wiki_browser.child_env())
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:

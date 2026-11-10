@@ -21,10 +21,9 @@
 
    Use a throwaway Google account, and never open that profile in a browser
    again: YouTube rotates the session's cookies under any open tab, and the
-   harvest's own copy (`cookies.txt` in the credential directory) would stop
-   working. A harvest that fails with `auth` means the session is dead: run
-   `credentials login youtube` again and the next harvest re-exports from
-   the fresh profile. Public videos need none of this. Bind the job, not
+   session the harvest saves back would stop working. A harvest that fails
+   with `auth` means the session is dead: run `credentials login youtube`
+   again and the next harvest spends the fresh login. Public videos need none of this. Bind the job, not
    the skill: a skill's `dir` is handed to every job of the skill.
    `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps nothing
    and lists the skill's `dir` slot as unmapped with a `bind skill` line;

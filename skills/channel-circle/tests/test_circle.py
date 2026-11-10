@@ -15,6 +15,7 @@ two lessons.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -1129,6 +1130,107 @@ def test_the_outage_probe_main_falls_back_to_the_generic_line_on_a_silent_refusa
     }
 
 
+class _SaveFailed(RuntimeError):
+    pass
+
+
+class _Page:
+    url = TARGET
+
+    def on(self, *a):
+        pass
+
+    def goto(self, *a, **k):
+        pass
+
+    def wait_for_selector(self, *a, **k):
+        pass
+
+    def wait_for_timeout(self, *a):
+        pass
+
+    def title(self):
+        return "Course"
+
+    def evaluate(self, *a):
+        return {"found": True, "children": 3, "chars": 900}
+
+
+def test_the_outage_probe_opens_the_granted_profile_itself_through_the_launcher(wiki_root, tmp_path_factory, monkeypatch, capsys):
+    root, _ = wiki_root
+    profile = tmp_path_factory.mktemp("profile")
+    opened = []
+
+    @contextlib.contextmanager
+    def open_context(playwright, **kwargs):
+        opened.append({**kwargs, "slot": os.environ.get("LLM_WIKI_SLOT_DIR")})
+        yield types.SimpleNamespace(pages=[_Page()])
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        yield object()
+
+    monkeypatch.setitem(sys.modules, "llm_wiki_browser", types.SimpleNamespace(open_context=open_context, SaveFailed=_SaveFailed))
+    stub_sync_api = types.ModuleType("playwright.sync_api")
+    stub_sync_api.sync_playwright = sync_playwright
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", stub_sync_api)
+    monkeypatch.delenv("LLM_WIKI_SLOT_DIR", raising=False)
+    spec_p = importlib.util.spec_from_file_location("circle_outage_probe_launch", SCRIPTS / "outage_probe.py")
+    probe = importlib.util.module_from_spec(spec_p)
+    spec_p.loader.exec_module(probe)
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path_factory.mktemp("probe-launch"), ticket(credential_dir=str(profile))))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPTS / "outage_probe.py"), str(root), "--ticket", "0123456789ab", "--settle-ms", "0"])
+    assert probe.main() == 0, capsys.readouterr()
+    assert opened == [{"headless": True, "persistent": True, "slot": str(profile)}]
+    assert json.loads(capsys.readouterr().out)["fixed"] is True
+
+
+class _LessonPage(_Page):
+    def goto(self, *a, **k):
+        return types.SimpleNamespace(status=200)
+
+    def content(self):
+        return "<html><main>" + "lesson " * 4000 + "</main></html>"
+
+    def evaluate(self, *a):
+        return []
+
+    def eval_on_selector_all(self, *a):
+        return []
+
+    def eval_on_selector(self, *a):
+        return ""
+
+
+def test_a_capture_opens_the_granted_profile_itself_through_the_launcher(wiki_root, tmp_path_factory, monkeypatch, capsys):
+    root, rel = wiki_root
+    profile = tmp_path_factory.mktemp("profile")
+    opened = []
+
+    @contextlib.contextmanager
+    def open_context(playwright, **kwargs):
+        opened.append({**kwargs, "slot": os.environ.get("LLM_WIKI_SLOT_DIR")})
+        yield types.SimpleNamespace(pages=[_LessonPage()])
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        yield object()
+
+    monkeypatch.setitem(sys.modules, "llm_wiki_browser", types.SimpleNamespace(open_context=open_context, SaveFailed=_SaveFailed))
+    stub_sync_api = types.ModuleType("playwright.sync_api")
+    stub_sync_api.sync_playwright = sync_playwright
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", stub_sync_api)
+    monkeypatch.delenv("LLM_WIKI_SLOT_DIR", raising=False)
+    capture = load_capture()
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path_factory.mktemp("capture-launch"), ticket(credential_dir=str(profile))))
+    monkeypatch.setattr(sys, "argv", [str(CAPTURE), str(root), "--out", rel, "--ticket", "0123456789ab"])
+    assert capture.main() == 0, capsys.readouterr()
+    assert opened == [{"headless": True, "persistent": True, "slot": str(profile)}]
+    assert json.loads((root / rel / "meta.json").read_text())["final_url"] == TARGET
+
+
 def test_the_documented_page_line_names_a_type():
     """`docs/contracts/note-format.md` requires `type` on every page and
     `page create` defaults a missing one to `note`. A lesson is not a note, and
@@ -1138,3 +1240,49 @@ def test_the_documented_page_line_names_a_type():
     assert lines, "no documented page line"
     for line in lines:
         assert "type=lesson" in line, line
+
+
+def _unsaved_launcher(page, monkeypatch):
+    """A launcher whose save at the context's exit does not land, as the real one raises it."""
+
+    @contextlib.contextmanager
+    def open_context(playwright, **kwargs):
+        yield types.SimpleNamespace(pages=[page])
+        raise _SaveFailed("`credentials browser-state put` exited 1: locked")
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        yield object()
+
+    monkeypatch.setitem(sys.modules, "llm_wiki_browser", types.SimpleNamespace(open_context=open_context, SaveFailed=_SaveFailed))
+    stub_sync_api = types.ModuleType("playwright.sync_api")
+    stub_sync_api.sync_playwright = sync_playwright
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", stub_sync_api)
+
+
+def test_a_probe_whose_state_save_fails_still_answers_its_verdict_and_exits_0(wiki_root, tmp_path_factory, monkeypatch, capsys):
+    root, _ = wiki_root
+    _unsaved_launcher(_Page(), monkeypatch)
+    spec_p = importlib.util.spec_from_file_location("circle_outage_probe_unsaved", SCRIPTS / "outage_probe.py")
+    probe = importlib.util.module_from_spec(spec_p)
+    spec_p.loader.exec_module(probe)
+    profile = tmp_path_factory.mktemp("profile")
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path_factory.mktemp("probe-unsaved"), ticket(credential_dir=str(profile))))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPTS / "outage_probe.py"), str(root), "--ticket", "0123456789ab", "--settle-ms", "0"])
+    assert probe.main() == 0
+    out, err = capsys.readouterr()
+    assert json.loads(out)["fixed"] is True and "credential_store_error" in err and "locked" in err
+
+
+def test_a_capture_whose_state_save_fails_keeps_its_capture_and_its_exit(wiki_root, tmp_path_factory, monkeypatch, capsys):
+    root, rel = wiki_root
+    _unsaved_launcher(_LessonPage(), monkeypatch)
+    capture = load_capture()
+    profile = tmp_path_factory.mktemp("profile")
+    monkeypatch.setenv("LLM_WIKI_OPS", _stub_ops(tmp_path_factory.mktemp("capture-unsaved"), ticket(credential_dir=str(profile))))
+    monkeypatch.setattr(sys, "argv", [str(CAPTURE), str(root), "--out", rel, "--ticket", "0123456789ab"])
+    assert capture.main() == 0
+    out, err = capsys.readouterr()
+    assert json.loads((root / rel / "meta.json").read_text())["final_url"] == TARGET
+    assert out.strip() and "credential_store_error" in err

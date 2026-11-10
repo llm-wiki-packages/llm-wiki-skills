@@ -1,9 +1,9 @@
 # channel-frameio — after enabling
 
-1. Check a real Chrome is on the harvesting machine, and that the worker
-   there can launch it — the harvest step's, and a confined worker that
-   cannot reach the browser captures nothing; tell the operator if it is
-   missing. The process step needs neither: it reads the bytes harvest left
+1. Check Playwright's Chromium build is installed on the harvesting machine
+   (`uvx playwright install chromium`, outside any jail: the slice reads it
+   from `playwright-cache` and can never write it) — a worker that cannot
+   launch it captures nothing; tell the operator if it is missing. The process step needs neither: it reads the bytes harvest left
    and writes the page.
 2. No auth walkthrough: guest share links authorize themselves.
 3. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add

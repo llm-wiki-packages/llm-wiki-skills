@@ -15,7 +15,7 @@
   ],
   "name": "channel-hubspot-video",
   "requires": {
-    "ops": ">=0.10.0"
+    "ops": ">=0.16.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:hubspot-cms",
   "stages": {

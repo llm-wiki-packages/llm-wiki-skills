@@ -30,7 +30,7 @@
     "credentials": {
       "dir": "optional"
     },
-    "ops": ">=0.15.0"
+    "ops": ">=0.16.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube",
   "stages": {

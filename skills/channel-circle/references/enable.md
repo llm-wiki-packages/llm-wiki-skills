@@ -3,13 +3,16 @@
 1. **Auth walkthrough** — Circle content is licensed, so do it now:
    `{{@brain-cli-ops}} credentials set <domain> kind=dir login=browser host=<domain>`
    once, then `{{@brain-cli-ops}} credentials login <domain>` (attended, macOS only)
-   opens a real Chrome window; the operator logs in (solving any Turnstile/2FA), opens a
+   opens a Chromium window; the operator logs in (solving any Turnstile/2FA), opens a
    gated lesson to confirm access, then presses Enter in the terminal. This
    saves the storage state AND the persistent per-domain profile — on
    Circle the profile is the load-bearing half (Cloudflare's `cf_clearance`
    is fingerprint-bound to it; see the SKILL.md's Auth section).
    The credential store never syncs, so every harvesting machine repeats
    this once, and maps the profile to the job once the job exists (step 3).
+   A profile real Chrome wrote, before the captures moved to bundled
+   Chromium, may not open there (macOS encrypts Chrome's cookies; unmeasured):
+   an `auth_expired` on it is fixed by one `credentials login <domain>`.
 2. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <space-root-url> slug=<community> description="<what this is>"
    skill=channel-circle` — the skill's manifest supplies `every=once`,

@@ -21,10 +21,6 @@ harness`.
 `machine_reads: yt-dlp-cache`: read on yt-dlp's cache directory
 (`$HOME/.cache/yt-dlp`).
 
-`machine_reads: playwright-cache`: read on Playwright's browser build
-(`$HOME/.cache/ms-playwright` on Linux, `$HOME/Library/Caches/ms-playwright`
-on macOS), which `export_cookies.py` launches on a bound profile.
-
 ## Credential
 
 `requires.credentials.dir` is `"optional"`: unbound, the stage runs keyless and reaches
@@ -35,17 +31,16 @@ browser` — a Chromium profile a person signed in to YouTube on through
 and not a route: yt-dlp reads cookies off disk, and no proxy can inject a
 browser session.
 
-yt-dlp takes cookies only; there is no OAuth or password route. The unit
-exports a Netscape `cookies.txt` into that same directory once (on the
-unit's own Playwright env, the profile opened headless and closed again) and passes
-`--cookies <dir>/cookies.txt` to every yt-dlp call from then on. yt-dlp
-writes the cookies YouTube rotates back into that file, so the directory must
-stay writable and the jar, not the profile, is the live session: no failure
-deletes it. The unit reopens the browser profile only to export again: when
-there is no usable jar, or when the profile's cookie DB is newer than the
-jar, which is what a `credentials login` since the last export looks like. A browser tab holding
-the same session would rotate the cookies out from under yt-dlp. Nothing
-from the directory lands in the capture dir.
+yt-dlp takes cookies only; there is no OAuth or password route. Each run
+writes the credential's saved browser state (`credentials browser-state
+get`, which inside the slice reads the slot) as a Netscape `cookies.txt` in
+that same directory and passes `--cookies <dir>/cookies.txt` to every yt-dlp
+call. yt-dlp writes the cookies YouTube rotates back into that file, so the
+directory must stay writable, and the run saves them into the state
+(`credentials browser-state put`) after its calls, failed ones included. No
+browser opens on the session: a tab holding it would rotate the cookies out
+from under yt-dlp, which is also why the slot is held by one slice at a
+time. Nothing from the directory lands in the capture dir.
 
 Use a throwaway account: yt-dlp's own wiki warns that a harvesting account
 can be rate-limited or banned.

@@ -10,7 +10,7 @@
 The runner starts it that way, in the stage's jail. It reads the ticket
 through `tickets open`, runs `bb.py harvest` on its own interpreter (the
 unit env `skills enable` built from the block above, which has Playwright)
-on the granted `credential_dir` into
+on the granted `credential_dir`, its saved browser state, into
 `<capture_dir>/harvest/`, then `bbnotes.split` into `<capture_dir>/items/`,
 and posts every item directory that is new or changed since the last pull as
 `captured=`. The host turns each into a transcribe ticket (a video whose
@@ -88,6 +88,8 @@ CALL_TIMEOUT = 3 * 3600
 EXIT_AUTH = 2
 CHOICES = {"files": ("download", "skip"), "discussions": ("include", "skip")}
 LIST_TIMEOUT = 600
+# The run's `dir` slot, which the plugin's launcher in `bb.py` opens.
+SLOT_DIR_ENV = "LLM_WIKI_SLOT_DIR"
 PORTAL_LEDGER = "portal.json"
 # A finished course's grades and feedback land after its last day: it is pulled for this long after that day.
 FINISHED_GRACE_DAYS = 21
@@ -220,16 +222,26 @@ def course_folder(row: dict, taken: set[str]) -> str:
     return name
 
 
+def bb_env(profile: str) -> dict:
+    """`bb.py`'s environment: the launcher's `child_env`, which keeps `llm_wiki_browser` importable in a child `run`'s
+    boot never started, with the granted profile as the slot where the run carries none."""
+    import llm_wiki_browser
+
+    env = llm_wiki_browser.child_env()
+    env.setdefault(SLOT_DIR_ENV, profile)
+    return env
+
+
 def pull_course(t: dict, site: str, course: str, harvest: Path, items: Path, chosen: dict, options: dict, layout: dict, profile: str,
                 stamp: dict | None = None, force_course: bool = False) -> dict:
     """One course: `bb.py harvest`, the split, and which items to post. Answers `error` (`auth`, `timeout`, or `bb.py`'s words) or the counts."""
-    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--profile", profile, "--site", site]
+    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--site", site]
     if chosen["files"] == "skip":
         argv_bb.append("--no-files")
     if chosen["discussions"] == "skip":
         argv_bb.append("--no-discussions")
     try:
-        cp = subprocess.run(argv_bb, capture_output=True, text=True, timeout=CALL_TIMEOUT)
+        cp = subprocess.run(argv_bb, capture_output=True, text=True, timeout=CALL_TIMEOUT, env=bb_env(profile))
     except subprocess.TimeoutExpired:
         return {"error": "timeout", "why": "bb.py harvest ran past its timeout"}
     if cp.returncode == EXIT_AUTH:
@@ -297,7 +309,8 @@ def write_ledger(path: Path, ledger: dict) -> None:
 def list_courses(site: str, profile: str) -> tuple[list[dict] | None, str | None]:
     """The enrollments as `bb.py courses` prints them: `(rows, None)`, or `(None, "auth")` / `(None, <why>)`."""
     try:
-        cp = subprocess.run([sys.executable, str(BB), "courses", "--profile", profile, "--site", site], capture_output=True, text=True, timeout=LIST_TIMEOUT)
+        cp = subprocess.run([sys.executable, str(BB), "courses", "--site", site], capture_output=True, text=True, timeout=LIST_TIMEOUT,
+                            env=bb_env(profile))
     except subprocess.TimeoutExpired:
         return None, "listing the courses ran past its timeout"
     if cp.returncode == EXIT_AUTH:

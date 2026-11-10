@@ -98,13 +98,16 @@ def test_a_missing_or_moved_file_is_fetched_again(tmp_path):
     assert bb.reusable({"path": "other/a.pdf"}, "x", tmp_path, dest, {}, {}) is None
 
 
-def test_the_jails_proxy_reaches_playwright_with_its_credentials_apart():
-    env = {"HTTPS_PROXY": "http://nono:tok%2Fen@127.0.0.1:49419", "NO_PROXY": "localhost,127.0.0.1"}
-    assert bb.proxy_from_env(env) == {"server": "http://127.0.0.1:49419", "username": "nono", "password": "tok/en", "bypass": "localhost,127.0.0.1"}
+def test_bb_is_handed_the_launchers_child_env_with_the_profile_as_its_slot(launcher, monkeypatch):
+    monkeypatch.delenv("LLM_WIKI_SLOT_DIR", raising=False)
+    env = harvest.bb_env("/granted/profile")
+    assert env["LLM_WIKI_SLOT_DIR"] == "/granted/profile"
+    assert env["PYTHONPATH"].split(":")[0] == str(launcher)
 
 
-def test_outside_a_jail_there_is_no_proxy():
-    assert bb.proxy_from_env({}) is None
+def test_a_slot_the_runner_handed_is_kept(monkeypatch):
+    monkeypatch.setenv("LLM_WIKI_SLOT_DIR", "/the/runners")
+    assert harvest.bb_env("/granted/profile")["LLM_WIKI_SLOT_DIR"] == "/the/runners"
 
 
 def test_a_course_folder_is_its_short_code():

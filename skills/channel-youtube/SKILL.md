@@ -177,23 +177,22 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   session.
 - `requires.credentials.dir` is `"optional"`. Bound to a `dir` credential with
   `login: browser` (`{{@brain-cli-ops}} reference channel-youtube/enable`), the ticket carries
-  `credential_dir`; the harvest script exports a Netscape `cookies.txt` into
-  that directory once (`scripts/export_cookies.py`, on the unit env
-  `skills enable` built, which has Playwright) and passes `--cookies` to both
-  yt-dlp calls. Unbound, the argv is unchanged.
-- The jar is the live session once yt-dlp has written rotated cookies back
-  into it, so no failure deletes it. A harvest that fails `auth` usually
-  means the session is dead: run `{{@brain-cli-ops}} credentials login <name>`
-  again, and the next harvest sees the profile's cookie DB newer than the
-  jar and re-exports. A members-only or private video the account itself
+  `credential_dir`; the harvest script writes the credential's saved browser
+  state (`credentials browser-state get`) as a Netscape `cookies.txt` in that
+  directory, passes `--cookies` to both yt-dlp calls, then saves the cookies
+  yt-dlp rotated back (`credentials browser-state put`). No browser opens.
+  Unbound, the argv is unchanged.
+- The state is the live session: every harvest saves yt-dlp's rotated
+  cookies back into it, failed ones included. A harvest that fails `auth`
+  usually means the session is dead: run `{{@brain-cli-ops}} credentials login <name>`
+  again, and the next harvest's jar comes from the fresh login. A members-only or private video the account itself
   cannot see is also `auth`, and no login fixes that. YouTube's "confirm you're not a bot" wall is throttling, not
   an auth wall; with a jar present it is reported `error`, and a login does
   not help.
-- A `credential_store_error` reason is the export itself failing. Its text
-  says which: `not logged in to youtube.com` means the profile has no YouTube
-  session yet, so run `credentials login`; a dir that cannot be read is the
-  binding's problem, and a missing Playwright is the env's (`skills enable
-  channel-youtube` builds it); no login fixes either. The sandbox reference owns the why (rotation, throwaway account).
+- A `credential_store_error` reason is the state not yielding a jar. Its
+  text says which: `not logged in to youtube.com` means the credential holds
+  no YouTube session yet, so run `credentials login`; a dir or a state verb
+  that cannot be read is the binding's problem, and no login fixes it. The sandbox reference owns the why (rotation, throwaway account).
 
 ## Quirks log
 

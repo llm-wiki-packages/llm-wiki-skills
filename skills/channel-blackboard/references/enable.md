@@ -3,7 +3,7 @@
 1. Make the credential, naming the institution's Blackboard host:
    `{{@brain-cli-ops}} credentials set blackboard kind=dir login=browser host=<host>`.
    A second institution is a second credential under its own name.
-2. Sign in, attended: `/channel-blackboard login https://<host>`. The
+2. Sign in, attended: `{{@brain-cli-ops}} credentials login blackboard`. The
    credential store never syncs, so every machine that harvests signs in once.
 3. Check it: `/channel-blackboard courses` lists the memberships.
 4. **Choose the layout, once for the wiki.** Ask the person, offering the
@@ -68,7 +68,7 @@
 | `_raw/<slug>/…/harvest/` | `bb.py harvest`'s output, whole (`usage.md`'s table) |
 | `_raw/<slug>/…/items/<kind>-<id>/` | one capture per page: `capture.json`, and the file, video or `record.json` it renders from |
 | `_raw/<slug>/…/items/placement.json` | where each page was first placed, each module's folder, and what left the course |
-| `sources/courses/<slug>/README.md` | the course root, made by the first pull and never rewritten — nor made again once deleted (`root-made.json` in the course capture, `_raw/<slug>/…/items/course/`, records it): `ops.root: true`, `current`, `term`, the course's code, title, ids, dates and host, `group`, and an `abstract`. Every page a pull makes in the folder copies them (`ops.lends` names which); edit it (`page edit <path> current=false`) when the course ends, and `page root apply <path> --force` updates the pages already there |
+| `sources/courses/<slug>/README.md` | the course root, made by the first pull and never rewritten — nor made again once deleted (`root-made.json` in the course capture, `_raw/<slug>/…/items/course/`, records it): `ops.root: true`, `current`, `term`, the course's code, title, ids, dates and host, `group`, and an `abstract`. Every page in the folder carries them (`ops.lends` names which); edit it (`page edit <path> current=false`) when the course ends, and the same edit updates every page below |
 | `sources/courses/<slug>/NN <module>/README.md` | each released module's root, made once the same way (`modules-made.json`): `module`, `module_order`, `released` and the rest |
 | `sources/courses/<slug>/` | one page per capture, each with an `abstract` and its fields (`kind`, `position`, `due`…): `00 Course overview` (the course index), each content item, each pdf, slide deck, Word file or html page, each video, each announcement, each discussion board (in parts past 60 KB) |
 

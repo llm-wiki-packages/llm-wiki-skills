@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,9 @@ FAKE_YT_DLP = f"""#!{sys.executable}
 import json, os, pathlib, sys
 argv = sys.argv[1:]
 pathlib.Path(os.environ["FAKE_LOG"]).open("a").write(json.dumps(argv) + "\\n")
+if "--cookies" in argv and os.environ.get("FAKE_ROTATE"):
+    jar = pathlib.Path(argv[argv.index("--cookies") + 1])
+    jar.write_text(jar.read_text().replace("\\tSID\\tsid-value", "\\tSID\\t" + os.environ["FAKE_ROTATE"]).replace("#HttpOnly_", ""))  # yt-dlp's save writes no marker
 if os.environ.get("FAKE_YT_FAIL"):
     print(os.environ["FAKE_YT_FAIL"], file=sys.stderr)
     sys.exit(1)
@@ -36,6 +40,26 @@ else:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(pathlib.Path(os.environ["FAKE_FIXTURES"], "dQw4fixture.en.vtt").read_text())
 """
+
+
+# `credentials browser-state get|put` over `FAKE_STATE`, the slot's state file: `put` merges by (name, domain, path)
+# and logs what it was given; `FAKE_GET_FAIL` makes `get` refuse.
+STATE_VERBS = (
+    "if verb[:3] == ['credentials', 'browser-state', 'get']:\n"
+    "    if os.environ.get('FAKE_GET_FAIL'):\n"
+    "        print('no such credential directory', file=sys.stderr); sys.exit(1)\n"
+    "    path = pathlib.Path(os.environ['FAKE_STATE'])\n"
+    "    state = json.loads(path.read_text()) if path.exists() else {'cookies': [], 'origins': []}\n"
+    "    print(json.dumps({'path': str(path), 'format': 'json', 'state': state})); sys.exit(0)\n"
+    "if verb[:3] == ['credentials', 'browser-state', 'put']:\n"
+    "    path = pathlib.Path(os.environ['FAKE_STATE'])\n"
+    "    new = json.loads(sys.stdin.read())\n"
+    "    pathlib.Path(os.environ['FAKE_STATE'] + '.puts').open('a').write(json.dumps(new) + '\\n')\n"
+    "    state = json.loads(path.read_text()) if path.exists() else {'cookies': [], 'origins': []}\n"
+    "    key = lambda c: (c['name'], c['domain'], c['path'])\n"
+    "    merged = {key(c): c for c in state['cookies']}; merged.update((key(c), c) for c in new['cookies'])\n"
+    "    path.write_text(json.dumps({'cookies': list(merged.values()), 'origins': state['origins']})); print('{}'); sys.exit(0)\n"
+)
 
 
 def front_door(tmp_path, ticket):
@@ -49,6 +73,7 @@ def front_door(tmp_path, ticket):
         "    print(json.dumps({'ticket': TICKET})); sys.exit(0)\n"
         "if verb[:2] == ['tickets', 'update']:\n"
         "    pathlib.Path(os.environ['FAKE_UPDATES']).open('a').write(json.dumps(argv) + '\\n'); sys.exit(0)\n"
+        + STATE_VERBS +
         "sys.exit(9)\n"
     )
     return shlex.join([sys.executable, str(stub)])
@@ -137,57 +162,50 @@ def test_the_manifest_declares_the_script_beside_the_sandbox():
     manifest = json.loads((UNIT_DIR / "manifest.json").read_text())
     assert manifest["stages"]["harvest"]["script"] == "scripts/capture_video.py"
     assert (UNIT_DIR / "scripts" / "capture_video.py").is_file() and "sandbox_ref" in manifest and "sandbox_ref" not in manifest["stages"]["harvest"]
-    assert '# dependencies = ["playwright==' in SCRIPT.read_text()  # the env the cookie export runs on
+    assert "# /// script" not in SCRIPT.read_text()  # standard library only: no browser, so no env to build
 
 
-# --- a bound `dir` credential: the browser profile, and the cookie jar exported into it once ---
+# --- a bound `dir` credential: its browser state, spent as a cookie jar and saved back ---
 
-# Stands in for the unit env's python running `export_cookies.py <profile> <jar>`: logs the argv it was
-# handed, then writes a jar (`FAKE_EXPORT_FAIL` set: exits 3 with one stderr line, writing nothing).
-# Any other script (`youtube_note.py --record`) runs on the real interpreter.
-FAKE_ENV_PYTHON = f"""#!{sys.executable}
-import json, os, pathlib, sys
-if not sys.argv[1].endswith("export_cookies.py"):
-    os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
-pathlib.Path(os.environ["FAKE_EXPORT_LOG"]).open("a").write(json.dumps(sys.argv[1:]) + "\\n")
-if os.environ.get("FAKE_EXPORT_FAIL"):
-    print("playwright: no cookies for youtube.com in the profile", file=sys.stderr)
-    sys.exit(3)
-pathlib.Path(sys.argv[3]).write_text("# Netscape HTTP Cookie File\\n")  # argv: <export_cookies.py> <profile> <jar>
-if os.environ.get("FAKE_EXPORT_TOUCHES_DB"):
-    db = pathlib.Path(sys.argv[2], "Default", "Cookies"); db.parent.mkdir(parents=True, exist_ok=True)
-    db.write_text("sqlite"); os.utime(db, ns=(1 << 62, 1 << 62))  # far in the future: strictly newer than the jar
-"""
+COOKIES = [
+    {"name": "SID", "value": "sid-value", "domain": ".youtube.com", "path": "/", "expires": 1900000000.5, "secure": True, "httpOnly": True, "sameSite": "None"},
+    {"name": "YSC", "value": "session-value", "domain": ".youtube.com", "path": "/", "expires": -1, "secure": True, "httpOnly": False, "sameSite": "Lax"},
+    {"name": "NID", "value": "nid-value", "domain": ".google.com", "path": "/", "expires": 1900000001, "secure": False, "httpOnly": False, "sameSite": "Lax"},
+    {"name": "gv", "value": "gv-value", "domain": "r1---sn.googlevideo.com", "path": "/", "expires": 1900000002, "secure": True, "httpOnly": False, "sameSite": "Lax"},
+    {"name": "other", "value": "other-value", "domain": "example.com", "path": "/x", "expires": 1900000003, "secure": True, "httpOnly": False, "sameSite": "Lax"},
+    {"name": "lookalike", "value": "x", "domain": "notyoutube.com", "path": "/", "expires": 1900000004, "secure": True, "httpOnly": False, "sameSite": "Lax"},
+]
+OLD = 1_700_000_000 * 10**9
 
 
-def bound(tmp_path, *, jar=False, export_fails=False, db=None, touches_db=False, **over):
-    """A ticket bound to a browser `dir`: `credential_dir` is a profile the slice may write, and
-    the script runs on a stand-in env python that logs every export. `db` is the profile cookie DB's age
-    relative to the jar: "older" or "newer". Returns (cp, calls, updates, exports, jar)."""
+def bound(tmp_path, *, cookies=COOKIES, state=True, jar=None, jar_newer=False, rotate="", get_fails=False, **over):
+    """A ticket bound to a browser `dir`: `credential_dir` holds the state the stand-in verbs serve (`state=False`:
+    none saved yet) and, given `jar`, a jar an earlier run left, older than the state unless `jar_newer`. Returns
+    (cp, calls, updates, jar, state path, the states `put` was given)."""
     profile = tmp_path / "profile"
     profile.mkdir(exist_ok=True)
+    state_path = profile / ".llm-wiki-browser-state.json"
+    if state:
+        state_path.write_text(json.dumps({"cookies": cookies, "origins": []}))
+        os.utime(state_path, ns=(OLD, OLD))
     jar_path = profile / "cookies.txt"
-    if jar is not False:  # True: a good jar; a str: that exact body
-        jar_path.write_text("# Netscape HTTP Cookie File\n" if jar is True else jar)
-        os.utime(jar_path, ns=(1_700_000_000 * 10**9,) * 2)
-    if db:
-        cookie_db = profile / "Default" / "Cookies"
-        cookie_db.parent.mkdir(parents=True, exist_ok=True)
-        cookie_db.write_text("sqlite")
-        os.utime(cookie_db, ns=((1_700_000_000 + (3600 if db == "newer" else -3600)) * 10**9,) * 2)
-    python = tmp_path / "env_python"
-    python.write_text(FAKE_ENV_PYTHON, encoding="utf-8")
-    python.chmod(0o755)
-    os.environ["FAKE_EXPORT_LOG"] = str(tmp_path / "export.log")
-    os.environ["FAKE_EXPORT_FAIL"] = "1" if export_fails else ""
-    os.environ["FAKE_EXPORT_TOUCHES_DB"] = "1" if touches_db else ""
+    if jar is not None:
+        jar_path.write_text(jar)
+        stamp = OLD + (3600 if jar_newer else -3600) * 10**9
+        os.utime(jar_path, ns=(stamp, stamp))
+    os.environ.update(FAKE_STATE=str(state_path), FAKE_ROTATE=rotate, FAKE_GET_FAIL="1" if get_fails else "")
     try:
-        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), python=str(python), **over)
+        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile), **over)
     finally:
-        del os.environ["FAKE_EXPORT_LOG"], os.environ["FAKE_EXPORT_FAIL"], os.environ["FAKE_EXPORT_TOUCHES_DB"]
-    log = tmp_path / "export.log"
-    exports = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
-    return cp, calls, updates, exports, jar_path
+        for name in ("FAKE_STATE", "FAKE_ROTATE", "FAKE_GET_FAIL"):
+            del os.environ[name]
+    puts_log = Path(f"{state_path}.puts")
+    puts = [json.loads(line) for line in puts_log.read_text().splitlines()] if puts_log.exists() else []
+    return cp, calls, updates, jar_path, state_path, puts
+
+
+def jar_rows(jar):
+    return [line.split("\t") for line in jar.read_text().splitlines() if line and not line.startswith("# ")]
 
 
 def test_an_unbound_ticket_runs_yt_dlp_without_cookies(tmp_path):
@@ -196,80 +214,92 @@ def test_an_unbound_ticket_runs_yt_dlp_without_cookies(tmp_path):
     assert all("--cookies" not in c for c in calls)
 
 
-def test_a_jar_already_in_the_profile_rides_both_calls_and_is_not_re_exported(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path, jar=True)
+def test_the_jar_is_the_venue_cookies_of_the_state_and_rides_both_calls(tmp_path):
+    cp, calls, updates, jar, _, _ = bound(tmp_path)
     assert cp.returncode == 0, cp.stderr
-    assert len(calls) == 2 and all(c[c.index("--cookies") + 1] == str(jar) for c in calls)
-    assert exports == [] and "status=ok" in updates[0]
+    assert len(calls) == 2 and all(c[c.index("--cookies") + 1] == str(jar) for c in calls) and "status=ok" in updates[0]
+    raw = jar.read_bytes()
+    assert raw.startswith(b"# Netscape HTTP Cookie File\n") and b"\r" not in raw
+    assert stat.S_IMODE(jar.stat().st_mode) == 0o600
+    sid, ysc, nid, gv = jar_rows(jar)  # example.com and notyoutube.com are filtered
+    assert sid == ["#HttpOnly_.youtube.com", "TRUE", "/", "TRUE", "1900000000", "SID", "sid-value"]
+    assert ysc[4] == "0" and ysc[5] == "YSC"  # a session cookie's expiry is 0
+    assert nid[3] == "FALSE" and gv[:2] == ["r1---sn.googlevideo.com", "FALSE"]  # no leading dot: host-only
 
 
-def test_a_profile_with_no_jar_exports_one_on_the_script_s_own_python_then_spends_it(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path)
+def test_the_cookies_yt_dlp_rotated_are_saved_back_with_what_the_jar_cannot_carry(tmp_path):
+    cp, _, _, _, state_path, puts = bound(tmp_path, rotate="sid-rotated")
     assert cp.returncode == 0, cp.stderr
-    assert len(exports) == 1 and exports[0][0].endswith("scripts/export_cookies.py") and exports[0][1:] == [str(jar.parent), str(jar)]
-    assert jar.is_file()
-    assert len(calls) == 2 and all(c[c.index("--cookies") + 1] == str(jar) for c in calls)
-    assert "status=ok" in updates[0]
+    (put,) = puts
+    assert {c["name"] for c in put["cookies"]} == {"SID", "YSC", "NID", "gv"} and put["origins"] == []
+    saved = {c["name"]: c for c in json.loads(state_path.read_text())["cookies"]}
+    assert saved["SID"]["value"] == "sid-rotated" and saved["SID"]["sameSite"] == "None" and saved["SID"]["httpOnly"] is True
+    assert saved["YSC"]["expires"] == -1 and saved["YSC"]["httpOnly"] is False and saved["other"]["value"] == "other-value"
 
 
-def test_an_export_that_fails_is_a_credential_store_error_and_no_yt_dlp_call(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path, export_fails=True)
+def test_a_failed_call_still_saves_the_rotation_back(tmp_path):
+    _, _, updates, _, state_path, puts = bound(tmp_path, rotate="sid-rotated", fail="ERROR: Sign in to confirm your age")
+    assert f"missing=www.youtube.com,{ITEM},auth" in updates[0] and len(puts) == 1
+    assert [c["value"] for c in json.loads(state_path.read_text())["cookies"] if c["name"] == "SID"] == ["sid-rotated"]
+
+
+def test_a_jar_newer_than_the_state_is_a_killed_runs_rotation_and_is_saved_first(tmp_path):
+    left = "# Netscape HTTP Cookie File\n#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1900000000\tSID\tsid-from-a-killed-run\n"
+    cp, calls, _, jar, _, puts = bound(tmp_path, jar=left, jar_newer=True)
     assert cp.returncode == 0, cp.stderr
-    assert len(exports) == 1 and calls == [] and not jar.exists()
+    assert [c["value"] for c in puts[0]["cookies"]] == ["sid-from-a-killed-run"] and puts[0]["cookies"][0]["sameSite"] == "None"
+    assert [r[6] for r in jar_rows(jar) if r[5] == "SID"] == ["sid-from-a-killed-run"] and len(calls) == 2
+
+
+def test_a_state_newer_than_the_jar_is_a_login_and_wins(tmp_path):
+    left = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tstale\n"
+    _, _, _, jar, _, puts = bound(tmp_path, jar=left)
+    assert [r[6] for r in jar_rows(jar) if r[5] == "SID"] == ["sid-value"]
+    assert len(puts) == 1 and "stale" not in json.dumps(puts)  # the one put is this run's own, after the calls
+
+
+def test_an_old_jar_with_no_state_yet_becomes_the_state(tmp_path):
+    left = "# Netscape HTTP Cookie File\n#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1900000000\tSID\tsid-before-the-state\n"
+    cp, calls, _, jar, state_path, _ = bound(tmp_path, state=False, jar=left)
+    assert cp.returncode == 0 and len(calls) == 2, cp.stderr
+    assert [c["value"] for c in json.loads(state_path.read_text())["cookies"]] == ["sid-before-the-state"]
+
+
+def test_a_jar_without_the_netscape_header_is_not_saved_back_first(tmp_path):
+    _, calls, _, jar, _, puts = bound(tmp_path, jar="", jar_newer=True)  # a save yt-dlp was killed in the middle of
+    assert len(calls) == 2 and len(puts) == 1 and jar.read_text().startswith("# Netscape HTTP Cookie File")
+
+
+def test_a_state_with_no_venue_cookie_is_a_credential_store_error_and_no_yt_dlp_call(tmp_path):
+    cp, calls, updates, jar, _, puts = bound(tmp_path, cookies=[c for c in COOKIES if c["domain"] in ("example.com", "notyoutube.com")])
+    assert cp.returncode == 0, cp.stderr
+    assert calls == [] and not jar.exists() and puts == []
     assert len(updates) == 1 and "status=failed" in updates[0]
     reason = next(a for a in updates[0] if a.startswith("reason="))
-    assert reason.startswith("reason=credential_store_error: ") and "no cookies for youtube.com" in reason
+    assert reason.startswith("reason=credential_store_error: ") and "not logged in to youtube.com" in reason
     assert f"missing=www.youtube.com,{ITEM},error" in updates[0]
-    assert not any("auth" in a for a in updates[0] if a.startswith("missing="))
 
 
-def test_an_auth_wall_with_a_jar_present_keeps_the_jar_and_reports_auth(tmp_path):
-    # The jar is the live session after yt-dlp's first write-back; only a fresh login replaces it.
-    cp, calls, updates, exports, jar = bound(tmp_path, jar=True, db="older", fail="ERROR: Sign in to confirm your age")
-    assert cp.returncode == 0, cp.stderr
-    assert jar.exists() and exports == []
-    assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},auth" in updates[0]
+def test_a_state_verb_that_refuses_is_a_credential_store_error(tmp_path):
+    _, calls, updates, _, _, _ = bound(tmp_path, get_fails=True)
+    assert calls == [] and any(a.startswith("reason=credential_store_error: ") and "no such credential directory" in a for a in updates[0])
 
 
-def test_a_login_newer_than_the_jar_re_exports_it(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path, jar="# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tOLD\told\n", db="newer")
-    assert cp.returncode == 0, cp.stderr
-    assert len(exports) == 1 and exports[0][1:] == [str(jar.parent), str(jar)]
-    assert "OLD" not in jar.read_text()
-    assert len(calls) == 2 and all(c[c.index("--cookies") + 1] == str(jar) for c in calls) and "status=ok" in updates[0]
+def test_a_cookie_value_never_reaches_stdout_or_stderr(tmp_path):
+    cp, _, _, _, _, _ = bound(tmp_path, rotate="sid-rotated")
+    assert "sid-value" not in cp.stdout + cp.stderr and "sid-rotated" not in cp.stdout + cp.stderr
 
 
-def test_a_jar_newer_than_the_login_is_spent_as_is(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path, jar=True, db="older")
-    assert cp.returncode == 0 and exports == [] and len(calls) == 2
-
-
-def test_the_export_s_own_touch_of_the_profile_does_not_re_export_next_run(tmp_path):
-    # Opening the profile headless makes Chromium write its cookie DB on close; that write is not a login.
-    _, _, _, exports, jar = bound(tmp_path, touches_db=True)
-    assert len(exports) == 1
-    _, calls, updates, exports, _ = bound(tmp_path, jar=False, touches_db=True)
-    assert len(exports) == 1, "the second run re-exported: the jar must be stamped newer than the DB after an export"
-    assert len(calls) == 4 and "status=ok" in updates[-1]
-
-
-def test_a_plain_error_with_a_jar_present_keeps_the_jar(tmp_path):
-    _, _, updates, _, jar = bound(tmp_path, jar=True, fail="ERROR: read operation timed out")
-    assert jar.exists() and f"missing=www.youtube.com,{ITEM},timeout" in updates[0]
-
-
-def test_nothing_from_the_profile_lands_in_the_capture_dir(tmp_path):
-    cp, _, _, _, _ = bound(tmp_path, jar=True)
+def test_nothing_from_the_credential_lands_in_the_capture_dir(tmp_path):
+    cp, _, _, _, _, _ = bound(tmp_path)
     assert cp.returncode == 0
     names = {p.name for p in (tmp_path / CAP).rglob("*")}
-    assert "cookies.txt" not in names
+    assert "cookies.txt" not in names and not any(n.startswith(".cookies") for n in names)
 
 
-def test_a_bot_check_with_a_jar_present_keeps_the_jar_and_is_retryable(tmp_path):
-    # YouTube's IP-reputation wall carries the words "sign in", but a logged-in jar hits it too;
-    # after the first run the jar, not the profile, holds the live (rotated) session.
-    _, _, updates, _, jar = bound(tmp_path, jar=True, fail="ERROR: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies")
-    assert jar.exists()
+def test_a_bot_check_with_a_jar_is_retryable(tmp_path):
+    # YouTube's IP-reputation wall carries the words "sign in", but a logged-in jar hits it too.
+    _, _, updates, _, _, _ = bound(tmp_path, fail="ERROR: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies")
     assert "status=failed" in updates[0] and f"missing=www.youtube.com,{ITEM},error" in updates[0]
 
 
@@ -278,23 +308,15 @@ def test_a_bot_check_with_no_jar_is_still_auth(tmp_path):
     assert f"missing=www.youtube.com,{ITEM},auth" in updates[0]
 
 
-def test_a_jar_without_the_netscape_header_is_dropped_and_re_exported(tmp_path):
-    cp, calls, updates, exports, jar = bound(tmp_path, jar="")  # a save yt-dlp was killed in the middle of
-    assert cp.returncode == 0, cp.stderr
-    assert len(exports) == 1 and jar.read_text().startswith("# Netscape HTTP Cookie File")
-    assert len(calls) == 2 and "status=ok" in updates[0]
-
-
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads any file")
 def test_a_jar_that_cannot_be_read_is_a_credential_store_error_not_a_traceback(tmp_path):
-    # An unreadable jar, not dir: `is_file()` is True on every Python, so the open itself raises.
     profile = tmp_path / "profile"
     profile.mkdir()
     jar = profile / "cookies.txt"
     jar.write_text("# Netscape HTTP Cookie File\n")
     jar.chmod(0)
     try:
-        cp, calls, updates = harvest(tmp_path, credential="youtube", credential_dir=str(profile))
+        cp, calls, updates, _, _, _ = bound(tmp_path)
     finally:
         jar.chmod(0o600)
     assert cp.returncode == 0 and "Traceback" not in cp.stderr and calls == []

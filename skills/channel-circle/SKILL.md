@@ -161,7 +161,7 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
 ## Auth (one-time, per domain)
 
 - **The secret is a directory** — `requires.credentials.dir: "required"`. What
-  authenticates a capture is the persistent Chrome PROFILE the login helper
+  authenticates a capture is the persistent Chromium PROFILE the login helper
   minted for the domain, granted to the slice read-write as the ticket's
   `credential_dir` (`credential_mode` `dir`); `capture_lesson.py` and
   `outage_probe.py` read it off `tickets open`. A machine that maps no
@@ -170,16 +170,16 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
 - One-time manual login, by a person at a browser, which the host arranges
   and a worker never does: `{{@brain-cli-ops}} credentials set <domain> kind=dir
   login=browser host=<domain>`, then `{{@brain-cli-ops}} credentials login <domain>`.
-  It saves a persistent Chrome profile in the credential's directory. Then
+  It saves a persistent Chromium profile in the credential's directory. Then
   `{{@brain-cli-ops}} credentials bind job <slug> dir=<domain>` maps it to the job.
 - **Cloudflare-fronted — the profile is what replays, and `<domain>.storage`
-  is deliberately unused here.** A fresh bundled-Chromium context gets a
-  Turnstile challenge; real Chrome (`channel="chrome"`) with the persistent
-  per-domain profile clears it, because the profile carries the `cf_clearance`
-  the human's login earned and that clearance is fingerprint-bound. Never
-  attempt to solve a challenge.
-- **A capture inside the jail is unverified end to end**: whether real
-  Chrome launches on the granted profile under the jail the runner composes
+  is deliberately unused here.** A fresh context gets a Turnstile challenge;
+  the capture scripts open the login's own profile through the plugin's
+  launcher (`persistent=True`), in the same bundled Chromium the login ran,
+  because the profile carries the `cf_clearance` the human's login earned and
+  that clearance is fingerprint-bound. Never attempt to solve a challenge.
+- **A capture inside the jail is unverified end to end**: whether Chromium
+  launches on the granted profile under the jail the runner composes
   has not been measured. Where `capture_lesson.py` exits 5, or a browser that
   cannot write its profile dies on launch, report `--missing-leaf <n> error`,
   or for the root `--reason "profile_dir unreachable inside the slice"` —
@@ -286,7 +286,7 @@ echo '["<the path the verb answered>"]' > <capture_dir>/written.json
   `captions[]`. Every lesson of one observed section had an `en` track, so
   none needed a generated transcript. A caption file left beside the capture
   never reaches the page: close it into the body (process, step 2).
-- Headless capture (persistent `channel="chrome"` profile, no `--headed`)
+- Headless capture (the persistent profile, no `--headed`)
   renders the SPA and fires the HLS XHR when Circle's backend is healthy.
 
 ## Outage / health signal

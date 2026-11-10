@@ -10,12 +10,12 @@ custom domain fronted by Circle). No hardcoded domain/slug — takes the URL
 as an arg, or `--ticket <id>`'s own `target` (A-1), through `tickets open`.
 
 Circle is a React SPA behind Cloudflare, with lesson bodies and video
-players rendered client-side. So we drive a real Chrome via Playwright
-using the persistent per-domain profile that `llm-wiki-ops credentials
-login <domain>` created, granted as the ticket's `credential_dir` —
-channel="chrome" plus the profile that earned cf_clearance — wait for the
-lesson content to
-render, then dump:
+players rendered client-side. So we drive Chromium through the plugin's
+launcher (`llm_wiki_browser`) on the per-domain profile that `llm-wiki-ops
+credentials login <domain>` created, granted as the ticket's
+`credential_dir` and opened as itself (`persistent=True`): it is the
+profile that earned cf_clearance, in the same bundled Chromium the login
+ran — wait for the lesson content to render, then dump:
   - page.html         rendered DOM (asset-discovery ground truth)
   - net.json          network request log (HLS/mp4/wistia/vimeo stream URLs
                       that never appear in the DOM live here)
@@ -78,6 +78,7 @@ History:
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -99,6 +100,8 @@ STREAM_RE = re.compile(
 # The front door, by the bare name every SKILL.md already runs this script
 # under — never a path.
 OPS = "llm-wiki-ops"
+# The run's `dir` slot, which the plugin's launcher opens.
+SLOT_DIR_ENV = "LLM_WIKI_SLOT_DIR"
 
 
 def front_door() -> list:
@@ -164,6 +167,29 @@ def profile_dir(root, ticket_id, domain):
     if not Path(granted).is_dir():
         return None, ("unreachable", f"the granted profile {granted} is not a directory this run can read")
     return Path(granted), None
+
+
+def use_profile(profile: Path) -> None:
+    """The launcher opens the run's `dir` slot; the ticket's grant is that directory, and stands in for a run that
+    carries none."""
+    os.environ.setdefault(SLOT_DIR_ENV, str(profile))
+
+
+def keeping_session(opened, save_failed):
+    """`opened`, the launcher's context, with a state save that does not land at its exit said in one
+    `credential_store_error` line rather than raised: the persistent profile keeps the session either way, so what
+    this run captured, and the exit it chose, stand."""
+
+    @contextlib.contextmanager
+    def held():
+        try:
+            with opened as context:
+                yield context
+        except save_failed as exc:
+            print(f"credential_store_error: the browser state was not saved back ({exc}); the profile keeps the session",
+                  file=sys.stderr)
+
+    return held()
 
 
 def domain_of(url: str) -> str:
@@ -318,22 +344,20 @@ def main() -> int:
         print(f"error: {why}", file=sys.stderr)
         return 2 if kind == "absent" else 5
 
-    from playwright.sync_api import sync_playwright  # here: everything above runs, and is tested, without it
+    # Here: everything above runs, and is tested, without a browser.
+    import llm_wiki_browser
+    from playwright.sync_api import sync_playwright
 
+    use_profile(profile)
     net = []
     http_status = None
 
-    with sync_playwright() as p:
-        launch_kw = dict(
-            headless=not args.headed,
-            args=["--disable-blink-features=AutomationControlled"],
-            ignore_default_args=["--enable-automation"],
-        )
-        try:
-            context = p.chromium.launch_persistent_context(str(profile), channel="chrome", **launch_kw)
-        except Exception:
-            context = p.chromium.launch_persistent_context(str(profile), **launch_kw)
-
+    # Persistent: Cloudflare binds cf_clearance to the browser that cleared its challenge, so the login's own profile,
+    # in the same bundled Chromium, is what replays it; a context rebuilt from saved cookies is a new browser to it.
+    # It holds the credential for one run at a time, which the manifest's absent `sharing` (exclusive) says.
+    with sync_playwright() as p, keeping_session(
+        llm_wiki_browser.open_context(p, headless=not args.headed, persistent=True), llm_wiki_browser.SaveFailed
+    ) as context:
         page = context.pages[0] if context.pages else context.new_page()
         page.on(
             "request",
@@ -371,7 +395,6 @@ def main() -> int:
                 f"auth_expired: landed on {final_url} — re-run llm-wiki-ops credentials login <domain>",
                 file=sys.stderr,
             )
-            context.close()
             return 2
 
         # Circle's SPA keeps re-navigating (long-poll, lazy player mount), so
@@ -394,7 +417,6 @@ def main() -> int:
                 "(the persistent profile carries cf_clearance)",
                 file=sys.stderr,
             )
-            context.close()
             return 3
 
         # Sidebar / curriculum links, in the order the course lists them. Nothing
@@ -453,8 +475,6 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
-
-        context.close()
 
     print(
         json.dumps(

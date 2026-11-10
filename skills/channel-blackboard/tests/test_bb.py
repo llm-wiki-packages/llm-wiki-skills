@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -137,20 +138,39 @@ class Learn(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(body or {"status": 404}).encode())
 
 
+# The plugin's launcher and the boot `run` starts a unit script through, from the ops plugin's root (the CI step's
+# `LLM_WIKI_OPS_PLUGIN`): bb.py runs here the way `run` runs it.
+_PLUGIN = os.environ.get("LLM_WIKI_OPS_PLUGIN")
+_RUN_LIB = Path(_PLUGIN, "packages/llm-wiki-ops-v1/src/llm_wiki_ops/lib/run") if _PLUGIN else None
+STATE = ".llm-wiki-browser-state.json"
+# Stands in for `credentials browser-state put` (stdin over the slot's state file) and `credentials info`.
+OPS_STUB = """import json, os, pathlib, sys
+argv = [a for a in sys.argv[1:] if a != "--json"]
+if argv[:3] == ["credentials", "browser-state", "put"]:
+    pathlib.Path(os.environ["LLM_WIKI_SLOT_DIR"], %r).write_text(sys.stdin.read()); print("{}"); sys.exit(0)
+if argv[:2] == ["credentials", "info"]:
+    print(os.environ["FAKE_INFO"]); sys.exit(0)
+sys.exit(9)
+""" % STATE
+
+
 @pytest.fixture
 def learn(tmp_path):
     pytest.importorskip("playwright")
+    if _RUN_LIB is None or not (_RUN_LIB / "unitlib" / "llm_wiki_browser.py").is_file():
+        pytest.skip("set LLM_WIKI_OPS_PLUGIN to an ops plugin root that ships llm_wiki_browser: bb.py launches through it")
     server = ThreadingHTTPServer(("127.0.0.1", 0), Learn)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    base = f"http://127.0.0.1:{server.server_address[1]}"
     LEARN_PORT["port"] = server.server_address[1]
     profile = tmp_path / "profile"
     profile.mkdir()
-    (profile / bb.SITE).write_text(json.dumps({"base_url": base}))
-    # A session cookie in the saved state, as login leaves it: no expiry.
-    (profile / bb.STATE).write_text(json.dumps({"cookies": [
+    # A session cookie in the saved state, as `credentials login` leaves it: no expiry.
+    (profile / STATE).write_text(json.dumps({"cookies": [
         {"name": "BbRouter", "value": "ok", "domain": "127.0.0.1", "path": "/", "expires": -1, "httpOnly": True, "secure": False, "sameSite": "Lax"},
-    ]}))
+    ], "origins": [], "seeded": True}))
+    stub = tmp_path / "ops_stub.py"
+    stub.write_text(OPS_STUB)
+    LEARN_PORT.update(ops=shlex.join([sys.executable, str(stub)]), profile=profile)
     SIGNED_IN["on"] = True
     QUEUED.clear()
     HITS.clear()
@@ -159,12 +179,20 @@ def learn(tmp_path):
     QUEUED.clear()
 
 
-def run(*argv):
-    return subprocess.run([sys.executable, str(SCRIPT), *argv], capture_output=True, text=True, timeout=120)
+def site():
+    return f"http://127.0.0.1:{LEARN_PORT['port']}"
+
+
+def run(*argv, slot=None, env=None):
+    """bb.py through the plugin's boot, on the run's slot (`slot`, else the fixture's profile) unless `env` says otherwise."""
+    environ = {**os.environ, "LLM_WIKI_OPS": LEARN_PORT["ops"], "LLM_WIKI_SLOT_DIR": str(slot or LEARN_PORT["profile"]), **(env or {})}
+    environ = {k: v for k, v in environ.items() if v is not None}
+    boot = [sys.executable, "-B", str(_RUN_LIB / "unit_boot.py"), str(_RUN_LIB / "unitlib")]
+    return subprocess.run([*boot, str(SCRIPT), *argv], capture_output=True, text=True, timeout=120, env=environ)
 
 
 def test_courses_lists_memberships_through_saved_session(learn):
-    r = run("courses", "--profile", str(learn))
+    r = run("courses", "--site", site())
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == [{
         "id": "_55_1", "courseId": "BIO101", "name": "Biology", "role": "Student",
@@ -173,7 +201,7 @@ def test_courses_lists_memberships_through_saved_session(learn):
 
 def test_harvest_walks_pages_children_attachments_and_body_files(learn, tmp_path):
     out = tmp_path / "out"
-    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    r = run("harvest", "_55_1", "--out", str(out), "--site", site())
     assert r.returncode == 0, r.stderr
     summary = json.loads(r.stdout)
     assert summary["errors"] == 0, (out / "errors.json").read_text()
@@ -195,35 +223,57 @@ def test_harvest_walks_pages_children_attachments_and_body_files(learn, tmp_path
 
 def test_expired_session_exits_auth(learn):
     SIGNED_IN["on"] = False
-    r = run("whoami", "--profile", str(learn))
+    r = run("whoami", "--site", site())
     assert r.returncode == bb.EXIT_AUTH, r.stderr
     assert "login" in r.stderr
 
 
-def test_credential_names_the_profile_and_its_host_through_the_front_door(learn, tmp_path):
-    (learn / bb.SITE).unlink()
-    seen = tmp_path / "argv.json"
-    stub = tmp_path / "ops-stub"
-    stub.write_text(
-        "#!/usr/bin/env python3\nimport json, sys\n"
-        f"json.dump(sys.argv[1:], open({str(seen)!r}, 'w'))\n"
-        f"print(json.dumps({{'name': 'bb', 'kind': 'dir', 'path': {str(learn)!r}, 'host': 'HOST'}}))\n"
-    )
-    stub.chmod(0o755)
-    base = json.loads((learn / bb.STATE).read_text())["cookies"][0]["domain"]
-    port = LEARN_PORT["port"]
-    stub.write_text(stub.read_text().replace("HOST", f"http://{base}:{port}"))
-    r = subprocess.run([sys.executable, str(SCRIPT), "whoami", "--credential", "bb"], capture_output=True, text=True,
-                       timeout=120, env={**os.environ, "LLM_WIKI_OPS": str(stub)})
-    assert json.loads(seen.read_text()) == ["--json", "credentials", "info", "bb"]
+def test_a_named_credential_is_the_slot_and_its_host_the_site(learn):
+    info = json.dumps({"name": "bb", "kind": "dir", "path": str(learn), "host": site()})
+    r = run("whoami", "--credential", "bb", env={"LLM_WIKI_SLOT_DIR": None, "FAKE_INFO": info})
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout)["name"] == "Ada L"
+
+
+def test_the_session_is_saved_back_to_the_credential(learn):
+    r = run("whoami", "--site", site())
+    assert r.returncode == 0, r.stderr
+    saved = json.loads((learn / STATE).read_text())
+    assert "seeded" not in saved and [c["value"] for c in saved["cookies"] if c["name"] == "BbRouter"] == ["ok"]
+
+
+def test_a_save_that_does_not_land_is_a_credential_store_error(learn, tmp_path):
+    failing = tmp_path / "failing_ops.py"
+    failing.write_text("import sys; print('nope', file=sys.stderr); sys.exit(1)\n")
+    r = run("whoami", "--site", site(), env={"LLM_WIKI_OPS": shlex.join([sys.executable, str(failing)])})
+    assert r.returncode == bb.EXIT_STORE and "credential_store_error" in r.stderr, r.stderr
+
+
+def bare(*argv, **env):
+    """bb.py on the bare interpreter: each refusal here comes before any browser."""
+    environ = {k: v for k, v in {**os.environ, **env}.items() if v is not None}
+    return subprocess.run([sys.executable, str(SCRIPT), *argv], capture_output=True, text=True, timeout=60, env=environ)
+
+
+def test_a_run_handed_no_credential_and_naming_none_is_usage():
+    r = bare("whoami", "--site", "https://bb.example.edu", LLM_WIKI_SLOT_DIR=None)
+    assert r.returncode == bb.EXIT_USAGE and "--credential" in r.stderr, r.stderr
+
+
+def test_a_name_beside_the_runs_slot_is_refused(tmp_path):
+    r = bare("whoami", "--credential", "bb", "--site", "https://bb.example.edu", LLM_WIKI_SLOT_DIR=str(tmp_path))
+    assert r.returncode == bb.EXIT_USAGE and "drop --credential" in r.stderr, r.stderr
+
+
+def test_no_site_is_usage(tmp_path):
+    r = bare("whoami", LLM_WIKI_SLOT_DIR=str(tmp_path))
+    assert r.returncode == bb.EXIT_USAGE and "--site" in r.stderr, r.stderr
 
 
 def test_a_file_the_site_no_longer_has_is_gone_not_failed_and_is_not_asked_again(learn, tmp_path):
     out = tmp_path / "out"
     QUEUED["/bbcswebdav/xid-p_1"] = [404]
-    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    r = run("harvest", "_55_1", "--out", str(out), "--site", site())
     assert r.returncode == 0, r.stderr
     summary = json.loads(r.stdout)
     assert (summary["errors"], summary["gone"]) == (0, 1), (out / "errors.json").read_text()
@@ -231,7 +281,7 @@ def test_a_file_the_site_no_longer_has_is_gone_not_failed_and_is_not_asked_again
         {"item": "_m_1", "kind": "embedded", "src": "/bbcswebdav/xid-p_1", "status": 404, "since": json.loads((out / "gone.json").read_text())[0]["since"]}]
     # The next pull remembers it: the post has no date to say it changed, so the file is not asked for again.
     asked = HITS["/bbcswebdav/xid-p_1"]
-    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    r = run("harvest", "_55_1", "--out", str(out), "--site", site())
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout)["gone"] == 1 and HITS["/bbcswebdav/xid-p_1"] == asked
 
@@ -239,7 +289,7 @@ def test_a_file_the_site_no_longer_has_is_gone_not_failed_and_is_not_asked_again
 def test_a_busy_site_is_asked_again_before_a_download_counts_as_failed(learn, tmp_path):
     out = tmp_path / "out"
     QUEUED["/bbcswebdav/xid-9_1"] = [503]
-    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    r = run("harvest", "_55_1", "--out", str(out), "--site", site())
     assert r.returncode == 0, r.stderr
     summary = json.loads(r.stdout)
     assert (summary["errors"], summary["gone"]) == (0, 0)
@@ -250,7 +300,7 @@ def test_a_busy_site_is_asked_again_before_a_download_counts_as_failed(learn, tm
 def test_a_site_that_stays_busy_is_an_error_a_re_run_retries(learn, tmp_path):
     out = tmp_path / "out"
     QUEUED["/bbcswebdav/xid-9_1"] = [503, 503, 503]
-    r = run("harvest", "_55_1", "--out", str(out), "--profile", str(learn))
+    r = run("harvest", "_55_1", "--out", str(out), "--site", site())
     assert r.returncode == 0, r.stderr
     summary = json.loads(r.stdout)
     assert (summary["errors"], summary["gone"]) == (1, 0)

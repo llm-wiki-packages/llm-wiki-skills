@@ -1,5 +1,5 @@
 {
-  "argument_hint": "<login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>",
+  "argument_hint": "<whoami|courses|harvest <courseId>|notes <harvest dir>>",
   "description": "Downloads Blackboard Learn courses through a signed-in browser session and turns each into pages: content items with due dates and grades, pdf, slide and Word text, video transcripts, announcements, discussions and a course overview. Runs as a scheduled job or by hand.",
   "keywords": [
     "announcements",
@@ -29,7 +29,7 @@
     "credentials": {
       "dir": "required"
     },
-    "ops": ">=0.15.0"
+    "ops": ">=0.16.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:blackboard",
   "stages": {
@@ -40,7 +40,7 @@
       "script": "scripts/process.py"
     }
   },
-  "usage": "/channel-blackboard <login <base_url>|whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
+  "usage": "/channel-blackboard <whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
   "version": "0.3.0",
   "watch": {
