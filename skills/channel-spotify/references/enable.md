@@ -8,7 +8,7 @@
    harvest stage of the unit's sandbox (`references/customize.md`). Once
    per machine that harvests, name the wiki's vault with `{{@brain-cli}}
    machine wikis vault <key> local`, `<key>` being this wiki's key in
-   `{{@brain-cli}} machine wikis ls`; the `credentials` row of `{{@brain-cli-ops}}
+   `{{@brain-cli}} machine wikis list`; the `credentials` row of `{{@brain-cli-ops}}
    doctor` names the same line, and `bind` refuses until it is run. Have the
    operator create an app at developer.spotify.com → Dashboard; then the
    OPERATOR runs this at a terminal, once per machine that harvests:

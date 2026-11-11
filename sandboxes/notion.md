@@ -35,7 +35,7 @@ machine, while this one reaches Notion only from this stage.
 The route's token is the wiki's own, in its credential vault, and the
 route's name is a binding name. Once per machine that harvests, in this
 order: name the vault, `{{@brain-cli}} machine wikis vault <key> local`
-(`<key>` is this wiki's key in `{{@brain-cli}} machine wikis ls`; the doctor's
+(`<key>` is this wiki's key in `{{@brain-cli}} machine wikis list`; the doctor's
 `credentials` row names the same line); store the Notion bot token with the
 host it may be spent at, `{{@brain-cli-ops}} credentials set notion` with
 `{"value": "<token>", "host": "api.notion.com"}` at its prompt; map the

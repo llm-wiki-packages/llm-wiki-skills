@@ -85,16 +85,16 @@ A failed input is a one-line note in the report, never an abort.
 {{@brain-cli-ops}} git changed research sources filter=since:<the marker>
 {{@brain-cli-ops}} op since filter=since:<the marker>
 {{@brain-cli-ops}} page lint wiki sources
-{{@brain-cli-ops}} page ls filter=under:wiki/profile
-{{@brain-cli-ops}} page ls filter=under:research/reports
-{{@brain-cli-ops}} page ls filter=under:research/channels
+{{@brain-cli-ops}} page list filter=under:wiki/profile
+{{@brain-cli-ops}} page list filter=under:research/reports
+{{@brain-cli-ops}} page list filter=under:research/channels
 ```
 
 - **Channel ledgers** — a channel job's `dest` is
   `research/channels/<slug>`, one page per day. Read the ledger pages inside
   the window and nothing else: never a sibling raw capture
   (`{{@brain-cli-ops}} reference channel-ledger`). With an operator at the
-  keyboard, `{{@brain-cli-ops}} jobs ls` also names a channel job not
+  keyboard, `{{@brain-cli-ops}} jobs list` also names a channel job not
   pulled here, which has no ledger for the gap days — note and skip. A
   scheduled run cannot list jobs, so it reports the ledgers it found.
 - **This wiki's ops digest** — the newest `research/reports/` page inside the

@@ -208,7 +208,7 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`llm-wiki-ops watch add --slug x`", "retired"),
         ("`watch add --slug x --dest y`", "retired"),
         ("`llm-wiki-ops skills <wiki> list --json`", "has no `<wiki>`"),
-        ("`skills list` reporting it", "has no `list`"),
+        ("`skills nosuch` reporting it", "has no `nosuch`"),
         ("`llm-wiki-ops skills install x --repo a/b`", "takes no `--repo`"),
         ("`llm-wiki-ops skills enable x --conf`", "takes no `--conf`"),
         ("`llm-wiki-ops jobs add u slug=s harvest.maxage=3m`", "no `harvest.maxage`"),
@@ -217,13 +217,13 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`llm-wiki-ops jobs queue show x`", "`jobs` has no `queue`"),
         ("`llm-wiki-ops pipeline apply x`", "the `pipeline` group is retired"),
         ("`llm-wiki-ops inboxes fixes nosuch`", "`inboxes fixes` has no `nosuch`"),  # a verb nested one level down
-        ("`<ops dir>/bin/llm-wiki-ops skills ls`", "run by path"),  # no wiki carries a bin/
+        ("`<ops dir>/bin/llm-wiki-ops skills list`", "run by path"),  # no wiki carries a bin/
         ("```\ncd w && llm-wiki-ops skills find x\n```", "has no `find`"),
         ('```\nllm-wiki-ops skills search "ep #400" --bogus\n```', "takes no `--bogus`"),
         ("`llm-wiki-cli machine sweep`", "has no `sweep`"),  # the other console script's verbs are checked too
-        ("`llm-wiki-cli skills ls`", "`llm-wiki-cli` has no `skills`"),  # a wiki verb under the machine prefix
+        ("`llm-wiki-cli skills list`", "`llm-wiki-cli` has no `skills`"),  # a wiki verb under the machine prefix
         ("`llm-wiki-cli init <dir> --preset x`", "takes no `--preset`"),
-        ("`llm-wiki-cli wiki <key> skills list`", "has no `list`"),  # the wiki scope's argv is an ops argv
+        ("`llm-wiki-cli wiki <key> skills nosuch`", "has no `nosuch`"),  # the wiki scope's argv is an ops argv
         ("`<ops dir>/bin/llm-wiki-cli machine doctor`", "run by path"),
     ],
 )
@@ -237,12 +237,12 @@ def test_the_check_itself_catches_each_stale_shape(cli, job_record, text, caught
 def test_the_check_passes_the_shapes_that_are_right(cli, job_record):
     fine = (
         "`llm-wiki-ops jobs add gmail slug=s skill=channel-gmail options.mailbox=a@b.c harvest.max_age=3m`\n"
-        "`llm-wiki-ops --json skills ls channel-gmail` then a `git pull`, and `yt-dlp --dump-json <url>`\n"
+        "`llm-wiki-ops --json skills list channel-gmail` then a `git pull`, and `yt-dlp --dump-json <url>`\n"
         '```\nllm-wiki-ops run ops/skills/channel-spotify/scripts/spotify.py search "ep #400" --type episode\n```\n'
         "`llm-wiki-cli init <dir> key=<key>` once, then `llm-wiki-cli machine doctor`\n"
-        "`llm-wiki-cli wiki <key> skills ls` and `llm-wiki-cli wiki --read-only --here --json tickets show <slug>`\n"
+        "`llm-wiki-cli wiki <key> skills list` and `llm-wiki-cli wiki --read-only --here --json tickets show <slug>`\n"
         "`llm-wiki-ops tickets open <id>` then `llm-wiki-ops tickets update <id> stage=harvest status=ok`\n"
-        "`llm-wiki-ops inboxes fixes ls`\n"
+        "`llm-wiki-ops inboxes fixes list`\n"
     )
     assert _wrong(cli, job_record, fine, "channel-gmail") == []
 

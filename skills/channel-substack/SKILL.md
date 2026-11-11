@@ -140,7 +140,7 @@ Find the job's page for the post first, then convert the post scoped to the
 content root and pipe it in as the page's body, then mark it done:
 
 ```
-{{@brain-cli-ops}} --json page ls 'filter=under:<dest>' 'resource=<item>'
+{{@brain-cli-ops}} --json page list 'filter=under:<dest>' 'resource=<item>'
 {{@brain-cli-ops}} run ops/skills/channel-substack/scripts/to_markdown.py <capture_dir>/page.html \
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
@@ -151,7 +151,7 @@ content root and pipe it in as the page's body, then mark it done:
 **Every `<…>` on those lines is venue text: paste it VERBATIM inside single
 quotes, never retyped or "cleaned", and refuse a value still carrying a single
 quote rather than running the line** (`safe_title` maps `'` and `"` to `’`, so
-a title never does). `page ls` rows that are this job's (`job` the ticket's
+a title never does). `page list` rows that are this job's (`job` the ticket's
 `slug`, or none and under `dest`): one is the page — `page edit
 '<its path>' … --stdin`, spelled as the row has it, rewrites it wherever a person
 renamed it; one with `draft`/`archive` true, a `known[]` row for the item with `reason:

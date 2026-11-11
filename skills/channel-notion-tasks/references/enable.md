@@ -27,7 +27,7 @@
    route, and this one leaves `sources/` for the ledger route), so
    declare the job again around the folder: note its keys
    (`jobs show <slug>`), take it off the list
-   (`{{@brain-cli-ops}} jobs rm <slug>`), move its pages with git
+   (`{{@brain-cli-ops}} jobs remove <slug>`), move its pages with git
    (`git mv <old dest> research/channels/<slug>`, then commit), and add it
    back with the same target, slug and options:
    `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-notion-tasks
@@ -44,7 +44,7 @@
    probe's argv, its exit code and its stderr — fix what the stderr names,
    then run `/{{@brain-plugin}}:enable channel-notion-tasks` again. On each machine
    that pulls, first name the wiki's vault, `<key>` being this wiki's key in `{{@brain-cli}} machine
-   wikis ls` (the `credentials` row of `{{@brain-cli-ops}} doctor` names the same
+   wikis list` (the `credentials` row of `{{@brain-cli-ops}} doctor` names the same
    line):
 
    ```sh

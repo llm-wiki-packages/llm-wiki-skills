@@ -11,7 +11,7 @@
    `## Credential` section spells it out). Mint a fine-grained personal
    access token with **no permissions at all** — public repository read is
    implicit. On each machine that harvests, name the wiki's vault, `<key>`
-   being this wiki's key in `{{@brain-cli}} machine wikis ls`:
+   being this wiki's key in `{{@brain-cli}} machine wikis list`:
 
    ```sh
    {{@brain-cli}} machine wikis vault <key> local

@@ -54,14 +54,14 @@ def _plan() -> str:
 step overlay "$OPS" --json policy get quiz-show quiz
 step op-open "$OPS" --json op open quiz-show
 step logtype "$OPS" --json page types log
-step logs "$OPS" --json page ls filter=type:log filter=under:research/logs
+step logs "$OPS" --json page list filter=type:log filter=under:research/logs
 step log "$OPS" --json page read "{LOG}"
 step unit sh -c '"$OPS" --json page links id="$("$OPS" --json page read "{LOG}" | "$PY" "$FIX/pick.py")"'
-step concepts "$OPS" --json page ls filter=type:concept
+step concepts "$OPS" --json page list filter=type:concept
 step backlinks "$OPS" --json page backlinks "{CONCEPT}"
 step question "$OPS" --json page read "{QUESTION}"
 step concept "$OPS" --json page read "{CONCEPT}"
-step episodes "$OPS" --json page ls filter=under:wiki/podcasts
+step episodes "$OPS" --json page list filter=under:wiki/podcasts
 step create sh -c '"$OPS" --json page create type=podcast dest=wiki/podcasts "title={TITLE}" "description=The question the last quiz missed." "covers={COVERS}" narrate.modes=podcast --stdin < "$FIX/episode.md"'
 step refresh sh -c '"$OPS" --json page edit "{EPISODE}" "description=The question the last quiz missed, refreshed." "covers={COVERS}" narrate.modes=podcast narrate.refresh=podcast --stdin < "$FIX/episode.md"'
 step write-research sh -c 'printf x >> "{LOG}"'

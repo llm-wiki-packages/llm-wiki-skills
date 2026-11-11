@@ -160,7 +160,7 @@ def test_a_channel_unit_declares_both_stages_it_documents_and_is_invoked_by_tick
 
 
 # The frontmatter is read by the model in every session in the wiki and decides
-# what it invokes; the manifest's `description` is what `skills ls` and `skills
+# what it invokes; the manifest's `description` is what `skills list` and `skills
 # search` show. So the frontmatter says WHEN, in the house opener, inside the
 # session budget the ops CLI warns past.
 OPENERS = ("Use when", "Use whenever", "Use before", "Use after", "Use at")

@@ -65,16 +65,16 @@ def _plan() -> str:
 step overlay "$OPS" --json policy get study-plan quiz
 step op-open "$OPS" --json op open study-plan
 step today date -u +%Y-%m-%d
-step playbooks "$OPS" --json page ls filter=type:playbook
+step playbooks "$OPS" --json page list filter=type:playbook
 step syllabus "$OPS" --json page read "{SYLLABUS}"
 step logtype "$OPS" --json page types log
-step logs "$OPS" --json page ls filter=type:log filter=under:research/logs
+step logs "$OPS" --json page list filter=type:log filter=under:research/logs
 step log "$OPS" --json page read "{LOG}"
 step tested sh "$FIX/walk.sh" "{LOG}" 0
 step prereq sh "$FIX/walk.sh" "{LOG}" 1
 step prereq2 sh "$FIX/walk.sh" "{LOG}" 2
 step covers "$OPS" --json page backlinks "{BUILT}"
-step guides "$OPS" --json page ls filter=type:guide
+step guides "$OPS" --json page list filter=type:guide
 step create sh -c 'printf "{body}" | "$OPS" --json page create type=guide title="Study plan" "description=Harness plan." "covers={covers}" --stdin'
 step refresh sh -c 'printf "{body}Refreshed.\\n" | "$OPS" --json page edit "{PLAN_PAGE}" "description=Harness plan, refreshed." "covers={covers}" --stdin'
 step write-sources sh -c 'printf x >> "{SYLLABUS}"'

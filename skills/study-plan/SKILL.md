@@ -58,8 +58,8 @@ is weak. Where the overlays are silent, or `overlays: none`:
 
 ```sh
 date -u +%Y-%m-%d
-{{@brain-cli-ops}} page ls filter=type:playbook
-{{@brain-cli-ops}} page ls filter=under:sources/playbooks
+{{@brain-cli-ops}} page list filter=type:playbook
+{{@brain-cli-ops}} page list filter=under:sources/playbooks
 {{@brain-cli-ops}} page read "<playbook path>"
 ```
 
@@ -79,7 +79,7 @@ the plan's lead says so.
 
 ```sh
 {{@brain-cli-ops}} page types log
-{{@brain-cli-ops}} page ls filter=type:log filter=under:<the log type's dir>
+{{@brain-cli-ops}} page list filter=type:log filter=under:<the log type's dir>
 {{@brain-cli-ops}} page read "<log path>"
 ```
 
@@ -138,7 +138,7 @@ Then the syllabus side. Match what §2 found due to the wiki's concepts by
 title and `aliases`:
 
 ```sh
-{{@brain-cli-ops}} page ls filter=type:concept
+{{@brain-cli-ops}} page list filter=type:concept
 {{@brain-cli-ops}} page read "<concept path>" fields=aliases
 ```
 
@@ -159,7 +159,7 @@ logs show missed, then one not asked in the sessions read, easiest first.
 ## 5. Write the plan
 
 ```sh
-{{@brain-cli-ops}} page ls filter=type:guide
+{{@brain-cli-ops}} page list filter=type:guide
 ```
 
 The plan is the guide titled `Study plan`. Absent: create it. Present:

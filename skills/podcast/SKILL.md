@@ -74,7 +74,7 @@ by-hand episode on one course never moves it.
 
 ```sh
 date -u +%Y-%m-%d
-{{@brain-cli-ops}} page ls filter=under:wiki/podcasts
+{{@brain-cli-ops}} page list filter=under:wiki/podcasts
 {{@brain-cli-ops}} page read "<episode path>" fields=window_since,window_until
 ```
 
@@ -97,8 +97,8 @@ changed pages under it or about it ("this week's BIO 101 lectures"). A
 focus with no span finds what it names:
 
 ```sh
-{{@brain-cli-ops}} page ls filter=under:<the folder the focus names>
-{{@brain-cli-ops}} page ls filter=type:<the type the focus names>
+{{@brain-cli-ops}} page list filter=under:<the folder the focus names>
+{{@brain-cli-ops}} page list filter=type:<the type the focus names>
 ```
 
 and matches titles against the focus. Only a session may also ask

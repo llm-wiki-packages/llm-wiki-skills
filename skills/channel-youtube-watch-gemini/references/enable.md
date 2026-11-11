@@ -2,7 +2,7 @@
 
 1. **The key.** Create one at https://aistudio.google.com/apikey. On each
    machine that enriches, name the wiki's vault, `<key>` being this wiki's
-   key in `{{@brain-cli}} machine wikis ls`:
+   key in `{{@brain-cli}} machine wikis list`:
 
    ```sh
    {{@brain-cli}} machine wikis vault <key> local

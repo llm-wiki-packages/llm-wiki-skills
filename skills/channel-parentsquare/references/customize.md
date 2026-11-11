@@ -6,7 +6,7 @@ and how many days of feed each pull reads (default 3); they are the watch's
 
 Ask what the family's junk is: the junk rules and the line each post gets are
 the `### process` section's, and the WIKI's to write. Writing them into the
-installed SKILL.md makes `skills ls` report the skill `customized`. That is
+installed SKILL.md makes `skills list` report the skill `customized`. That is
 configuration the wiki owns, not drift to repair — say so in your report so
 nobody "fixes" it with `skills install --force`.
 

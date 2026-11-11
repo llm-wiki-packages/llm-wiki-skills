@@ -19,5 +19,5 @@ def test_no_unit_doc_names_a_seeded_job_slug():
 
 
 def test_no_unit_doc_spells_the_short_verbose_flag():
-    hits = [str(p.relative_to(ROOT)) for p in DOCS if "jobs ls -v" in p.read_text(encoding="utf-8")]
+    hits = [str(p.relative_to(ROOT)) for p in DOCS if "jobs list -v" in p.read_text(encoding="utf-8")]
     assert not hits, hits
