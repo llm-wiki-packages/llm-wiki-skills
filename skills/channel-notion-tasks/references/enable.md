@@ -27,7 +27,7 @@
    route, and this one leaves `sources/` for the ledger route), so
    declare the job again around the folder: note its keys
    (`jobs show <slug>`), take it off the list
-   (`{{@brain-cli-ops}} jobs rm <slug>`), move its pages with git
+   (`{{@brain-cli-ops}} jobs remove <slug>`), move its pages with git
    (`git mv <old dest> research/channels/<slug>`, then commit), and add it
    back with the same target, slug and options:
    `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-notion-tasks
