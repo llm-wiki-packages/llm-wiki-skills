@@ -53,7 +53,7 @@ step overlay "$OPS" --json policy get daily-report daily-report-setup
 step op-open "$OPS" --json op open daily-report
 step latest "$OPS" --json op latest daily-report
 step changed "$OPS" --json git changed research sources filter=since:3d
-step ledgers "$OPS" --json page ls filter=under:research/channels
+step ledgers "$OPS" --json page list filter=under:research/channels
 step digest "$OPS" --json page read {DIGEST}
 step lint "$OPS" --json page lint wiki sources
 step promote sh -c 'printf "An actor.\\n\\n- {TODAY}: in the report.\\n" | "$OPS" --json page edit {PROMOTED} --stdin'

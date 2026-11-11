@@ -37,7 +37,7 @@ def test_the_body_names_itself_as_a_unit_invocation():
 
 LOCAL = sorted(p.name for p in (SKILL / "references").glob("*"))
 
-# The plugin reads enable.md, customize.md and usage.md by name (`skills ls`
+# The plugin reads enable.md, customize.md and usage.md by name (`skills list`
 # carries each as a path), so the body need not mention them.
 
 

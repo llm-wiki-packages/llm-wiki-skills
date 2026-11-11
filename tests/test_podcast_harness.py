@@ -51,7 +51,7 @@ def _plan() -> str:
 step overlay "$OPS" --json policy get podcast
 step op-open "$OPS" --json op open podcast
 step today date -u +%Y-%m-%d
-step episodes "$OPS" --json page ls filter=under:wiki/podcasts
+step episodes "$OPS" --json page list filter=under:wiki/podcasts
 step last "$OPS" --json page read "{EARLIER}" fields=window_since,window_until
 step changed "$OPS" --json git changed sources filter=since:2026-01-01
 step lecture1 "$OPS" --json page read "{LECTURE_1}"

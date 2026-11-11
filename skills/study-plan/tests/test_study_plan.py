@@ -37,7 +37,7 @@ def test_the_body_names_itself_as_a_unit_invocation():
     assert "PLUGIN:study-plan" not in BODY
 
 
-# The plugin reads enable.md, customize.md and usage.md by name (`skills ls`
+# The plugin reads enable.md, customize.md and usage.md by name (`skills list`
 # carries each as a path), so the body need not mention them.
 def test_the_unit_ships_the_three_references_the_plugin_reads():
     assert {"enable.md", "customize.md", "usage.md"} <= set(LOCAL), LOCAL
@@ -97,7 +97,7 @@ def test_an_unresolved_link_row_is_never_given_to_a_verb():
 # What is weak is the quiz's: the same overlay, the same stock rule and the
 # same lookup, so the plan cannot call weak what the next quiz does not.
 def test_the_weak_spot_lookup_is_the_quizs_own():
-    for line in ("llm-wiki-ops page types log\n", "llm-wiki-ops page ls filter=type:log filter=under:<the log type's dir>\n",
+    for line in ("llm-wiki-ops page types log\n", "llm-wiki-ops page list filter=type:log filter=under:<the log type's dir>\n",
                  'llm-wiki-ops page backlinks "<tested concept path>"\n'):
         assert line in BODY, line
     assert "newest five sessions whose entries carry `grade=`" in BODY
@@ -114,7 +114,7 @@ def test_the_plan_is_one_guide_written_through_the_page_verbs():
 
 
 def test_the_syllabus_is_read_never_parsed_or_written():
-    assert "llm-wiki-ops page ls filter=type:playbook" in BODY
+    assert "llm-wiki-ops page list filter=type:playbook" in BODY
     assert "Never assume a layout" in BODY
     for verb in ("page edit", "page append"):
         for line in re.findall(rf"^llm-wiki-ops {verb} (.*)$", BODY, re.M):

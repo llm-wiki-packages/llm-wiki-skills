@@ -69,7 +69,7 @@ def test_one_op_is_opened_after_the_overlay_read_and_closed_last():
 # same lookup, so the show cannot call weak what the next quiz does not.
 def test_the_weak_spot_lookup_is_the_quizs_own():
     assert "llm-wiki-ops policy get quiz-show quiz\n" in BODY
-    for line in ("llm-wiki-ops page types log\n", "llm-wiki-ops page ls filter=type:log filter=under:<the log type's dir>\n",
+    for line in ("llm-wiki-ops page types log\n", "llm-wiki-ops page list filter=type:log filter=under:<the log type's dir>\n",
                  "llm-wiki-ops page links id=<document_id>\n"):
         assert line in BODY, line
     assert "newest five sessions whose entries carry `grade=`" in BODY

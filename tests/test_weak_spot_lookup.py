@@ -14,7 +14,7 @@ UNITS = ("study-plan", "quiz-show")
 SHARED = (
     "{cli} policy get {unit} quiz\n",
     "{cli} page types log\n",
-    "{cli} page ls filter=type:log filter=under:<the log type's dir>\n",
+    "{cli} page list filter=type:log filter=under:<the log type's dir>\n",
     "- <date> unit=<document_id> [[<title>]] answer=\"<the reply>\" grade=<correct|partial|miss>\n",
     "{cli} page links id=<document_id>\n",
     "{cli} page backlinks \"<tested concept path>\"\n",
