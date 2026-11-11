@@ -51,10 +51,7 @@ bb get 'v1/courses/<id>/contents' --all --credential blackboard   # any GET, to 
 
 `courses` prints each membership: `id` (`_123_1`, what every other command
 takes), `courseId`, `name`, `role`, `term`. Exit 2 from any command = the
-session expired and no silent SSO renewal worked: run step 1 again. Where a
-runner polls the wiki, the plugin's keepalive runs `whoami` on a schedule
-to keep the session warm and asks for step 1 when it fails
-(`references/customize.md`, "Staying signed in").
+session expired and no silent SSO renewal worked: run step 1 again.
 
 ## 3. Follow a course (a job)
 
