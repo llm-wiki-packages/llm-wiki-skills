@@ -13,17 +13,17 @@
     "pipeline",
     "session"
   ],
-  "name": "daily-report",
+  "name": "morning-brief",
   "requires": {
     "ops": ">=0.10.0"
   },
-  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:daily-report",
+  "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:morning-brief",
   "stages": {
     "routine": {
       "model": "frontier"
     }
   },
-  "usage": "/daily-report [date|focus|setup]",
+  "usage": "/morning-brief [date|focus|setup]",
   "v": 1,
   "version": "0.1.0"
 }

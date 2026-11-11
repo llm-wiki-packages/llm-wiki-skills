@@ -1,6 +1,6 @@
-// daily-report: the catalog template for the daily-report unit. `skills install`
+// morning-brief: the catalog template for the morning-brief unit. `skills install`
 // validates it, spells every default out and writes it as the unit's
-// `sandbox.jsonc`; `sandboxes/daily-report.md` is its help prose.
+// `sandbox.jsonc`; `sandboxes/morning-brief.md` is its help prose.
 {
   "v": 2,
   "kind": "skill",

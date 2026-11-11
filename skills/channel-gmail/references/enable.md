@@ -18,7 +18,7 @@
    next pull — this is not optional.** Such a job keeps its staged literal,
    `sources/email/<slug>/`, and `dest` is the whole of the route: the process
    step writes the day's page wherever the ticket's `dest` points, and the
-   readers of ledgers — the daily report, the synthesize stage — look under
+   readers of ledgers — the morning brief, the synthesize stage — look under
    `research/channels/` and nowhere else. What that looks like: every step
    says `ok`, and the days pile up as pages in the staged tree that nothing
    reads and curate is left to judge. The skill cannot detect it: `dest` is

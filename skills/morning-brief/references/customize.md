@@ -1,7 +1,7 @@
-# daily-report — customizing this skill
+# morning-brief — customizing this skill
 
 The brief's look, sections and tone belong to the wiki, not to this unit's
-body. Prefer the wiki's `daily-report` overlay and its
+body. Prefer the wiki's `morning-brief` overlay and its
 `wiki/reports/_template.html`. Editing `SKILL.md` makes the unit `customized`,
 and `skills install` then refuses to refresh it.
 
@@ -17,8 +17,8 @@ Ask, with an operator at the keyboard:
 Then offer to save the answers:
 
 ```sh
-{{@brain-cli-ops}} policy get daily-report     # read FIRST
-{{@brain-cli-ops}} policy set daily-report     # on the operator's yes, prose on stdin
+{{@brain-cli-ops}} policy get morning-brief     # read FIRST
+{{@brain-cli-ops}} policy set morning-brief     # on the operator's yes, prose on stdin
 ```
 
-`{{@brain-cli-ops}} reference daily-report/setup` prints the full interview (`setup.md`); `/daily-report setup` runs it.
+`{{@brain-cli-ops}} reference morning-brief/setup` prints the full interview (`setup.md`); `/morning-brief setup` runs it.
