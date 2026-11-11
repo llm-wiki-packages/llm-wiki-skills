@@ -208,7 +208,7 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`llm-wiki-ops watch add --slug x`", "retired"),
         ("`watch add --slug x --dest y`", "retired"),
         ("`llm-wiki-ops skills <wiki> list --json`", "has no `<wiki>`"),
-        ("`skills list` reporting it", "has no `list`"),
+        ("`skills nosuch` reporting it", "has no `nosuch`"),
         ("`llm-wiki-ops skills install x --repo a/b`", "takes no `--repo`"),
         ("`llm-wiki-ops skills enable x --conf`", "takes no `--conf`"),
         ("`llm-wiki-ops jobs add u slug=s harvest.maxage=3m`", "no `harvest.maxage`"),
@@ -223,7 +223,7 @@ def test_every_command_the_doc_names_is_one_the_cli_has(cli, job_record, doc):
         ("`llm-wiki-cli machine sweep`", "has no `sweep`"),  # the other console script's verbs are checked too
         ("`llm-wiki-cli skills list`", "`llm-wiki-cli` has no `skills`"),  # a wiki verb under the machine prefix
         ("`llm-wiki-cli init <dir> --preset x`", "takes no `--preset`"),
-        ("`llm-wiki-cli wiki <key> skills list`", "has no `list`"),  # the wiki scope's argv is an ops argv
+        ("`llm-wiki-cli wiki <key> skills nosuch`", "has no `nosuch`"),  # the wiki scope's argv is an ops argv
         ("`<ops dir>/bin/llm-wiki-cli machine doctor`", "run by path"),
     ],
 )
