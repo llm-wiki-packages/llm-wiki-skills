@@ -80,7 +80,7 @@ def test_no_template_names_a_model_endpoint(name):
 HOSTS = {
     "blackboard": ["blackboard.com", "*.blackboard.com", "*.blackboardcdn.com"],
     "circle": ["circle.so", "*.circle.so"],
-    "daily-report": [],
+    "morning-brief": [],
     "frameio": ["frame.io", "*.frame.io"],
     "github": ["api.github.com"],
     "gmail": ["gmailmcp.googleapis.com"],
@@ -112,7 +112,7 @@ MACHINE_READS = {
 
 # `(template, stage) -> filesystem`; absent means none.
 FILESYSTEM = {
-    ("daily-report", "routine"): {
+    ("morning-brief", "routine"): {
         "read": ["$WORKDIR/.git", "$WORKDIR/research", "$WORKDIR/sources"],
         "allow": ["$WORKDIR/wiki"],
     },

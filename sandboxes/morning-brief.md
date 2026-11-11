@@ -1,6 +1,6 @@
-# daily-report
+# morning-brief
 
-The sandbox for the daily report's `routine` stage: the scheduled morning
+The sandbox for the morning brief's `routine` stage: the scheduled morning
 run, with nobody at the keyboard. It reads what the report is made from and
 writes the day's report and its promotions under `wiki/`.
 
@@ -20,7 +20,7 @@ the run reads is named; `$WORKDIR` alone grants nothing.
   boundary; the grant stays because those three need it.
   `skills enable` names it a dangerous line, which its one approval
   answers.
-- The `daily-report` overlay and the `daily-report-setup` marker sit under
+- The `morning-brief` overlay and the `morning-brief-setup` marker sit under
   the ops dir's `policy`, which the stock `_base` already reads: the template
   names no entry for them.
 - Read `research/`: the channel ledgers under `research/channels/` and the
@@ -51,7 +51,7 @@ None.
 ## Never loosen
 
 - No write under `.llm-wiki/policy`: an overlay is written by an operator
-  answering `/daily-report setup`, never by a run nobody is watching.
+  answering `/morning-brief setup`, never by a run nobody is watching.
 - No machine registry: every writer of it runs on the host.
 - No write under `sources/` or `research/`: the run promotes into `wiki/`
   and nowhere else.

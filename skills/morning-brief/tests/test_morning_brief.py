@@ -1,4 +1,4 @@
-"""What the daily-report skill's body claims about its own directory."""
+"""What the morning-brief skill's body claims about its own directory."""
 import json
 import re
 from pathlib import Path
@@ -31,8 +31,8 @@ def test_the_frontmatter_names_this_directory():
 
 
 def test_the_body_names_itself_as_a_unit_invocation():
-    assert "whereami skill=daily-report " in BODY
-    assert "PLUGIN:daily-report" not in BODY
+    assert "whereami skill=morning-brief " in BODY
+    assert "PLUGIN:morning-brief" not in BODY
 
 
 LOCAL = sorted(p.name for p in (SKILL / "references").glob("*"))
@@ -51,19 +51,19 @@ def test_the_skill_ships_local_references_to_check():
 
 
 # `setup` is a recurring argument, so an unconditional retire refuses on a
-# re-run ("carries no 'daily-report-setup' overlay") between the overlay saved
+# re-run ("carries no 'morning-brief-setup' overlay") between the overlay saved
 # and the commit that would have kept it.
 MARKER_GUARD = "when §1's read returned it"
 
 
 def test_the_setup_marker_is_retired_only_when_it_was_found():
     setup = _doc(SETUP)
-    assert "llm-wiki-ops policy retire daily-report-setup" in setup
+    assert "llm-wiki-ops policy retire morning-brief-setup" in setup
     assert MARKER_GUARD in setup, "setup.md retires the marker unconditionally"
     assert MARKER_GUARD in BODY, "the skill body's §8 clause carries no condition"
 
 
-# The morning job runs this unit as `/daily-report ticket=<id>
+# The morning job runs this unit as `/morning-brief ticket=<id>
 # stage=routine`; the claim gate admits that job only where the enabled
 # manifest serves `routine`.
 MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
@@ -71,7 +71,7 @@ MANIFEST = json.loads((SKILL / "manifest.json").read_text(encoding="utf-8"))
 
 def test_the_manifest_serves_the_routine_stage_and_names_its_sandbox_at_the_unit_level():
     assert "routine" in MANIFEST.get("stages", {}), "a unit without stages.routine is one no job can run"
-    assert MANIFEST["sandbox_ref"].endswith(":daily-report"), MANIFEST.get("sandbox_ref")
+    assert MANIFEST["sandbox_ref"].endswith(":morning-brief"), MANIFEST.get("sandbox_ref")
     assert "sandbox_ref" not in MANIFEST["stages"]["routine"]
 
 
@@ -85,8 +85,8 @@ def test_the_scope_names_the_scheduled_entry():
 # the ticket under one, so a commit or a report of the skill's own would
 # split the run's record.
 def test_one_op_is_opened_first_and_closed_last():
-    opens = BODY.count("llm-wiki-ops op open daily-report")
-    closes = BODY.count("llm-wiki-ops op close daily-report ")
+    opens = BODY.count("llm-wiki-ops op open morning-brief")
+    closes = BODY.count("llm-wiki-ops op close morning-brief ")
     assert (opens, closes) == (1, 1), (opens, closes)
     commands = re.findall(r"^llm-wiki-ops [a-z]+ [a-z]+", BODY, re.M)
     # The overlay read decides the setup path, which runs under `grill` alone,

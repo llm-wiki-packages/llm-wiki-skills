@@ -16,8 +16,8 @@
   "artifacts": [
     {
       "type": "skill",
-      "name": "daily-report",
-      "path": "skills/daily-report"
+      "name": "morning-brief",
+      "path": "skills/morning-brief"
     },
     {
       "type": "skill",

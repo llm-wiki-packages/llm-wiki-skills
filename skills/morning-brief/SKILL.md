@@ -1,6 +1,6 @@
 ---
-name: daily-report
-description: Use when asked for the daily report, morning brief or dashboard, what needs attention today or a cross-wiki what's-new, or to redesign the brief. The nightly ops digest is under research/reports/.
+name: morning-brief
+description: Use when asked for the morning brief, daily report or dashboard, what needs attention today or a cross-wiki what's-new, or to redesign the brief. The nightly ops digest is under research/reports/.
 argument-hint: "[date|focus|setup]"
 ---
 
@@ -17,7 +17,7 @@ everything since the last report. `setup` alone runs the interview instead
 focus, with nobody to answer. Under `ticket=` a leading `setup` is never the
 interview: the run reports, noting that setup needs an operator.
 
-One run is one op: `daily-report`, opened in §1 and closed at the end of §7,
+One run is one op: `morning-brief`, opened in §1 and closed at the end of §7,
 or on the setup path `grill` alone (§8). Never `git commit`: the close
 commits what the run wrote, by hand or at a scheduled run's landing
 (`{{@brain-cli-ops}} reference operations`).
@@ -27,7 +27,7 @@ open questions land in the report for the next `/{{@brain-plugin}}:grill`.
 
 ## This wiki
 
-!`{{@brain-cli-ops}} whereami skill=daily-report || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
+!`{{@brain-cli-ops}} whereami skill=morning-brief || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
 
 Every command below acts on this wiki. Asked to run against a different one?
 `{{@brain-cli-ops}} reference cross-wiki` says how.
@@ -35,14 +35,14 @@ Every command below acts on this wiki. Asked to run against a different one?
 ## 1. Compose the overlay, then open the run
 
 ```sh
-{{@brain-cli-ops}} policy get daily-report daily-report-setup
+{{@brain-cli-ops}} policy get morning-brief morning-brief-setup
 ```
 
-The `daily-report` overlay extends this procedure — section plan, tone,
+The `morning-brief` overlay extends this procedure — section plan, tone,
 cross-wiki list, tighter promotions. Both scopes, wiki first, later text
 winning; an empty answer is stock alone.
 
-**Setup pending** — a `daily-report-setup` row came back: this wiki still
+**Setup pending** — a `morning-brief-setup` row came back: this wiki still
 runs on the overlay its preset seeded. With an operator at the keyboard, go
 to §8, which is where this wiki's own answers replace it and the only place
 the marker is retired. With nobody to answer, do what the row says: follow
@@ -55,13 +55,13 @@ or the row with an operator — open nothing here: that run ends at §8's
 close. Otherwise:
 
 ```sh
-{{@brain-cli-ops}} op open daily-report
+{{@brain-cli-ops}} op open morning-brief
 ```
 
 ## 2. Fix the window
 
 ```sh
-{{@brain-cli-ops}} op latest daily-report filter=outcome:ok
+{{@brain-cli-ops}} op latest morning-brief filter=outcome:ok
 ```
 
 The window opens at that run's commit. A `partial` or `failed` run HOLDS the
@@ -71,7 +71,7 @@ keeps growing until an `ok` covers it.
 `found: false` → open at the newest run of any outcome:
 
 ```sh
-{{@brain-cli-ops}} op latest daily-report
+{{@brain-cli-ops}} op latest morning-brief
 ```
 
 Still nothing → cover the last three days. The marker never comes from
@@ -177,7 +177,7 @@ overwrites. `wiki/index.md` gets ONE directory-level line for
 
 ## 7. Author the day's brief
 
-Run `{{@brain-cli-ops}} reference daily-report/setup` first (it prints `references/setup.md`) — the
+Run `{{@brain-cli-ops}} reference morning-brief/setup` first (it prints `references/setup.md`) — the
 template, the three hard rules, and who owns which concern.
 
 `wiki/reports/YYYY-MM-DD.html` is standalone HTML, authored fresh from that
@@ -195,7 +195,7 @@ glass; self-contained.
 Then close the run's one op, the last thing it posts:
 
 ```sh
-{{@brain-cli-ops}} op close daily-report outcome=ok summary="daily report 2026-09-05: <one line>"
+{{@brain-cli-ops}} op close morning-brief outcome=ok summary="morning brief 2026-09-05: <one line>"
 ```
 
 `outcome` is what moves the window: `ok` only when it all landed — the
@@ -213,14 +213,14 @@ Fail-open, and it indexes the markdown only. Never index the HTML.
 
 ## 8. Setup — the one interactive mode
 
-`setup` as the argument, or §1 finding the `daily-report-setup` marker with
+`setup` as the argument, or §1 finding the `morning-brief-setup` marker with
 an operator at the keyboard. Follow
-the interview `{{@brain-cli-ops}} reference daily-report/setup` prints (`setup.md`): inventory what is connected, ask what they
+the interview `{{@brain-cli-ops}} reference morning-brief/setup` prints (`setup.md`): inventory what is connected, ask what they
 care about seeing each morning, cut sections nothing feeds, personalize the
 template, fold the section plan and tone into the overlay on the operator's
 yes, retire the marker when §1's read returned it — a redesign on a wiki
 that already ran setup got no row and skips that step — and close under the
-`grill` op, never `daily-report`, which would advance the window cursor.
+`grill` op, never `morning-brief`, which would advance the window cursor.
 The run ends at that close; the report waits for the next invocation.
 
 ## 9. Open questions — the grill loop
