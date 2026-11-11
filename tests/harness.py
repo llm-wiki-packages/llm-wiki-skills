@@ -476,16 +476,16 @@ def declared_job(ops: list, env: dict, wiki: Path, unit: str, target: str, *extr
         extra = (*extra, f"dest=sources/harness/{slug}")
     if not any(e.startswith("every=") for e in extra):
         extra = (*extra, "every=once")
-    # `transcribe` is a host ENGINE section every job carries by default
+    # `extract` is a host ENGINE section every job carries by default
     # (`job_schema`; a unit reaches it only through `watch.defaults`), so `close` on a harvest
-    # `ok` routes through a transcribe ticket first, media or not, and only
-    # the transcribe DRAIN (this box's own, not a case here) lands it on to
-    # `process`. Most units declare no `transcribe` (hubspot and spotify tune
+    # `ok` routes through an extract ticket first, media or not, and only
+    # the extract DRAIN (this box's own, not a case here) lands it on to
+    # `process`. Most units declare no `extract` (hubspot and spotify tune
     # it, four directory-body units ship it null), so every harness job nulls
     # the section at declare time — one real hop, harvest to process, the
     # shape `advanced()` assumes. A catalog default is read by a case that
     # calls `jobs add` itself, without this stdin.
-    r = run(ops, rooted(env, wiki), "--json", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"transcribe": null}')
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "add", target, f"slug={slug}", f"skill={unit}", f"description=port: {unit}", *extra, "--stdin", input='{"extract": null}')
     assert r.returncode == 0, r.stdout + r.stderr
     return Job(slug, r.data["dest"], lambda: run(ops, rooted(env, wiki), "--json", "jobs", "show", slug).data["job"])
 
