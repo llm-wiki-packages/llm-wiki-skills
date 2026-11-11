@@ -29,7 +29,7 @@
         "github": "optional"
       }
     },
-    "ops": ">=0.10.0"
+    "ops": ">=0.17.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:github",
   "stages": {
@@ -43,7 +43,7 @@
   },
   "usage": "/channel-github <setup|rank|pending|retag> [words]; a job's stages run by ticket",
   "v": 1,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "watch": {
     "defaults": {
       "every": "1d"

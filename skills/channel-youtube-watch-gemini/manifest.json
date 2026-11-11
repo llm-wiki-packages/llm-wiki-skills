@@ -19,7 +19,7 @@
         "gemini": "required"
       }
     },
-    "ops": ">=0.15.0"
+    "ops": ">=0.17.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:youtube-watch-gemini",
   "stages": {
@@ -29,5 +29,5 @@
   },
   "usage": "llm-wiki-ops run ops/skills/channel-youtube-watch-gemini/scripts/watch_gemini.py ticket=<id>",
   "v": 1,
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
