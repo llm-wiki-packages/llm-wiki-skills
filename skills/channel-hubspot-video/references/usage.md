@@ -30,8 +30,8 @@ SKILL.md, harvest and process.
   job at the section root), `harvest.assets` (`download`; `download-audio`
   suits a transcript-only job), `harvest.exclude_urls`, `min_date`, `known[]`
   are read, never re-asked. The unit's defaults also set the job's
-  `transcribe.options.when` (`always`) and `diarize`; no script here reads
-  them, the transcribe stage does.
+  `extract.options.when` (`always`) and `diarize`; no script here reads
+  them, the extract stage does.
 - `process.embeds` and `process.exclude_rules` apply at process.
 - `references/sites.json`, in this wiki's copy, holds the site's selectors
   keyed by host (SKILL.md "Content extraction").

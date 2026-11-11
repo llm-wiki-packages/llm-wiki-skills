@@ -14,7 +14,7 @@ skills search <domain>` answers from the wiki's copy.
   `options.announcements_dir`, `options.discussions_dir`: where pages go and
   which re-render; the wiki's own choice is the installed copy's
   `watch.defaults.options` (`references/layout.md`).
-- `transcribe.options.when`: `always` re-speaks a video that came with
+- `extract.options.when`: `always` re-speaks a video that came with
   captions; `/{{@brain-plugin}}:add` changes it.
 
 ## Sandbox

@@ -21,7 +21,7 @@
   ],
   "name": "channel-spotify",
   "requires": {
-    "ops": ">=0.10.0"
+    "ops": ">=0.16.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify",
   "stages": {
@@ -30,7 +30,7 @@
   },
   "usage": "/channel-spotify ticket=<id>",
   "v": 1,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "watch": {
     "defaults": {
       "every": "once",
@@ -39,7 +39,7 @@
         "assets": "download",
         "scope": "page"
       },
-      "transcribe": {
+      "extract": {
         "options": {
           "diarize": false,
           "when": "if-no-captions"

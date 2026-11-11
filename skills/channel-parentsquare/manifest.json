@@ -34,7 +34,7 @@
         "PS_USERNAME": "required"
       }
     },
-    "ops": ">=0.10.0"
+    "ops": ">=0.16.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:parentsquare",
   "stages": {
@@ -43,11 +43,11 @@
   },
   "usage": "/channel-parentsquare ticket=<id>",
   "v": 1,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "watch": {
     "defaults": {
       "every": "1d",
-      "transcribe": null
+      "extract": null
     },
     "dest": "research/channels/{slug}",
     "inputs": {

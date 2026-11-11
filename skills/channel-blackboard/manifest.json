@@ -42,12 +42,12 @@
   },
   "usage": "/channel-blackboard <whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "watch": {
     "dest": "sources/courses/{slug}",
     "defaults": {
       "every": "1d",
-      "transcribe": {
+      "extract": {
         "options": {
           "when": "if-no-captions",
           "diarize": false

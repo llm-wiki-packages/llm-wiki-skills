@@ -57,7 +57,7 @@
    `{{@brain-cli-ops}} jobs add <section-root-url> slug=<site-section>
    description="<what this is>" skill=channel-hubspot-video` — the skill's
    manifest supplies `every=once`, `harvest.scope=section`,
-   `harvest.assets=download`, `transcribe.options.when=always` (the video IS
+   `harvest.assets=download`, `extract.options.when=always` (the video IS
    the content — keep it) and a `dest` of `sources/courses/<slug>`. Point it at
    the section ROOT, not a leaf page — the manifest's `watch.note` says why:
    the skill's own filter (`leaves.py plan`) takes the section prefix from the

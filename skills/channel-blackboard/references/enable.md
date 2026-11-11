@@ -38,7 +38,7 @@
    `{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline'
    slug=<course> skill=channel-blackboard description="<course name>"
    options.timezone=<IANA zone>`. The manifest supplies `every=1d`, a
-   `dest` of `sources/courses/<slug>` and a `transcribe` section
+   `dest` of `sources/courses/<slug>` and an `extract` section
    (`when: if-no-captions`). Without `options.timezone` a due date reads in
    UTC, which puts a midnight deadline on the next day. `options.files=skip`
    fetches no attachment, pdf or video: the pages then carry the course's
@@ -57,8 +57,8 @@
    job, not the skill: a skill's `dir` is handed to every job of the skill,
    unattended.
 7. Videos with no captions are spoken by this machine's transcribe engine
-   (`{{@brain-cli-ops}} config get transcribe.engine`; `/{{@brain-plugin}}:join`
-   settles one). With none declared, their transcribe tickets wait and their
+   (`{{@brain-cli-ops}} config get transcribe.engines`; `/{{@brain-plugin}}:join`
+   settles one). With none declared, their extract tickets wait and their
    pages go out without a transcript until one runs.
 
 ## What a run leaves

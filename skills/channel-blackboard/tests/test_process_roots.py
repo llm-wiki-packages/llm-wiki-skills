@@ -22,7 +22,7 @@ def calls(monkeypatch):
 
 def test_a_root_names_its_keys_but_not_its_settings_in_ops_lends(monkeypatch):
     seen = calls(monkeypatch)
-    keys = {"ops.root": "true", "current": "true", "course": "PSY 2301", "ops.extract": "light"}
+    keys = {"ops.root": "true", "current": "true", "course": "PSY 2301", "ops.mine": "light"}
     assert process.create_root("sources/c", {"title": "PSY", "abstract": "a", "body": "b"}, keys) is None
     create = seen[0]
     assert create[:2] == ("page", "create") and "ops.lends=current,course" in create

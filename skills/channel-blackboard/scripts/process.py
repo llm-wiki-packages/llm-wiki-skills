@@ -230,7 +230,7 @@ CURRENT = {"true": "true", "yes": "true", "false": "false", "no": "false"}
 
 
 # The job record's `root` keys that are pipeline settings: they land under `ops`, where a bundle root lends them.
-OPS_SETTINGS = ("extract", "ingest", "refresh", "edits")
+OPS_SETTINGS = ("mine", "ingest", "refresh", "edits")
 
 
 def root_key(key: str) -> str:
