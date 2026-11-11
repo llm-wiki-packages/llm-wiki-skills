@@ -41,7 +41,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 API = "/learn/api/public"
 OPS = "llm-wiki-ops"
@@ -236,11 +236,24 @@ def resolve_credential(args) -> str | None:
     return as_site(host) if isinstance(host, str) and host else None
 
 
+SSO_LINK = re.compile(r'href="(/auth-saml/saml/login\?apId=(_\d+_\d+)[^"]*)"')
+
+
+def sso_link(html: str, base: str, provider: str | None) -> str | None:
+    """The sign-in page's SAML link to follow: the named provider's (`_4405_1`), else the page's only one; None when
+    the page has none, or several and none is named. The link always returns to `<base>/ultra`."""
+    ids = list(dict.fromkeys(m.group(2) for m in SSO_LINK.finditer(html)))
+    pick = provider if provider in ids else (ids[0] if provider is None and len(ids) == 1 else None)
+    if pick is None:
+        return None
+    return f"{base}/auth-saml/saml/login?apId={pick}&redirectUrl={quote(base + '/ultra', safe='')}"
+
+
 class Session:
     """One browser context the plugin's launcher opened, and the API reached through it."""
 
-    def __init__(self, ctx, base_url: str):
-        self.ctx, self.base = ctx, base_url.rstrip("/")
+    def __init__(self, ctx, base_url: str, sso: str | None = None):
+        self.ctx, self.base, self.sso = ctx, base_url.rstrip("/"), sso
 
     def save_state(self):
         import llm_wiki_browser
@@ -277,13 +290,23 @@ class Session:
         return r.json() if r.status == 200 else None
 
     def ensure(self) -> dict:
-        """The signed-in user, re-entering the site once so a live SSO session can silently renew Learn's."""
+        """The signed-in user, re-entering the site once so a live SSO session can silently renew Learn's.
+
+        A site whose `/ultra` lands on Learn's own sign-in page (a button per identity provider, no redirect) is
+        renewed through that page's SAML link: `--sso <apId>` names the provider, or the page's only link is taken.
+        A live identity-provider session then signs Learn in with no prompt."""
         user = self.me()
         if user is None:
             page = self.ctx.new_page()
             try:
                 page.goto(f"{self.base}/ultra", wait_until="load", timeout=45_000)
                 page.wait_for_timeout(3000)
+                user = self.me()
+                link = None if user is not None else sso_link(page.content(), self.base, self.sso)
+                if link:
+                    page.goto(link, wait_until="load", timeout=45_000)
+                    page.wait_for_url(f"{self.base}/ultra**", timeout=30_000)
+                    page.wait_for_timeout(3000)
             except Exception:  # noqa: BLE001 - the API answer below decides
                 pass
             page.close()
@@ -638,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--credential", help="a kind=dir credential, where the run was handed none")
         p.add_argument("--headed", action="store_true")
         p.add_argument("--site", help="the site's base url, over the credential's host (a job's target names it)")
+        p.add_argument("--sso", help="the SAML provider (`apId`, e.g. _4405_1) to renew an expired session through, where the sign-in page offers several")
         return p
 
     common(sub.add_parser("whoami"))
@@ -665,7 +689,7 @@ def main(argv: list[str] | None = None) -> int:
     command = {"whoami": cmd_whoami, "courses": cmd_courses, "get": cmd_get, "harvest": cmd_harvest}[args.cmd]
     try:
         with sync_playwright() as pw, llm_wiki_browser.open_context(pw, headless=not args.headed, context={"accept_downloads": True}) as ctx:
-            return command(Session(ctx, site), args)
+            return command(Session(ctx, site, sso=args.sso), args)
     except AuthError as e:
         print(f"auth: {e} — a person runs `llm-wiki-ops credentials login <credential>` again", file=sys.stderr)
         return EXIT_AUTH

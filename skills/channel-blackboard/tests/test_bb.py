@@ -305,3 +305,94 @@ def test_a_site_that_stays_busy_is_an_error_a_re_run_retries(learn, tmp_path):
     summary = json.loads(r.stdout)
     assert (summary["errors"], summary["gone"]) == (1, 0)
     assert json.loads((out / "errors.json").read_text())[0]["status"] == 503
+
+
+# The sign-in page Learn serves at `/?new_loc=/ultra` when the session is gone: a button per SAML provider.
+SIGN_IN = (
+    '<a href="/auth-saml/saml/login?apId=_4385_1&amp;redirectUrl=https%3A%2F%2Fx.edu%2Fultra">Staff Login</a>'
+    '<a href="/auth-saml/saml/login?apId=_4405_1&amp;redirectUrl=https%3A%2F%2Fx.edu%2Fultra">Login</a>'
+    '<a href="/auth-saml/saml/login?apId=_4405_1&redirectUrl=https%3A%2F%2Fx.edu%2Fultra">Login</a>'
+)
+
+
+def test_sso_link_takes_the_named_provider_and_returns_to_ultra():
+    assert bb.sso_link(SIGN_IN, "https://x.edu", "_4405_1") == (
+        "https://x.edu/auth-saml/saml/login?apId=_4405_1&redirectUrl=https%3A%2F%2Fx.edu%2Fultra")
+
+
+def test_sso_link_picks_none_of_several_unless_one_is_named():
+    assert bb.sso_link(SIGN_IN, "https://x.edu", None) is None
+    assert bb.sso_link(SIGN_IN, "https://x.edu", "_9_1") is None
+
+
+def test_sso_link_takes_a_pages_only_provider_unnamed():
+    one = '<a href="/auth-saml/saml/login?apId=_7_1&amp;redirectUrl=x">Sign in</a>'
+    assert bb.sso_link(one, "https://x.edu", None) == "https://x.edu/auth-saml/saml/login?apId=_7_1&redirectUrl=https%3A%2F%2Fx.edu%2Fultra"
+    assert bb.sso_link("<p>no providers</p>", "https://x.edu", None) is None
+
+
+class _Resp:
+    def __init__(self, status, body=None):
+        self.status, self._body = status, body
+
+    def json(self):
+        return self._body
+
+
+class _Page:
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    def goto(self, url, **_):
+        self.ctx.visits.append(url)
+        if "/auth-saml/" in url:
+            self.ctx.signed_in = True
+
+    def wait_for_timeout(self, _ms):
+        pass
+
+    def wait_for_url(self, pattern, **_):
+        self.ctx.waited.append(pattern)
+
+    def content(self):
+        return SIGN_IN
+
+    def close(self):
+        pass
+
+
+class _Ctx:
+    """A launcher context whose session expired: `/users/me` answers 401 until a SAML link is followed."""
+
+    def __init__(self):
+        self.visits, self.waited, self.signed_in = [], [], False
+        ctx = self
+
+        class _Req:
+            def get(self, url, **_):
+                return _Resp(200, {"userName": "s1"}) if ctx.signed_in else _Resp(401)
+
+        self.request = _Req()
+
+    def new_page(self):
+        return _Page(self)
+
+
+def test_ensure_renews_through_the_named_providers_link(monkeypatch):
+    ctx = _Ctx()
+    session = bb.Session(ctx, "https://x.edu", sso="_4405_1")
+    monkeypatch.setattr(session, "save_state", lambda: None)
+    monkeypatch.setattr(session, "_get", lambda url, timeout_ms=60_000: ctx.request.get(url))
+    assert session.ensure() == {"userName": "s1"}
+    assert ctx.visits == ["https://x.edu/ultra", "https://x.edu/auth-saml/saml/login?apId=_4405_1&redirectUrl=https%3A%2F%2Fx.edu%2Fultra"]
+    assert ctx.waited == ["https://x.edu/ultra**"]
+
+
+def test_ensure_without_a_provider_on_a_page_of_several_is_still_expired(monkeypatch):
+    ctx = _Ctx()
+    session = bb.Session(ctx, "https://x.edu")
+    monkeypatch.setattr(session, "save_state", lambda: None)
+    monkeypatch.setattr(session, "_get", lambda url, timeout_ms=60_000: ctx.request.get(url))
+    with pytest.raises(bb.AuthError):
+        session.ensure()
+    assert ctx.visits == ["https://x.edu/ultra"]

@@ -153,7 +153,10 @@ Measured on one institution's Ultra site (Learn 4001.2), student role.
 
 - Auth: the `BbRouter` cookie carries `timeout:10800` (3h idle). Each
   command re-enters `/ultra` once so a live SSO session can renew it before
-  calling it expired.
+  calling it expired. Where `/ultra` lands on Learn's own sign-in page (a
+  button per identity provider, no redirect), it follows that page's SAML
+  link (`/auth-saml/saml/login?apId=…`): `options.sso` names the provider
+  when the page offers several (`references/customize.md`).
 - Handlers: `x-bb-lesson` and `x-bb-folder` (children), `x-bb-document`,
   `x-bb-file`, `x-bb-externallink`, `x-bb-courselink`, `x-bb-blti-link`
   (LTI tools such as an eTextbook: not fetchable), `x-bb-asmt-test-link`

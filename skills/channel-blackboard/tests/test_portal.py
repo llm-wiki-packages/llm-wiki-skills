@@ -133,3 +133,8 @@ def test_a_course_quiet_for_six_weeks_rests_and_is_checked_weekly():
     assert harvest.should_pull("dormant", {"last_pull": "2026-10-30T00:00:00Z"}, NOW)
     assert not harvest.should_pull("dormant", {"last_pull": "2026-11-05T00:00:00Z"}, NOW)
     assert harvest.should_pull("dormant", {}, NOW)
+
+
+def test_sso_args_carry_options_sso_to_bb():
+    assert harvest.sso_args({"sso": " _4405_1 "}) == ["--sso", "_4405_1"]
+    assert harvest.sso_args({}) == [] and harvest.sso_args({"sso": ""}) == []
