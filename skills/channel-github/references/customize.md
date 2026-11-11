@@ -48,7 +48,7 @@ Layout choices map like this:
 | everything | the shipped default |
 | a tighter README | the overlay's README mode `excerpt` |
 
-Customized is the point: an edited `lists.json` makes `skills ls` report the
+Customized is the point: an edited `lists.json` makes `skills list` report the
 skill `customized`. That is configuration the wiki owns, not drift to
 repair — say so in your report so nobody "fixes" it with `skills install
 --force`.

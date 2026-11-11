@@ -44,7 +44,7 @@
    probe's argv, its exit code and its stderr — fix what the stderr names,
    then run `/{{@brain-plugin}}:enable channel-notion-tasks` again. On each machine
    that pulls, first name the wiki's vault, `<key>` being this wiki's key in `{{@brain-cli}} machine
-   wikis ls` (the `credentials` row of `{{@brain-cli-ops}} doctor` names the same
+   wikis list` (the `credentials` row of `{{@brain-cli-ops}} doctor` names the same
    line):
 
    ```sh

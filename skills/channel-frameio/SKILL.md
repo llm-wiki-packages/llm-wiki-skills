@@ -249,7 +249,7 @@ to one):
 ```
 
 with the body on stdin — or `{{@brain-cli-ops}} page edit '<its path>' … --stdin`
-where `page ls resource=<view url>` finds the job's page for the leaf, wherever
+where `page list resource=<view url>` finds the job's page for the leaf, wherever
 a person renamed it. A page a person moved out of `dest` or holds (Draft,
 Archive), or the ticket's `held[]` names, is left alone: `ok`, nothing written. A video leaf gets `ops.extracted=queued` and `ops.media=<capture_dir>/video.mp4` with an
 EMPTY body instead: that is the transcribe stage's item queue, and a page

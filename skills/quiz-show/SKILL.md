@@ -68,7 +68,7 @@ that renames the hosts should match the names the operator mapped there.
 
 ```sh
 {{@brain-cli-ops}} page types log
-{{@brain-cli-ops}} page ls filter=type:log filter=under:<the log type's dir>
+{{@brain-cli-ops}} page list filter=type:log filter=under:<the log type's dir>
 {{@brain-cli-ops}} page read "<log path>"
 ```
 
@@ -114,7 +114,7 @@ With a focus, the concepts it names, matched by title and `aliases`, and the
 questions that test them:
 
 ```sh
-{{@brain-cli-ops}} page ls filter=type:concept
+{{@brain-cli-ops}} page list filter=type:concept
 {{@brain-cli-ops}} page read "<concept path>" fields=aliases
 {{@brain-cli-ops}} page backlinks "<concept path>"
 ```
@@ -168,7 +168,7 @@ a voice nobody mapped.
 ## 5. Write the episode page
 
 ```sh
-{{@brain-cli-ops}} page ls filter=under:wiki/podcasts
+{{@brain-cli-ops}} page list filter=under:wiki/podcasts
 ```
 
 The episode is titled `<YYYY-MM-DD> <the show's name> — <the focus, or

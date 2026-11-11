@@ -11,7 +11,7 @@ Ask the pull cadence (default daily) — that becomes `every` on the
 watch; the manifest pre-answers `1d`.
 
 Customized is the point: writing the operator's filters into `## Stages`
-makes `skills ls` report the skill `customized`. That is configuration the
+makes `skills list` report the skill `customized`. That is configuration the
 wiki owns, not drift to repair — say so in your report so nobody "fixes"
 it with `skills install --force`.
 

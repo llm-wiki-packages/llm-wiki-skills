@@ -77,8 +77,8 @@ With the operator present:
 
    ```sh
    {{@brain-cli-ops}} op open grill
-   {{@brain-cli-ops}} jobs ls
-   {{@brain-cli-ops}} page ls filter=under:wiki/profile
+   {{@brain-cli-ops}} jobs list
+   {{@brain-cli-ops}} page list filter=under:wiki/profile
    {{@brain-cli-ops}} search status
    ```
 

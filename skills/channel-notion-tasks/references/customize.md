@@ -11,7 +11,7 @@ Ask the pull cadence (default daily) — that becomes `every` on
 the watch.
 
 Customized is the point: writing the operator's databases and filters into
-SKILL.md makes `skills ls` report the skill `customized`. That is
+SKILL.md makes `skills list` report the skill `customized`. That is
 configuration the wiki owns, not drift to repair — say so in your report
 so nobody "fixes" it with `skills install --force`.
 

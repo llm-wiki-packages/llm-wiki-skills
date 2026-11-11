@@ -106,7 +106,7 @@ No network, no credential — everything this step needs is under `capture_dir`.
 It renders `meta.json` into the page
 — H1, creator line, the capture's warnings, the description as quoted data,
 the item table with each item's audio route — and writes it under the ticket's `dest`
-itself: `page edit` of the job's page for the entity (`page ls resource=`),
+itself: `page edit` of the job's page for the entity (`page list resource=`),
 wherever a person renamed it, else `page create`. A page a person moved out of
 `dest` or holds (Draft, Archive), or the ticket's `held[]` names, is left alone, handed to the report step as a
 verdict like an excluded one. The entity's facts ride as frontmatter keys, plus `resource`

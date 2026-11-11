@@ -120,7 +120,7 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
    `page`), `venue=hubspot-cms`, `published` (the leaf's `published.txt`, or
    left out), `mux_playback_id`, `video_url`, `player_url`, `external_url` and
    `source_title` where the venue's title and the capture's differ; every
-   value lands as a string. First `--json page ls 'filter=under:<dest>'
+   value lands as a string. First `--json page list 'filter=under:<dest>'
    'resource=<item>'`: the job's row (`job` the `slug`, or none) takes the keys by `page
    edit '<its path, as spelled>' --stdin`, none `page create` (its exit 2, or two rows:
    `--failed`); left alone if `draft`, `archive`, `known[]` `moved` or `held[]` (say its `status`).
