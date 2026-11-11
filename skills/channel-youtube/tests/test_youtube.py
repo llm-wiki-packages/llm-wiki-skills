@@ -196,7 +196,7 @@ def _stub_ops(tmp_path, ticket=None):
         "pathlib.Path(os.getcwd(), 'page-calls.jsonl').open('a').write(json.dumps(argv) + '\\n')\n"
         "index = pathlib.Path(os.getcwd(), 'pages.json')\n"
         "pages = json.loads(index.read_text()) if index.exists() else []\n"
-        "if verb[1] == 'ls':\n"
+        "if verb[1] == 'list':\n"
         "    print(json.dumps({'pages': [row for row in pages if row.get('resource') == pairs.get('resource')]}))\n"
         "    sys.exit(0)\n"
         "if verb[1] == 'create':\n"
@@ -273,7 +273,7 @@ def test_process_writes_the_page_under_dest_through_the_page_verbs(tmp_path):
     assert "stubbed words" in (tmp_path / out["written"][0]).read_text()
     assert "stubbed words" in (cap / "page.md").read_text()
     (lookup, create) = _page_calls(tmp_path)
-    assert lookup == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
+    assert lookup == ["--json", "page", "list", f"filter=under:{DEST}", f"resource={ITEM}"]
     assert create[:3] == ["--json", "page", "create"] and "--stdin" in create
     assert f"title={META['title']}" in create and f"dest={DEST}" in create
     assert "ops.extracted=true" in create and f"resource={ITEM}" in create
@@ -287,12 +287,12 @@ def test_a_second_pull_edits_the_page_dest_already_holds(tmp_path):
     _build(tmp_path, cap, "--format-transcript", fmt)
     _build(tmp_path, cap, "--format-transcript", fmt)
     verbs = [[a for a in call if not a.startswith("--")][:3] for call in _page_calls(tmp_path)]
-    assert [v[:2] for v in verbs] == [["page", "ls"], ["page", "create"], ["page", "ls"], ["page", "edit"]], verbs
+    assert [v[:2] for v in verbs] == [["page", "list"], ["page", "create"], ["page", "list"], ["page", "edit"]], verbs
     assert verbs[3][2] == f"{DEST}/{META['title']}.md", verbs
 
 
 def _seed(root, *rows):
-    """Pages already in the wiki, as the stub's `page ls` lists them; each file is written too."""
+    """Pages already in the wiki, as the stub's `page list` lists them; each file is written too."""
     for row in rows:
         (root / row["path"]).parent.mkdir(parents=True, exist_ok=True)
         (root / row["path"]).write_text("a person's text\n")
@@ -317,7 +317,7 @@ def test_two_pages_for_one_video_fail_naming_both_and_write_neither(tmp_path):
     _seed(tmp_path, {"path": f"{DEST}/One.md", "document_id": "doc-1"}, {"path": f"{DEST}/Two.md", "document_id": "doc-2"})
     cp = _build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), check=False)
     assert cp.returncode != 0 and f"{DEST}/One.md" in cp.stderr and f"{DEST}/Two.md" in cp.stderr
-    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+    assert [call[2] for call in _page_calls(tmp_path)] == ["list"]
 
 
 @pytest.mark.parametrize("held", [{"moved": True}, {"draft": True}, {"archive": True}])
@@ -327,7 +327,7 @@ def test_a_page_a_person_moved_or_holds_is_left_alone(tmp_path, held):
     out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path))).stdout)
     assert out["written"] == [] and "left alone" in out["left"]
     assert json.loads((cap / "written.json").read_text()) == []
-    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+    assert [call[2] for call in _page_calls(tmp_path)] == ["list"]
 
 
 def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path):
@@ -336,12 +336,12 @@ def test_a_page_known_moved_out_of_dest_is_left_alone(tmp_path):
     stub = _stub_ops(tmp_path, ticket=_default_ticket(cap, tmp_path, "process", known=[moved]))
     out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), ops=stub).stdout)
     assert out["written"] == [] and "wiki/Kept.md: moved" in out["left"]
-    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+    assert [call[2] for call in _page_calls(tmp_path)] == ["list"]
 
 
 @pytest.mark.parametrize("status", ["draft", "deprecated", "unstamped", "edited", "settling", "conflict"])
 def test_a_page_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status):
-    """`held[]` names pages `page ls` shows nothing odd about — edited, settling, unstamped — so the ticket decides."""
+    """`held[]` names pages `page list` shows nothing odd about — edited, settling, unstamped — so the ticket decides."""
     cap = _ticketed(tmp_path)
     mine = f"{DEST}/Mine.md"
     _seed(tmp_path, {"path": mine, "document_id": "doc-1"})
@@ -349,7 +349,7 @@ def test_a_page_the_tickets_held_names_is_left_alone_saying_why(tmp_path, status
     stub = _stub_ops(tmp_path, ticket=_default_ticket(cap, tmp_path, "process", held=held))
     out = json.loads(_build(tmp_path, cap, "--format-transcript", str(_stub_formatter(tmp_path)), ops=stub).stdout)
     assert out["written"] == [] and out["left"] == f"{mine}: held ({status}), left alone"
-    assert [call[2] for call in _page_calls(tmp_path)] == ["ls"]
+    assert [call[2] for call in _page_calls(tmp_path)] == ["list"]
     assert (tmp_path / mine).read_text() == "a person's text\n"
 
 

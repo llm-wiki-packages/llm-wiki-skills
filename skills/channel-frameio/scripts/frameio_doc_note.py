@@ -32,7 +32,7 @@ command:
     llm-wiki-ops page create "title=<safe title>" "dest=<dest>" \
         "resource=<view url>" "type=doc" "ops.extracted=true" --stdin
 
-with the body on stdin — or, where `page ls resource=<view url>` finds the
+with the body on stdin — or, where `page list resource=<view url>` finds the
 job's page for the leaf, `page edit <its path>` with the same keys,
 wherever in `dest` a person renamed it. A page a person moved out of `dest` or
 holds (Draft, Archive), or the ticket's `held[]` names, is left alone: `ok`, nothing written, the reason
@@ -256,7 +256,7 @@ def render_body(*, title, url, facts, orig_name, breadcrumb, extracted) -> str:
 
 
 def identity_match(rows, slug, dest):
-    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    """The one page of job `slug` a `page list resource=` answer names: `(row, None)`, `(None, None)` where there is none,
     `(None, <why>)` where there are several — never one picked.
 
     A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
@@ -284,8 +284,8 @@ def left_alone(row):
 
 
 def moved_rows(known, resource, slug, resource_id=None):
-    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
-    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page list` rows: a stage's
+    `page list` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
     that one: a ledger's days share one `resource`."""
     return [
         {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
@@ -302,7 +302,7 @@ def held_reason(held, resource, path=None, resource_id=None):
 
     `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
     `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
-    `page ls` shows, so the ticket is the one place they are named."""
+    `page list` shows, so the ticket is the one place they are named."""
     for one in held or ():
         if isinstance(one, dict) and (
             (path is not None and one.get("path") == path)
@@ -319,7 +319,7 @@ def _said(cp):
 def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, known=(), held=()):
     """The page under `dest`, through the front door: `(<wiki-relative path>, None)` written, `(None, <why>)` left alone.
 
-    The page is found by identity first — `page ls resource=<view url>`, the job's rows of it (`identity_match`) —
+    The page is found by identity first — `page list resource=<view url>`, the job's rows of it (`identity_match`) —
     so a page a person renamed inside `dest` is edited at the path the lookup found, never duplicated under the title. No
     row: `page create`; a page at the title's path then is another item's, and is never written over. The arguments
     are an argv LIST and `shell=False`: every value on them is venue text — a title, a filename, a folder name —
@@ -337,16 +337,16 @@ def write_page(wiki: Path, dest: str, title: str, keys, body: str, slug=None, kn
     resource = next((key.split("=", 1)[1] for key in keys if key.startswith("resource=")), None)
     target = None
     if resource:
-        # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
+        # Scoped to dest (2026-11-02): in a stage's jail, `page list` walked from the wiki root lists nothing the jail does not grant.
         listed = subprocess.run(
-            [*door, "--json", "page", "ls", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where
+            [*door, "--json", "page", "list", f"filter=under:{dest}", f"resource={resource}"], capture_output=True, text=True, **where
         )
         try:
             rows = json.loads(listed.stdout).get("pages")
         except (ValueError, AttributeError):
             rows = None
         if listed.returncode != 0 or not isinstance(rows, list):
-            sys.exit(f"frameio_doc_note: `page ls resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
+            sys.exit(f"frameio_doc_note: `page list resource=` did not answer (exit {listed.returncode}) — no page was written.\n{_said(listed)}")
         row, why = identity_match(rows + moved_rows(known, resource, slug), slug, dest)
         if why:
             sys.exit(f"frameio_doc_note: {why}")

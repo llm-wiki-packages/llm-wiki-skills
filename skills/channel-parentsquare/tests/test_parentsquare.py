@@ -165,7 +165,7 @@ DATE = DAY.rsplit("/", 1)[-1]
 
 
 def _stub(tmp_path, *, page_exists=False, capture_dir=DAY, pages=(), held=None, ticket_rows=None):
-    """A recording front door: `tickets open` answers the process ticket; `page ls` answers `pages`, `page read` the
+    """A recording front door: `tickets open` answers the process ticket; `page list` answers `pages`, `page read` the
     frontmatter `held` (none: a page with no `resource`); `page create` refuses where the day's page exists."""
     stub = tmp_path / "ops_stub.py"
     ticket = {"ticket": "t1", "stage": "process", "slug": "ps", "capture_dir": capture_dir, "dest": DEST, **(ticket_rows or {})}
@@ -174,7 +174,7 @@ def _stub(tmp_path, *, page_exists=False, capture_dir=DAY, pages=(), held=None, 
         "argv = sys.argv[1:]; verb = [a for a in argv if not a.startswith('--')]\n"
         "open(os.environ['FAKE_CALLS'], 'a').write(json.dumps({'argv': argv, 'stdin': sys.stdin.read() if '--stdin' in argv else None}) + '\\n')\n"
         f"if verb[:2] == ['tickets', 'open']: print(json.dumps({{'ticket': {ticket!r}}})); sys.exit(0)\n"
-        f"if verb[:2] == ['page', 'ls']: print(json.dumps({{'pages': json.loads({json.dumps(list(pages))!r})}})); sys.exit(0)\n"
+        f"if verb[:2] == ['page', 'list']: print(json.dumps({{'pages': json.loads({json.dumps(list(pages))!r})}})); sys.exit(0)\n"
         f"if verb[:2] == ['page', 'read']: print(json.dumps({{'frontmatter': json.loads({json.dumps(held or {})!r})}})); sys.exit(0)\n"
         f"if verb[:2] == ['page', 'create'] and {page_exists!r}: print('exists', file=sys.stderr); sys.exit(2)\n"
         "print('{}')\n"
@@ -214,8 +214,8 @@ def test_the_ledger_is_built_from_the_items_with_rows_only_where_judged(tmp_path
     (create,) = [c for c in calls if c["argv"][:2] == ["page", "create"]]
     assert {"title=2026-10-03", f"dest={DEST}", "type=ledger", "channel=ps", "date=2026-10-03", "items=2", "ops.extracted=true", "status=",
             "resource=parentsquare:ledger", "ops.resource_id=parentsquare:day:2026-10-03"} <= set(create["argv"])
-    (lookup,) = [c for c in calls if c["argv"][1:3] == ["page", "ls"]]
-    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
+    (lookup,) = [c for c in calls if c["argv"][1:3] == ["page", "list"]]
+    assert lookup["argv"] == ["--json", "page", "list", f"filter=under:{DEST}", "resource=parentsquare:ledger", "resource_id=parentsquare:day:2026-10-03"]
     assert create["stdin"] == (
         "- Lincoln: Early dismissal Friday — parentsquare:ps-post-1\n"
         "- Lincoln: picture day forms due 10/10 — parentsquare:ps-notice-4-0a1b2c3d4e5f\n"

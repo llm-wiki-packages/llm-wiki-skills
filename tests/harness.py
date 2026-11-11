@@ -656,7 +656,7 @@ def shown(ops: list, env: dict, wiki: Path, ticket: str) -> dict:
 def pending(ops: list, env: dict, wiki: Path, slug: str, stage: str = "process") -> dict[str, str]:
     """The tickets the landing of a job's last stage minted for `stage`, still
     pending: `{capture_dir: id}`. The pass a slice's exit runs is what lands it."""
-    r = run(ops, rooted(env, wiki), "--json", "tickets", "ls")
+    r = run(ops, rooted(env, wiki), "--json", "tickets", "list")
     assert r.returncode == 0, r.stdout + r.stderr
     ids = [t["id"] for t in r.data["tickets"] if t["slug"] == slug and t["stage"] == stage and t["state"] == "pending"]
     found = {shown(ops, env, wiki, one)["capture_dir"]: one for one in ids}

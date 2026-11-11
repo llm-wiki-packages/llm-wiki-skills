@@ -234,7 +234,7 @@ def front_door(tmp_path, ticket):
         "    print(json.dumps({'path': verb[2]})); sys.exit(0)\n"
         "if verb[:3] == ['page', 'root', 'apply']:\n"
         "    print(json.dumps({'changed': 0})); sys.exit(0)\n"
-        "if verb[:2] == ['page', 'ls']:\n"
+        "if verb[:2] == ['page', 'list']:\n"
         "    under = next(a.split(':', 1)[1] for a in verb if a.startswith('filter=under:'))\n"
         "    roots = [p.as_posix() for p in sorted(pathlib.Path(under).rglob('*.md')) if p.read_text().split('\\n---', 1)[0].count('\\n  root: ') and 'true' in p.read_text().split('\\n  root: ', 1)[1].split('\\n', 1)[0]]\n"
         "    print(json.dumps({'pages': [{'path': r} for r in roots], 'count': len(roots)})); sys.exit(0)\n"
@@ -565,7 +565,7 @@ def test_the_course_overview_makes_the_course_root_once(tmp_path):
     assert (tmp_path / "_raw/psy/course/items/course/root-made.json").is_file()
     (tmp_path / "calls.log").unlink()
     _, calls, _ = run_stage(tmp_path, "process.py", _course_ticket(tmp_path))
-    assert not [c for c in calls if "title=README" in c["argv"] or c["argv"][1:3] == ["page", "ls"]]
+    assert not [c for c in calls if "title=README" in c["argv"] or c["argv"][1:3] == ["page", "list"]]
 
 
 def test_a_root_that_exists_is_left_and_the_question_is_settled(tmp_path):

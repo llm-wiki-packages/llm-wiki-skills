@@ -870,7 +870,7 @@ def _run_script(name, *argv, cwd, env=None):
 def _stub_front_door(tmp, ticket_dict=None):
     """A recording `llm-wiki-ops` on PATH, for a case with no wiki behind it.
     Answers `tickets open`/`tickets update` for real; a `page` call is
-    recorded and answered `{"ok": true}`, `page ls` with no pages. Returns `(env, seen)`; `seen` holds
+    recorded and answered `{"ok": true}`, `page list` with no pages. Returns `(env, seen)`; `seen` holds
     one JSON line per call."""
     bin_dir = Path(tempfile.mkdtemp(prefix="stub-door-", dir=tmp))
     seen = bin_dir / "seen.jsonl"
@@ -887,7 +887,7 @@ def _stub_front_door(tmp, ticket_dict=None):
         "    sys.exit(0)\n"
         "if argv[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
-        "if argv[:2] == ['page', 'ls']:\n"
+        "if argv[:2] == ['page', 'list']:\n"
         "    print(json.dumps({'pages': []}))\n"
         "    sys.exit(0)\n"
         "print(json.dumps({'ok': True}))\n"

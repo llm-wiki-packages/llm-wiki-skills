@@ -70,7 +70,7 @@ def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))",
     cwd, stdin (a `page` call's alone — `tickets open`/`update` pass none) and
     the binding it inherited to `seen.jsonl`. `tickets open` answers `ticket`
     (default: a bare ticket with no `process` section); `tickets update`
-    answers a bare 0; `page ls` answers `pages`; `body` runs for everything else (`page create`/`edit`)."""
+    answers a bare 0; `page list` answers `pages`; `body` runs for everything else (`page create`/`edit`)."""
     bin_dir = root.parent / "stub-bin"
     bin_dir.mkdir(exist_ok=True)
     seen = root.parent / "seen.jsonl"
@@ -89,7 +89,7 @@ def _front_door(root: Path, monkeypatch, body="print(json.dumps({'ok': True}))",
         "    sys.exit(0)\n"
         "if argv[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
-        "if argv[:2] == ['page', 'ls']:\n"
+        "if argv[:2] == ['page', 'list']:\n"
         f"    print(json.dumps({{'pages': json.loads({json.dumps(list(pages))!r})}}))\n"
         "    sys.exit(0)\n"
         f"{body}\n"
@@ -105,12 +105,12 @@ def _calls(seen: Path) -> list:
 
 
 def _page_calls(seen: Path) -> list:
-    """The page writes; `_lookups` is the `page ls` before them."""
-    return [c for c in _calls(seen) if c["argv"][1:2] == ["page"] and c["argv"][2:3] != ["ls"]]
+    """The page writes; `_lookups` is the `page list` before them."""
+    return [c for c in _calls(seen) if c["argv"][1:2] == ["page"] and c["argv"][2:3] != ["list"]]
 
 
 def _lookups(seen: Path) -> list:
-    return [c for c in _calls(seen) if c["argv"][1:3] == ["page", "ls"]]
+    return [c for c in _calls(seen) if c["argv"][1:3] == ["page", "list"]]
 
 
 def _update_calls(seen: Path) -> list:
@@ -186,7 +186,7 @@ def test_the_jobs_page_for_the_leaf_is_edited_wherever_it_was_renamed(tmp_path, 
     assert json.loads(capsys.readouterr().out)["written"] == [renamed]
 
     (lookup,) = _lookups(seen)
-    assert lookup["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={URL}"]
+    assert lookup["argv"] == ["--json", "page", "list", f"filter=under:{DEST}", f"resource={URL}"]
     (edit,) = _page_calls(seen)
     assert edit["argv"][:4] == ["--json", "page", "edit", renamed]
     assert f"resource={URL}" in edit["argv"] and edit["argv"][-1] == "--stdin"

@@ -76,7 +76,7 @@ def _frontmatter(text: str) -> str | None:
 def _routine_job(ops, env, wiki) -> str:
     """The seeded job whose routine names this unit, found by its skill so
     the seed's slug is not this file's to know."""
-    r = run(ops, rooted(env, wiki), "--json", "jobs", "ls")
+    r = run(ops, rooted(env, wiki), "--json", "jobs", "list")
     assert r.returncode == 0, r.stdout + r.stderr
     slugs = [j["slug"] for j in r.data["jobs"] if j.get("skill") == "morning-brief"]
     assert len(slugs) == 1, f"no one seeded job runs morning-brief: {[(j['slug'], j.get('skill')) for j in r.data['jobs']]}"
