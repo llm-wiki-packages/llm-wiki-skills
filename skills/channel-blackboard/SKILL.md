@@ -12,7 +12,7 @@ sends. No institution-registered REST app, no OAuth app key.
 
 A followed course runs as a job with two script stages and no model session:
 `harvest.py` pulls the course and splits it into one capture per item, the
-plugin's transcribe stage speaks a video with no captions, and `process.py`
+plugin's extract stage speaks a video with no captions, and `process.py`
 writes each capture's page; one portal job can follow every enrolled course
 (`references/portal.md`). By hand, this skill signs in, lists, and harvests.
 
@@ -63,7 +63,7 @@ One job per course; the target is the course's url as the browser shows it.
 ```
 
 The manifest supplies `every=1d`, a `dest` of `sources/courses/<slug>` and a
-`transcribe` section (`when: if-no-captions`). `options.files=skip` fetches
+`extract` section (`when: if-no-captions`). `options.files=skip` fetches
 no attachment, pdf or video. Discussion boards are pulled by default, and
 each board's page carries every classmate's name and post into `sources/`,
 which is committed and pushed to the wiki's remote;

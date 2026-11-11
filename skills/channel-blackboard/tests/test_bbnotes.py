@@ -848,16 +848,16 @@ def test_the_course_capture_makes_each_module_root_once_and_links_by_path(tmp_pa
 
 def test_the_jobs_root_keys_go_on_the_course_root_over_the_units(tmp_path):
     _modules_captures(tmp_path)
-    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"group": "Psych", "extract": "light"}))
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"group": "Psych", "mine": "light"}))
     course = next(c["argv"] for c in calls if "title=README" in c["argv"] and "dest=sources/courses/psy" in c["argv"])
-    assert "group=Psych" in course and "group=PSY 2301" not in course and "ops.extract=light" in course
+    assert "group=Psych" in course and "group=PSY 2301" not in course and "ops.mine=light" in course
 
 
 def test_the_jobs_dotted_root_keys_go_on_the_course_root_as_they_are(tmp_path):
     _modules_captures(tmp_path)
-    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"ops.extract": "light", "ops.edits": "merge"}))
+    _, calls, _ = run_stage(tmp_path, "process.py", _modules_ticket(tmp_path, "course", root={"ops.mine": "light", "ops.edits": "merge"}))
     course = next(c["argv"] for c in calls if "title=README" in c["argv"] and "dest=sources/courses/psy" in c["argv"])
-    assert "ops.extract=light" in course and "ops.edits=merge" in course and "extract=light" not in [a for a in course if not a.startswith("ops.")]
+    assert "ops.mine=light" in course and "ops.edits=merge" in course and "mine=light" not in [a for a in course if not a.startswith("ops.")]
 
 
 def test_a_removed_capture_dates_its_page_and_writes_nothing_else(tmp_path):

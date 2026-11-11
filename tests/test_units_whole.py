@@ -519,10 +519,10 @@ def test_the_directory_body_scan_finds_the_units_it_was_written_for():
 
 
 @pytest.mark.parametrize("name", DIRECTORY_BODY)
-def test_a_unit_with_a_directory_body_ships_transcribe_off(name):
-    """The host's transcribe stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
+def test_a_unit_with_a_directory_body_ships_extract_off(name):
+    """The host's extract stage fails a capture whose `body` is not a regular file, so a job declared with the catalog defaults would never reach process."""
     defaults = unit_manifest(name)["watch"]["defaults"]
-    assert "transcribe" in defaults and defaults["transcribe"] is None, defaults
+    assert "extract" in defaults and defaults["extract"] is None, defaults
 
 
 # Units that serve the enrich stage and nothing else: they write no page, so

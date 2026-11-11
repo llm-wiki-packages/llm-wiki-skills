@@ -80,7 +80,7 @@ Assets next, **before** the report — a slice that ends has no second chance:
 `download-audio`, `--mode reference` for `reference`. DRM items are in no
 `assets.json` under any policy. Downloaded episodes are transcribed by nothing
 — a transcript cannot ride beside a text page — so say so if the job's
-`transcribe` policy expected text.
+`extract` policy expected text.
 
 ```
 {{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id>

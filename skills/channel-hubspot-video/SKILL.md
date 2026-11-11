@@ -125,7 +125,7 @@ single quote cannot be quoted that way, so report `--ticket <id> --failed
    edit '<its path, as spelled>' --stdin`, none `page create` (its exit 2, or two rows:
    `--failed`); left alone if `draft`, `archive`, `known[]` `moved` or `held[]` (say its `status`).
 5. **The transcript's own page**, where the leaf holds `media.<ext>`, empty
-   body: the transcribe stage's queue is exactly the pages under `dest`
+   body: the extract stage's queue is exactly the pages under `dest`
    flagged `ops.extracted: queued` naming a `ops.media` file, so a lesson with a video
    is two pages and `assets: reference` yields neither.
 6. **`report`** LAST: write every page into `written.json` (a JSON list,
@@ -156,7 +156,7 @@ true of the SITE go in `references/sites.json`.
    per-rendition — they die in hours. Rewrite to the stable master
    `https://stream.mux.com/<PLAYBACK_ID>.m3u8`, which does not.
 4. **No DRM, and typically no `<track>` captions**, so the transcript is the
-   page's only text: the job runs `transcribe.when: always`, and
+   page's only text: the job runs `extract.options.when: always`, and
    `harvest.assets: download-audio` suits a job wanting only that.
 5. **Drop `verifi.podscribe.com/tag`** from the asset manifest: an analytics
    beacon the generic detector types as an image.

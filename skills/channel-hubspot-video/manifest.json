@@ -24,7 +24,7 @@
   },
   "usage": "/channel-hubspot-video ticket=<id>",
   "v": 1,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "watch": {
     "defaults": {
       "every": "once",
@@ -33,7 +33,7 @@
         "assets": "download",
         "scope": "section"
       },
-      "transcribe": {
+      "extract": {
         "options": {
           "diarize": false,
           "when": "always"
