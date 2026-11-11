@@ -27,7 +27,17 @@
   "name": "channel-blackboard",
   "requires": {
     "credentials": {
-      "dir": "required"
+      "dir": "required",
+      "keepalive": [
+        {
+          "name": "blackboard",
+          "url": "/ultra/course",
+          "lands_on": "/ultra",
+          "idle_timeout": "3h",
+          "script": "scripts/bb.py whoami --site={origin} --sso={sso?}",
+          "signed_out_exit": 2
+        }
+      ]
     },
     "ops": ">=0.16.0"
   },
@@ -42,7 +52,7 @@
   },
   "usage": "/channel-blackboard <whoami|courses|harvest <courseId>|notes <harvest dir>>; a job's stages run by ticket",
   "v": 1,
-  "version": "0.5.1",
+  "version": "0.6.0",
   "watch": {
     "dest": "sources/courses/{slug}",
     "defaults": {

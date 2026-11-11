@@ -23,6 +23,22 @@ skills search <domain>` answers from the wiki's copy.
   identity-provider session signs Learn in with no prompt. A page with one
   link needs no option. A page with several (students and staff, say) needs
   the one the person clicks: it is the `apId=` in that button's link.
+  The keepalive check below passes it to `bb.py whoami` too.
+
+## Staying signed in (keepalive)
+
+The manifest declares one keepalive target, `blackboard`. On a machine
+whose runner polls the wiki, the tick visits `/ultra/course` on the
+credential's host inside Learn's 3 h idle timeout, and runs
+`scripts/bb.py whoami --site={origin} --sso={sso?}` in the harvest jail.
+The script's exit decides: 0 passes (and renews the session through SSO
+where it had lapsed), 2 means the session is gone, so the course jobs are
+skipped and the person is asked to run `credentials login` again.
+`{origin}` is the credential's host. `--sso` is dropped where no job sets
+`options.sso`, and every job on the credential must agree on it.
+`{{@brain-cli-ops}} credentials info <credential>` shows the target's last
+result. A wiki whose Learn times out sooner sets a shorter `idle_timeout`
+in its installed copy.
 
 ## Sandbox
 

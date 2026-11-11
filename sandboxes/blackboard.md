@@ -4,6 +4,11 @@ The sandbox for the Blackboard venue's `harvest` stage: `bb.py` driving
 Playwright's browser build against the institution's Blackboard host, on the
 signed-in credential.
 
+`bb.py` is listed under `harvest`, with `credential: true`, so a
+`llm-wiki-ops run` of it (by hand, or as the keepalive check below) runs in
+the harvest jail on the credential's slot. Without it, `run` maps `bb.py` to
+`routine`, which is handed no credential.
+
 `process` and `routine` add nothing to their stock bases: `process.py`
 reads the capture and writes pages, with no network.
 
