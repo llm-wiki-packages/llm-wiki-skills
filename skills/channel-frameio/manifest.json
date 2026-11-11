@@ -26,7 +26,7 @@
         }
       }
     ],
-    "ops": ">=0.16.0"
+    "ops": ">=0.17.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:frameio",
   "stages": {
@@ -35,7 +35,7 @@
   },
   "usage": "/channel-frameio ticket=<id>",
   "v": 1,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "watch": {
     "defaults": {
       "every": "once",

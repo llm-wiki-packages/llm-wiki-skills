@@ -15,7 +15,7 @@
   ],
   "name": "morning-brief",
   "requires": {
-    "ops": ">=0.10.0"
+    "ops": ">=0.17.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:morning-brief",
   "stages": {
@@ -25,5 +25,5 @@
   },
   "usage": "/morning-brief [date|focus|setup]",
   "v": 1,
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

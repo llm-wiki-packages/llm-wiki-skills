@@ -21,7 +21,7 @@
   ],
   "name": "channel-spotify",
   "requires": {
-    "ops": ">=0.16.0"
+    "ops": ">=0.17.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:spotify",
   "stages": {
@@ -30,7 +30,7 @@
   },
   "usage": "/channel-spotify ticket=<id>",
   "v": 1,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "watch": {
     "defaults": {
       "every": "once",
