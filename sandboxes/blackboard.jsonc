@@ -7,6 +7,11 @@
   "stages": {
     "harvest": {
       "extends": "harvest",
+      // `bb.py` runs here when `llm-wiki-ops run` starts it by hand or as the
+      // keepalive check (manifest `requires.credentials.keepalive`), and the
+      // run is handed the credential's slot as a harvest slice is.
+      "scripts": ["scripts/bb.py"],
+      "credential": true,
       // Playwright's browser build, which bb.py launches.
       "machine_reads": ["playwright-cache"],
       "network": {
