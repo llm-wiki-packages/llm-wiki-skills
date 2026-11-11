@@ -1,4 +1,4 @@
-# Daily-report setup — the interview, the template, and who owns what
+# Morning-brief setup — the interview, the template, and who owns what
 
 The audience is any agent asked to produce a morning brief, or to change how
 one looks or reads. Read it before touching the template or authoring a

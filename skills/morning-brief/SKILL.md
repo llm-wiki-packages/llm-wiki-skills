@@ -4,7 +4,7 @@ description: Use when asked for the morning brief, daily report or dashboard, wh
 argument-hint: "[date|focus|setup]"
 ---
 
-# Daily-report — the profile-aware morning synthesis
+# Morning-brief — the profile-aware morning synthesis
 
 Writes the day's report pages, a narrow set of wiki promotions, and — only
 with an operator at the keyboard — the first-run seeds. Judgment-heavy: for a
