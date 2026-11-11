@@ -14,6 +14,14 @@ reads the capture and writes pages, with no network.
 - `blackboard.com`, `*.blackboard.com`: Blackboard-hosted sites.
 - `*.blackboardcdn.com`: the CDN every `/bbcswebdav/` file redirects to,
   under a signed URL.
+- **The institution's identity provider, per wiki.** Where `options.sso` (or a
+  sign-in page with one SAML link) renews an expired session, the browser
+  leaves the Blackboard host for the identity provider's sign-in host and
+  comes back. Add that host to this wiki's `harvest` stage
+  `network.allow_domain`. For Microsoft Entra ID it is
+  `login.microsoftonline.com`. Add no other host the identity provider loads
+  unless a denial on a renewing harvest names it. The template ships none:
+  which identity provider an institution uses is the wiki's fact.
 
 The model endpoints are the harness profile's; see `{{@brain-cli-ops}} reference
 harness`.
