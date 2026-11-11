@@ -708,13 +708,13 @@ def door(tmp_path):
         return env
 
     every = lambda: json.loads(seen.read_text(encoding="utf-8")) if seen.exists() else []  # noqa: E731
-    plan.calls = lambda: [c for c in every() if c["argv"][1:3] not in (["page", "ls"], ["page", "read"])]
-    plan.lookups = lambda: [c for c in every() if c["argv"][1:3] in (["page", "ls"], ["page", "read"])]
+    plan.calls = lambda: [c for c in every() if c["argv"][1:3] not in (["page", "list"], ["page", "read"])]
+    plan.lookups = lambda: [c for c in every() if c["argv"][1:3] in (["page", "list"], ["page", "read"])]
     return plan
 
 
 def landed(directory: Path, ticket: dict, door, *steps, pages=()):
-    """The ledger step, its `page ls` answered `pages` before the planned `steps`."""
+    """The ledger step, its `page list` answered `pages` before the planned `steps`."""
     return script("ledger", directory, ticket, env=door(ticket, (0, {"pages": list(pages)}), *steps))
 
 
@@ -729,7 +729,7 @@ def test_the_ledger_goes_through_the_front_door_as_an_argv_list_with_the_body_on
                             "type=ledger", "channel=tasks", f"date={DAY}", "items=1", "ops.extracted=true",
                             "resource=notion:ledger", f"ops.resource_id=notion:day:{DAY}", "status=", "--stdin"]
     (lookup,) = door.lookups()
-    assert lookup["argv"] == ["--json", "page", "ls", "filter=under:research/channels/tasks", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
+    assert lookup["argv"] == ["--json", "page", "list", "filter=under:research/channels/tasks", "resource=notion:ledger", f"resource_id=notion:day:{DAY}"]
     assert call["stdin"].startswith("- checklist moved to Doing — notion:0000aaaa-0001")
     assert call["inherited"] == []  # CLAUDE_PROJECT_DIR dropped: the harness's project dir, never a wiki root; the cwd picks the wiki
     assert call["cwd"] == str(directory.parents[2])

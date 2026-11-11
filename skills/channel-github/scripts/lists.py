@@ -9,7 +9,7 @@ it in the routine stage's jail as
 It reads its ticket for `dest` (the routines job's, `research/github/<slug>`),
 opens the unit's op, writes one `type: list` page per list
 `references/lists.json` declares — each regenerated whole through `page
-create`, or `page edit` of the list page `page ls` finds by its identity
+create`, or `page edit` of the list page `page list` finds by its identity
 — and closes the op, which under the ticket is the
 report. It never commits: the host commits the pages at the landing.
 
@@ -35,7 +35,7 @@ LIST = "github:list:"
 
 
 def identity_match(rows, slug, dest):
-    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    """The one page of job `slug` a `page list resource=` answer names: `(row, None)`, `(None, None)` where there is none,
     `(None, <why>)` where there are several — never one picked.
 
     A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
@@ -63,8 +63,8 @@ def left_alone(row):
 
 
 def moved_rows(known, resource, slug, resource_id=None):
-    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
-    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page list` rows: a stage's
+    `page list` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
     that one: a ledger's days share one `resource`."""
     return [
         {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
@@ -81,7 +81,7 @@ def held_reason(held, resource, path=None, resource_id=None):
 
     `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
     `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
-    `page ls` shows, so the ticket is the one place they are named."""
+    `page list` shows, so the ticket is the one place they are named."""
     for one in held or ():
         if isinstance(one, dict) and (
             (path is not None and one.get("path") == path)
@@ -103,12 +103,12 @@ def write_list_page(
     is never written over."""
     pairs = ["type=list", f"tags={LIST_TAGS}", f"description={description[:DESCRIPTION_MAX]}"]
     ident = [f"resource={LISTS}", f"resource_id={LIST}{title}"]
-    # `page ls` filters `resource_id=`; a write puts it under `ops`.
+    # `page list` filters `resource_id=`; a write puts it under `ops`.
     write_ident = [ident[0], f"ops.{ident[1]}"]
-    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
-    rc, answer = ops_json("page", "ls", f"filter=under:{dest}", *ident)
+    # Scoped to dest (2026-11-02): in a stage's jail, `page list` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = ops_json("page", "list", f"filter=under:{dest}", *ident)
     if rc != 0 or not isinstance(answer.get("pages"), list):
-        return None, f"{title}: `page ls` did not answer: {answer.get('error') or answer}", False
+        return None, f"{title}: `page list` did not answer: {answer.get('error') or answer}", False
     # A list page a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
     row, why = identity_match(answer["pages"] + moved_rows(known, LISTS, slug, f"{LIST}{title}"), slug, dest)
     if why:

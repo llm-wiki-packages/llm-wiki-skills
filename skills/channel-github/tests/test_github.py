@@ -270,9 +270,9 @@ def _frontmatter_of(path):
 
 
 def listing(*rows):
-    """`ops_json` answering `page ls` with `rows`; every other call is refused."""
+    """`ops_json` answering `page list` with `rows`; every other call is refused."""
     def answer(*a, stdin=None):
-        if a[:2] == ("page", "ls"):
+        if a[:2] == ("page", "list"):
             return 0, {"pages": list(rows)}
         if a[:2] == ("page", "read"):  # the CLI's frontmatter answer, off the file
             return 0, {"frontmatter": _frontmatter_of(Path(a[2]))}
@@ -400,7 +400,7 @@ def test_write_reads_a_bare_judgment_name_beside_the_capture_and_reports_the_pag
     monkeypatch.setattr(page, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": "sources/github/a--one.md", "pages": []}))
     monkeypatch.setattr(page, "post_update", lambda *a, **k: updates.append((a, k)) or 0)
     assert page.main(["write", "_raw/s/a-one--12345678", "--ticket", "t1", "--from", "judgment.json"]) == 0
-    assert calls[0] == ("page", "ls", "filter=under:sources/github", "resource=https://github.com/a/one")
+    assert calls[0] == ("page", "list", "filter=under:sources/github", "resource=https://github.com/a/one")
     assert calls[1][:3] == ("page", "create", "title=a--one") and "dest=sources/github" in calls[1]
     (args, kw), = updates
     assert args[1:] == ("process", "ok") and kw["written_from"] == "written.json"
@@ -431,7 +431,7 @@ def test_write_edits_the_renamed_page_where_it_now_sits(tmp_path, monkeypatch):
 
     def ops(*a, stdin=None):
         calls.append((a, stdin))
-        if a[:2] == ("page", "ls"):
+        if a[:2] == ("page", "list"):
             return 0, {"pages": [{"path": "sources/github/My one.md", "document_id": "doc-1", "job": "s"}]}
         return 0, {"path": "sources/github/My one.md", "frontmatter": {}}
 
@@ -477,7 +477,7 @@ def test_the_routine_opens_its_op_writes_each_list_into_dest_and_closes(tmp_path
     monkeypatch.setattr(lists, "ops_json", lambda *a, stdin=None: calls.append(a) or (0, {"path": f"x/{len(calls)}.md", "pages": []}))
     assert lists.main(["--only", "Stars", "ticket=t1"]) == 0
     assert calls[0] == ("op", "open", "channel-github")
-    assert calls[1][:4] == ("page", "ls", "filter=under:research/github/lists", "resource=github:lists")
+    assert calls[1][:4] == ("page", "list", "filter=under:research/github/lists", "resource=github:lists")
     assert calls[1][4].startswith("resource_id=github:list:")
     assert calls[2][:2] == ("page", "create") and "dest=research/github/lists" in calls[2] and "type=list" in calls[2]
     assert "resource=github:lists" in calls[2] and "ops." + calls[1][4] in calls[2]
@@ -492,7 +492,7 @@ def _lists_with(monkeypatch, tmp_path, rows=(), held=None, ticket_rows=None):
 
     def ops(*a, stdin=None):
         calls.append(a)
-        if a[:2] == ("page", "ls"):
+        if a[:2] == ("page", "list"):
             return 0, {"pages": list(rows)}
         if a[:2] == ("page", "read"):
             return 0, {"frontmatter": held or {}}

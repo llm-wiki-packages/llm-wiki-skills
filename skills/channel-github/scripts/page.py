@@ -8,7 +8,7 @@ the ticket):
     page.py prepare <capture_dir> --ticket <id>
         What the session needs to judge the repo: its facts, where its README
         is, and the page the wiki ALREADY holds for it — the job's page of its
-        `resource` (`page ls`), wherever in `dest` a person renamed it, else a
+        `resource` (`page list`), wherever in `dest` a person renamed it, else a
         clip of it under `dest` (a Web Clipper clip lands there under whatever
         name the clipper gave it). Prints JSON.
 
@@ -87,7 +87,7 @@ def frontmatter_text(text: str) -> tuple[str, str]:
 
 
 def identity_match(rows, slug, dest):
-    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    """The one page of job `slug` a `page list resource=` answer names: `(row, None)`, `(None, None)` where there is none,
     `(None, <why>)` where there are several — never one picked.
 
     A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
@@ -115,8 +115,8 @@ def left_alone(row):
 
 
 def moved_rows(known, resource, slug, resource_id=None):
-    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
-    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page list` rows: a stage's
+    `page list` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
     that one: a ledger's days share one `resource`."""
     return [
         {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
@@ -133,7 +133,7 @@ def held_reason(held, resource, path=None, resource_id=None):
 
     `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
     `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
-    `page ls` shows, so the ticket is the one place they are named."""
+    `page list` shows, so the ticket is the one place they are named."""
     for one in held or ():
         if isinstance(one, dict) and (
             (path is not None and one.get("path") == path)
@@ -172,14 +172,14 @@ def find_clip(dest: Path, url: str, slug: str | None = None) -> Path | None:
 def find_held(dest: str, url: str, slug: str | None, known=(), held=()) -> tuple[Path | None, str | None, str | None]:
     """`(path, document_id, left)`: the page the wiki already holds for this repo.
 
-    The job's page of the repo's `resource` first (`page ls resource=`,
+    The job's page of the repo's `resource` first (`page list resource=`,
     `identity_match`), wherever in `dest` a person renamed it; else a clip
     (`find_clip`). `left` says why a page a person moved or holds is not this
     run's to write. Two pages for the repo refuse, naming both."""
-    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
-    rc, answer = ops_json("page", "ls", f"filter=under:{dest}", f"resource={url}")
+    # Scoped to dest (2026-11-02): in a stage's jail, `page list` walked from the wiki root lists nothing the jail does not grant.
+    rc, answer = ops_json("page", "list", f"filter=under:{dest}", f"resource={url}")
     if rc != 0 or not isinstance(answer.get("pages"), list):
-        die(f"`page ls resource=` did not answer ({rc}): {answer.get('error') or answer}")
+        die(f"`page list resource=` did not answer ({rc}): {answer.get('error') or answer}")
     row, why = identity_match(answer["pages"] + moved_rows(known, url, slug), slug, dest)
     if why:
         die(why)

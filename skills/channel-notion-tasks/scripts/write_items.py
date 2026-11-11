@@ -69,7 +69,7 @@ clock is ignored, out loud, and the lookback stands in.
 own words — `[{"id": "<task-id>", "line": "<one factual line>", "junk": null |
 "<rule>"}]`, one row per item, on stdin or in `--from` — and writes the day's
 ledger under `dest` through the front door: `page edit` of the day's
-ledger (`page ls resource=notion:ledger resource_id=notion:day:<day>`), wherever
+ledger (`page list resource=notion:ledger resource_id=notion:day:<day>`), wherever
 a person renamed it, else `page create`. The page is regenerated WHOLE every run, because
 the day directory is the source of truth. An item no row names keeps its own
 title as its bullet and the run reports `partial`: a rerun loses no item, and
@@ -771,7 +771,7 @@ def ledger_body(items, by_id):
 
 
 def identity_match(rows, slug, dest):
-    """The one page of job `slug` a `page ls resource=` answer names: `(row, None)`, `(None, None)` where there is none,
+    """The one page of job `slug` a `page list resource=` answer names: `(row, None)`, `(None, None)` where there is none,
     `(None, <why>)` where there are several — never one picked.
 
     A page is the job's when it is stamped with the job, or unstamped under `dest`: the landing stamps `job`, so a
@@ -799,8 +799,8 @@ def left_alone(row):
 
 
 def moved_rows(known, resource, slug, resource_id=None):
-    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page ls` rows: a stage's
-    `page ls` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
+    """The ticket's `known[]` rows for `resource` a person moved out of `dest`, shaped as `page list` rows: a stage's
+    `page list` reaches only `dest`, and the host's `known[]` is where a moved page is named. Given a `resource_id`, only
     that one: a ledger's days share one `resource`."""
     return [
         {"path": row.get("path"), "document_id": row.get("document_id"), "job": slug, "moved": True}
@@ -817,7 +817,7 @@ def held_reason(held, resource, path=None, resource_id=None):
 
     `held[]` is the job's pages the host says to leave alone, read off the working tree at dispatch, each with the
     `status` that says why: `draft`, `deprecated`, `unstamped`, `edited`, `settling` or `conflict`. Most are nothing
-    `page ls` shows, so the ticket is the one place they are named."""
+    `page list` shows, so the ticket is the one place they are named."""
     for one in held or ():
         if isinstance(one, dict) and (
             (path is not None and one.get("path") == path)
@@ -859,12 +859,12 @@ def write_page(dest, title, front, body, slug=None, known=(), held=()):
 
     keys = [f"{key}={value}" for key, value in front.items()]
     ident = [f"resource={LEDGER_RESOURCE}", f"resource_id={LEDGER_DAY}{title}"]
-    # `page ls` filters `resource_id=`; a write puts it under `ops`.
+    # `page list` filters `resource_id=`; a write puts it under `ops`.
     write_ident = [ident[0], f"ops.{ident[1]}"]
-    # Scoped to dest (2026-11-02): in a stage's jail, `page ls` walked from the wiki root lists nothing the jail does not grant.
-    listed, answer, said = ops("page", "ls", f"filter=under:{dest}", *ident)
+    # Scoped to dest (2026-11-02): in a stage's jail, `page list` walked from the wiki root lists nothing the jail does not grant.
+    listed, answer, said = ops("page", "list", f"filter=under:{dest}", *ident)
     if listed.returncode != 0 or not isinstance(answer.get("pages"), list):
-        raise PageRefused(f"`page ls` did not answer (exit {listed.returncode}): {said}")
+        raise PageRefused(f"`page list` did not answer (exit {listed.returncode}): {said}")
     # A ledger a person moved out of dest is named by `known[]` alone; one the host holds, by `held[]` (2026-11-06).
     row, why = identity_match(answer["pages"] + moved_rows(known, LEDGER_RESOURCE, slug, f"{LEDGER_DAY}{title}"), slug, dest)
     if why:

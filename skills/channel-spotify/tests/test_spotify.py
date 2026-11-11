@@ -554,12 +554,12 @@ class Calls(list):
 
 
 def recording_ops(spotify, monkeypatch, *answers, pages=()) -> list:
-    """`_ops`, replaced: one answer per call, and every argv kept. `page ls` answers `pages`, kept in `.lookups`."""
+    """`_ops`, replaced: one answer per call, and every argv kept. `page list` answers `pages`, kept in `.lookups`."""
     calls = Calls()
     calls.lookups = []
 
     def fake(root, *args, **kw):
-        if args[:2] == ("page", "ls"):
+        if args[:2] == ("page", "list"):
             calls.lookups.append(args)
             return 0, {"pages": list(pages)}
         calls.append((args, kw.get("input")))
@@ -612,7 +612,7 @@ def test_the_jobs_page_for_the_entity_is_edited_wherever_it_was_renamed(spotify,
     calls = recording_ops(spotify, monkeypatch, (0, {"path": RENAMED}), pages=[row])
     process(spotify, cap, monkeypatch)
 
-    assert calls.lookups == [("page", "ls", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
+    assert calls.lookups == [("page", "list", "filter=under:sources/podcasts/money-models", f"resource={PLAYLIST_URL}")]
     (args, _body), = calls
     assert args[:3] == ("page", "edit", RENAMED) and args[-1] == "--stdin"
     assert not [a for a in args if a.startswith(("dest=", "title="))]

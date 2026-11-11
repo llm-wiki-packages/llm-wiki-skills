@@ -33,7 +33,7 @@ def test_skill_installs_with_package_provenance_lists_clean_and_enables(ops, env
     assert got["version"] == unit_manifest(name)["version"], got
     assert got["warnings"] == [], got["warnings"]
 
-    rows = run(ops, rooted(env, wiki), "--json", "skills", "ls", name).data["skills"]
+    rows = run(ops, rooted(env, wiki), "--json", "skills", "list", name).data["skills"]
     row = next(s for s in rows if s["name"] == name)
     assert row["from"].startswith(f"{SOURCE}@"), row
     assert not row["customized"] and not row["drifted"], row

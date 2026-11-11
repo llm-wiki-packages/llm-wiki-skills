@@ -78,7 +78,7 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
     defaulted off `capture.json`'s presence there, exactly as the host's own
     default does (A-3). `page create`/`page edit` are recorded to
     `page-calls.jsonl` with the body on stdin, and exit `create_code`/
-    `edit_code`. `page ls`/`page read` answer `pages.json`/`held.json` in the
+    `edit_code`. `page list`/`page read` answer `pages.json`/`held.json` in the
     cwd (none, and a page with no `resource`), recorded to `lookup-calls.jsonl`."""
     stub = root / "ops_stub.py"
     stub.write_text(
@@ -113,12 +113,12 @@ def stub_env(root: Path, ticket: dict | None, *, create_code: int = 0, edit_code
         "    with pathlib.Path('update-calls.jsonl').open('a') as f:\n"
         "        f.write(json.dumps(argv) + chr(10))\n"
         "    sys.exit(0)\n"
-        "if argv[:2] in (['page', 'ls'], ['page', 'read']):\n"
+        "if argv[:2] in (['page', 'list'], ['page', 'read']):\n"
         "    with pathlib.Path('lookup-calls.jsonl').open('a') as f:\n"
         "        f.write(json.dumps(argv) + chr(10))\n"
-        "    seeded = pathlib.Path('pages.json' if argv[1] == 'ls' else 'held.json')\n"
-        "    found = json.loads(seeded.read_text()) if seeded.exists() else ([] if argv[1] == 'ls' else {})\n"
-        "    print(json.dumps({'pages': found} if argv[1] == 'ls' else {'frontmatter': found}))\n"
+        "    seeded = pathlib.Path('pages.json' if argv[1] == 'list' else 'held.json')\n"
+        "    found = json.loads(seeded.read_text()) if seeded.exists() else ([] if argv[1] == 'list' else {})\n"
+        "    print(json.dumps({'pages': found} if argv[1] == 'list' else {'frontmatter': found}))\n"
         "    sys.exit(0)\n"
         "if argv[:2] == ['page', 'create'] or argv[:2] == ['page', 'edit']:\n"
         "    body = sys.stdin.read() if '--stdin' in argv else ''\n"
@@ -712,7 +712,7 @@ def test_a_ledger_a_person_renamed_is_edited_where_it_now_sits_not_made_twice(tm
     r = ledger(directory, ticket, [line_for(1)])
     assert r.returncode == 0, r.stderr
     assert json.loads((root / "lookup-calls.jsonl").read_text().splitlines()[0]) == [
-        "page", "ls", "filter=under:research/channels/mail", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
+        "page", "list", "filter=under:research/channels/mail", "resource=gmail:ledger", f"resource_id=gmail:day:{DAY}"]
     (edit,) = page_calls(root)
     assert edit["argv"][:3] == ["page", "edit", renamed] and "status=" not in edit["argv"]
     assert report(directory)["written"] == [renamed]

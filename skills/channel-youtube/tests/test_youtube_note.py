@@ -187,7 +187,7 @@ def _stub_front_door(tmp_path, body=None, ticket=_DEFAULT, interpreter=None):
         "    sys.exit(0)\n"
         "if verb[:2] == ['tickets', 'update']:\n"
         "    sys.exit(0)\n"
-        "if verb[:2] == ['page', 'ls']:\n"
+        "if verb[:2] == ['page', 'list']:\n"
         "    print(json.dumps({'pages': []}))\n"
         "    sys.exit(0)\n"
         "if verb[:1] == ['page']:\n"
@@ -266,7 +266,7 @@ def test_the_process_arm_writes_the_page_under_dest_and_the_body_beside_the_byte
     assert res["written"] == [PAGE]
     assert res["page"] == f"{cap.relative_to(tmp_path)}/page.md"
     assert (tmp_path / PAGE).is_file()
-    assert _page_calls(seen)[0]["argv"] == ["--json", "page", "ls", f"filter=under:{DEST}", f"resource={ITEM}"]
+    assert _page_calls(seen)[0]["argv"] == ["--json", "page", "list", f"filter=under:{DEST}", f"resource={ITEM}"]
     create = _page_calls(seen)[1]["argv"]
     assert create[:3] == ["--json", "page", "create"], create
     assert "title=A Video About Things" in create and f"dest={DEST}" in create
@@ -282,7 +282,7 @@ def test_a_title_dest_already_holds_that_is_not_this_videos_is_never_written_ove
     path, seen = _stub_front_door(tmp_path, interpreter=_ops_interpreter())
     cp = _run(tmp_path, cap, extra_env=path, check=False)
     verbs = [[a for a in c["argv"] if not a.startswith("--")] for c in _page_calls(seen)]
-    assert [v[:2] for v in verbs] == [["page", "ls"], ["page", "create"]], verbs
+    assert [v[:2] for v in verbs] == [["page", "list"], ["page", "create"]], verbs
     assert cp.returncode != 0 and "already exists" in cp.stderr
 
 

@@ -84,7 +84,7 @@ def test_a_harvested_url_becomes_a_staged_page_through_the_runner(ops, env, wiki
         pages = sorted((wiki / job.dest).glob("*.md")) if (wiki / job.dest).is_dir() else []
         if pages:
             break
-    mine = [t["id"] for t in run(ops, rooted(env, wiki), "--json", "tickets", "ls").data["tickets"] if t["slug"] == job.slug]
+    mine = [t["id"] for t in run(ops, rooted(env, wiki), "--json", "tickets", "list").data["tickets"] if t["slug"] == job.slug]
     state = Path(run(_cli(ops), env, "--json", "machine", "home").data["state"])
     logs = [p for one in mine for p in state.glob(f"wikis/*/sessions/*/slices/{one}.log")]
     plugin_refused(wiki, "".join(p.read_text(encoding="utf-8", errors="replace") for p in logs))

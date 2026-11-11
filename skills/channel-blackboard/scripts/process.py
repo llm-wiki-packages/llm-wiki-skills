@@ -38,7 +38,7 @@ option: true, false, yes or no; default true), `term`, `term_start`,
 `group_type: course`, `channel: blackboard`, `source_host` and `course_url`,
 and the job record's own `root` keys over them, each named in the root's
 `ops.lends`, so every page below it carries them: the plugin applies a root's
-lent keys on every write, and records them in each page's `ops.lent`. A root already there (`page ls filter=prop:ops.root`) is left
+lent keys on every write, and records them in each page's `ops.lent`. A root already there (`page list filter=prop:ops.root`) is left
 alone, and `root-made.json` in the course capture records that the question
 was settled, so a root a person deleted is never made again. Each released
 module's folder root (`module`, `module_order`, `module_position`,
@@ -218,8 +218,8 @@ def write_page(page: dict, resource: str, dest: str, known_path: str | None, pla
 
 
 def has_root(dest: str) -> bool | None:
-    """Whether `dest` holds its bundle root, by the plugin's own root rule (`page ls filter=prop:ops.root`); None where it cannot say."""
-    rc, answer = ops_json("page", "ls", "filter=prop:ops.root", f"filter=under:{dest}")
+    """Whether `dest` holds its bundle root, by the plugin's own root rule (`page list filter=prop:ops.root`); None where it cannot say."""
+    rc, answer = ops_json("page", "list", "filter=prop:ops.root", f"filter=under:{dest}")
     if rc != 0 or not isinstance(answer.get("pages"), list):
         return None
     folder = dest.strip("/")
@@ -249,7 +249,7 @@ def write_root(capture: Path, cap: dict, dest: str, options: dict, root: dict | 
         return f"{ROOT}: options.current={word!r} is not one of true, false, yes, no: no root made"
     found = has_root(dest)
     if found is None:
-        return f"{ROOT}: `page ls filter=prop:ops.root` did not answer, so no root was made"
+        return f"{ROOT}: `page list filter=prop:ops.root` did not answer, so no root was made"
     if not found:
         made = bbnotes.root_page(cap, json.loads((capture / cap["body"]).read_text(encoding="utf-8")), current == "true", overview)
         keys = {**made["fields"], **{root_key(k): ("true" if v is True else "false" if v is False else str(v)) for k, v in (root or {}).items()}}
@@ -290,7 +290,7 @@ def write_module_roots(capture: Path, cap: dict, dest: str, record: dict, folder
         if mid not in folders:
             found = has_root(f"{dest.rstrip('/')}/{folder}")
             if found is None:
-                refused.append(f"{folder}/{ROOT}: `page ls filter=prop:ops.root` did not answer, so no module root was made")
+                refused.append(f"{folder}/{ROOT}: `page list filter=prop:ops.root` did not answer, so no module root was made")
                 continue
             if not found:
                 made_root = bbnotes.module_root(cap, module, overview)
