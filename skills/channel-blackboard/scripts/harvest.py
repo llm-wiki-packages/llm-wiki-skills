@@ -235,7 +235,7 @@ def bb_env(profile: str) -> dict:
 def pull_course(t: dict, site: str, course: str, harvest: Path, items: Path, chosen: dict, options: dict, layout: dict, profile: str,
                 stamp: dict | None = None, force_course: bool = False) -> dict:
     """One course: `bb.py harvest`, the split, and which items to post. Answers `error` (`auth`, `timeout`, or `bb.py`'s words) or the counts."""
-    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--site", site]
+    argv_bb = [sys.executable, str(BB), "harvest", course, "--out", str(harvest), "--site", site, *sso_args(options)]
     if chosen["files"] == "skip":
         argv_bb.append("--no-files")
     if chosen["discussions"] == "skip":
@@ -306,10 +306,16 @@ def write_ledger(path: Path, ledger: dict) -> None:
     os.replace(temp, path)
 
 
-def list_courses(site: str, profile: str) -> tuple[list[dict] | None, str | None]:
+def sso_args(options: dict) -> list[str]:
+    """`--sso <apId>` from `options.sso`: the SAML provider an expired session is renewed through."""
+    sso = str(options.get("sso") or "").strip()
+    return ["--sso", sso] if sso else []
+
+
+def list_courses(site: str, profile: str, options: dict | None = None) -> tuple[list[dict] | None, str | None]:
     """The enrollments as `bb.py courses` prints them: `(rows, None)`, or `(None, "auth")` / `(None, <why>)`."""
     try:
-        cp = subprocess.run([sys.executable, str(BB), "courses", "--site", site], capture_output=True, text=True, timeout=LIST_TIMEOUT,
+        cp = subprocess.run([sys.executable, str(BB), "courses", "--site", site, *sso_args(options or {})], capture_output=True, text=True, timeout=LIST_TIMEOUT,
                             env=bb_env(profile))
     except subprocess.TimeoutExpired:
         return None, "listing the courses ran past its timeout"
@@ -327,7 +333,7 @@ def list_courses(site: str, profile: str) -> tuple[list[dict] | None, str | None
 
 def run_portal(t: dict, ticket_id: str, site: str, target: str, host: str, profile: str, capture: Path, chosen: dict, options: dict, layout: dict) -> int:
     """Every enrolled course that is due a pull, under one ticket."""
-    rows, why = list_courses(site, profile)
+    rows, why = list_courses(site, profile, options)
     if why == "auth":
         post_update(ticket_id, "harvest", "failed", reason="the Blackboard session expired: a person runs `credentials login` again", missing=[(host, target, "auth")])
         return 0

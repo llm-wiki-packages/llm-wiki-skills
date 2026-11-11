@@ -16,6 +16,13 @@ skills search <domain>` answers from the wiki's copy.
   `watch.defaults.options` (`references/layout.md`).
 - `extract.options.when`: `always` re-speaks a video that came with
   captions; `/{{@brain-plugin}}:add` changes it.
+- `options.sso`: the SAML provider (`apId`, such as `_4405_1`) that an
+  expired session is renewed through. Some sites' `/ultra` lands on Learn's
+  own sign-in page, with one button per identity provider, rather than
+  redirecting. The skill then follows that page's SAML link, and a live
+  identity-provider session signs Learn in with no prompt. A page with one
+  link needs no option. A page with several (students and staff, say) needs
+  the one the person clicks: it is the `apId=` in that button's link.
 
 ## Sandbox
 
