@@ -17,7 +17,7 @@ and enable once they say yes:
    ```
 
    It personalizes `wiki/reports/_template.html`, folds the section plan and
-   tone into the `{{@brain-unit}}` overlay, and retires the `{{@brain-unit}}-setup`
+   tone into the `{{@brain-unit}}` overlay, and retires the `morning-brief-setup`
    marker where the wiki's preset seeded one.
 
 2. Run a first report and read it:

@@ -104,7 +104,7 @@ With the operator present:
 
 5. **Retire the setup marker when §1's read returned it.** The skill's
    first read answers both names at once; a redesign on a wiki that already
-   ran setup got no `{{@brain-unit}}-setup` row and skips this step, because
+   ran setup got no `morning-brief-setup` row and skips this step, because
    retiring a name the wiki no longer carries is a refusal that would land
    between the overlay saved above and the close below, leaving the
    operator's answers uncommitted. When the row came back, spend it here,
@@ -113,7 +113,7 @@ With the operator present:
    again:
 
    ```sh
-   {{@brain-cli-ops}} policy retire {{@brain-unit}}-setup
+   {{@brain-cli-ops}} policy retire morning-brief-setup
    ```
 
 6. **Log the pass, then close the run.** The `schema`-prefixed line goes to

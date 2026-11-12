@@ -35,14 +35,14 @@ Every command below acts on this wiki. Asked to run against a different one?
 ## 1. Compose the overlay, then open the run
 
 ```sh
-{{@brain-cli-ops}} policy get {{@brain-unit}} {{@brain-unit}}-setup
+{{@brain-cli-ops}} policy get {{@brain-unit}} morning-brief-setup
 ```
 
 The `{{@brain-unit}}` overlay extends this procedure — section plan, tone,
 cross-wiki list, tighter promotions. Both scopes, wiki first, later text
 winning; an empty answer is stock alone.
 
-**Setup pending** — a `{{@brain-unit}}-setup` row came back: this wiki still
+**Setup pending** — a `morning-brief-setup` row came back: this wiki still
 runs on the overlay its preset seeded. With an operator at the keyboard, go
 to §8, which is where this wiki's own answers replace it and the only place
 the marker is retired. With nobody to answer, do what the row says: follow
@@ -213,7 +213,7 @@ Fail-open, and it indexes the markdown only. Never index the HTML.
 
 ## 8. Setup — the one interactive mode
 
-`setup` as the argument, or §1 finding the `{{@brain-unit}}-setup` marker with
+`setup` as the argument, or §1 finding the `morning-brief-setup` marker with
 an operator at the keyboard. Follow
 the interview `{{@brain-cli-ops}} reference {{@brain-unit}}/setup` prints (`setup.md`): inventory what is connected, ask what they
 care about seeing each morning, cut sections nothing feeds, personalize the

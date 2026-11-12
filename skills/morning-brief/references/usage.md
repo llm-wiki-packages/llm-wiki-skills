@@ -22,8 +22,8 @@ person at the keyboard.
 ## Knobs
 
 - The `{{@brain-unit}}` overlay (section plan, tone, cross-wiki list, tighter
-  promotions) and the `{{@brain-unit}}-setup` marker, both read by
-  `{{@brain-cli-ops}} policy get {{@brain-unit}} {{@brain-unit}}-setup` (SKILL.md § 1).
+  promotions) and the `morning-brief-setup` marker, both read by
+  `{{@brain-cli-ops}} policy get {{@brain-unit}} morning-brief-setup` (SKILL.md § 1).
 - The window opens at the newest `ok` run; with none, at the newest run of any
   outcome; with none, three days back (SKILL.md § 2).
 - `wiki/reports/_template.html` is the brief's design language; seeded only
