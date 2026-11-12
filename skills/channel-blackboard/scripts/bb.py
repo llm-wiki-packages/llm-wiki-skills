@@ -237,6 +237,15 @@ def resolve_credential(args) -> str | None:
 
 
 SSO_LINK = re.compile(r'href="(/auth-saml/saml/login\?apId=(_\d+_\d+)[^"]*)"')
+PASSWORD_FIELD = re.compile(r'<input[^>]+type=["\']?password', re.I)
+# The renewal's budget: each navigation answers within RENEW_GOTO_MS, the sign-in page shows within
+# RENEW_POLLS * RENEW_POLL_MS, and the provider sends the browser back within RENEW_RETURN_MS.
+RENEW_GOTO_MS, RENEW_POLLS, RENEW_POLL_MS, RENEW_RETURN_MS = 30_000, 15, 2_000, 30_000
+
+
+def _first_line(e: Exception) -> str:
+    """An error's first line, short: a Playwright message's later lines carry the call log, cookies among them."""
+    return (str(e).splitlines() or [type(e).__name__])[0][:160]
 
 
 def sso_link(html: str, base: str, provider: str | None) -> str | None:
@@ -294,27 +303,66 @@ class Session:
 
         A site whose `/ultra` lands on Learn's own sign-in page (a button per identity provider, no redirect) is
         renewed through that page's SAML link: `--sso <apId>` names the provider, or the page's only link is taken.
-        A live identity-provider session then signs Learn in with no prompt."""
+        A live identity-provider session then signs Learn in with no prompt.
+
+        No step waits for a page's `load` event: that waits on every third-party host the page pulls in, and one a
+        firewall holds for approval stalls it. Signed out (`AuthError`) is only what the site or the provider said: a
+        sign-in page with no usable link, or the provider keeping the browser to ask for a password. A page that never
+        arrived is a network failure (`ApiError`), which a keepalive records as an error, not a sign-out (skills #137).
+        """
         user = self.me()
         if user is None:
             page = self.ctx.new_page()
             try:
-                page.goto(f"{self.base}/ultra", wait_until="load", timeout=45_000)
-                page.wait_for_timeout(3000)
+                user, stalled = self._renew(page)
+            finally:
+                page.close()
+            if user is None:
                 user = self.me()
-                link = None if user is not None else sso_link(page.content(), self.base, self.sso)
-                if link:
-                    page.goto(link, wait_until="load", timeout=45_000)
-                    page.wait_for_url(f"{self.base}/ultra**", timeout=30_000)
-                    page.wait_for_timeout(3000)
-            except Exception:  # noqa: BLE001 - the API answer below decides
-                pass
-            page.close()
-            user = self.me()
+            if user is None and stalled:
+                raise ApiError(0, "/ultra", f"the sign-in did not finish loading: {stalled}")
         if user is None:
             raise AuthError("not signed in to Blackboard, or the session expired")
         self.save_state()
         return user
+
+    def _renew(self, page) -> tuple[dict | None, str | None]:
+        """One pass through the site's sign-in: `(user, None)` once signed in, `(None, None)` where the site or the
+        provider says signed out, `(None, why)` where a page never arrived."""
+        try:
+            page.goto(f"{self.base}/ultra", wait_until="commit", timeout=RENEW_GOTO_MS)
+        except Exception as e:  # noqa: BLE001 - a navigation that never answered
+            return None, _first_line(e)
+        html_now = ""
+        for _ in range(RENEW_POLLS):
+            user = self.me()
+            if user is not None:
+                return user, None
+            try:
+                html_now = page.content()
+            except Exception:  # noqa: BLE001 - mid-navigation; read it on the next poll
+                html_now = ""
+            if SSO_LINK.search(html_now) or PASSWORD_FIELD.search(html_now):
+                break
+            page.wait_for_timeout(RENEW_POLL_MS)
+        else:
+            return None, "the sign-in page never showed a sign-in"
+        link = sso_link(html_now, self.base, self.sso)
+        if not link:
+            return None, None
+        try:
+            page.goto(link, wait_until="commit", timeout=RENEW_GOTO_MS)
+        except Exception as e:  # noqa: BLE001
+            return None, _first_line(e)
+        try:
+            page.wait_for_url(f"{self.base}/ultra**", wait_until="commit", timeout=RENEW_RETURN_MS)
+        except Exception as e:  # noqa: BLE001 - where the browser waits now decides
+            at = urlsplit(page.url or "")
+            if at.scheme.startswith("http") and at.netloc != urlsplit(self.base).netloc:
+                return None, None
+            return None, _first_line(e)
+        page.wait_for_timeout(3000)
+        return self.me(), None
 
     def api(self, path: str) -> dict:
         url = path if path.startswith("http") else f"{self.base}{path if path.startswith('/') else API + '/' + path}"

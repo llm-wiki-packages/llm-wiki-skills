@@ -342,20 +342,31 @@ class _Resp:
 class _Page:
     def __init__(self, ctx):
         self.ctx = ctx
+        self.url = "about:blank"
 
-    def goto(self, url, **_):
+    def goto(self, url, **kw):
         self.ctx.visits.append(url)
+        self.ctx.goto_waits.append(kw.get("wait_until"))
+        if self.ctx.stall_goto or (self.ctx.stall_return and "/auth-saml/" in url):
+            raise TimeoutError("Timeout 45000ms exceeded.")
+        self.url = url
         if "/auth-saml/" in url:
-            self.ctx.signed_in = True
+            if self.ctx.idp_asks_password:
+                self.url = "https://login.microsoftonline.com/common/saml2"
+            else:
+                self.ctx.signed_in = True
 
     def wait_for_timeout(self, _ms):
         pass
 
-    def wait_for_url(self, pattern, **_):
+    def wait_for_url(self, pattern, **kw):
         self.ctx.waited.append(pattern)
+        self.ctx.goto_waits.append(kw.get("wait_until"))
+        if self.ctx.idp_asks_password:
+            raise TimeoutError("Timeout 30000ms exceeded.")
 
     def content(self):
-        return SIGN_IN
+        return self.ctx.page_html
 
     def close(self):
         pass
@@ -364,8 +375,10 @@ class _Page:
 class _Ctx:
     """A launcher context whose session expired: `/users/me` answers 401 until a SAML link is followed."""
 
-    def __init__(self):
-        self.visits, self.waited, self.signed_in = [], [], False
+    def __init__(self, page_html=SIGN_IN, stall_goto=False, idp_asks_password=False, stall_return=False):
+        self.visits, self.waited, self.goto_waits, self.signed_in = [], [], [], False
+        self.page_html, self.stall_goto = page_html, stall_goto
+        self.idp_asks_password, self.stall_return = idp_asks_password, stall_return
         ctx = self
 
         class _Req:
@@ -396,3 +409,47 @@ def test_ensure_without_a_provider_on_a_page_of_several_is_still_expired(monkeyp
     with pytest.raises(bb.AuthError):
         session.ensure()
     assert ctx.visits == ["https://x.edu/ultra"]
+
+
+def _session(ctx, sso="_4405_1"):
+    session = bb.Session(ctx, "https://x.edu", sso=sso)
+    session.save_state = lambda: None
+    session._get = lambda url, timeout_ms=60_000: ctx.request.get(url)
+    return session
+
+
+def test_ensure_never_waits_on_a_pages_load_event():
+    # A third-party host a firewall holds keeps "load" from firing; the renewal reads the page without it.
+    ctx = _Ctx()
+    assert _session(ctx).ensure() == {"userName": "s1"}
+    assert "load" not in ctx.goto_waits and None not in ctx.goto_waits
+
+
+def test_ensure_a_stalled_sign_in_page_is_a_network_error_not_signed_out():
+    ctx = _Ctx(stall_goto=True)
+    with pytest.raises(bb.ApiError):
+        _session(ctx).ensure()
+
+
+def test_ensure_a_page_that_never_shows_a_sign_in_is_a_network_error():
+    ctx = _Ctx(page_html="<html><body></body></html>")
+    with pytest.raises(bb.ApiError):
+        _session(ctx).ensure()
+
+
+def test_ensure_a_password_form_with_no_saml_link_is_signed_out():
+    ctx = _Ctx(page_html='<form><input type="password" name="password"></form>')
+    with pytest.raises(bb.AuthError):
+        _session(ctx).ensure()
+
+
+def test_ensure_an_identity_provider_asking_for_a_password_is_signed_out():
+    ctx = _Ctx(idp_asks_password=True)
+    with pytest.raises(bb.AuthError):
+        _session(ctx).ensure()
+
+
+def test_ensure_a_stalled_return_from_the_provider_is_a_network_error():
+    ctx = _Ctx(stall_return=True)
+    with pytest.raises(bb.ApiError):
+        _session(ctx).ensure()
