@@ -33,7 +33,12 @@ credential's host inside Learn's 3 h idle timeout, and runs
 `scripts/bb.py whoami --site={origin} --sso={sso?}` in the harvest jail.
 The script's exit decides: 0 passes (and renews the session through SSO
 where it had lapsed), 2 means the session is gone, so the course jobs are
-skipped and the person is asked to run `credentials login` again.
+skipped and the person is asked to run `credentials login` again. Exit 2
+is only what the site or the identity provider said. A sign-in page that
+never arrived, for example one a firewall held for approval, exits 4: the
+keepalive records an error and blocks nothing. The renewal never waits
+for a page's `load` event, so a third-party host held for approval does
+not stall it.
 `{origin}` is the credential's host. `--sso` is dropped where no job sets
 `options.sso`, and every job on the credential must agree on it.
 `{{@brain-cli-ops}} credentials info <credential>` shows the target's last
