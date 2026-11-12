@@ -1,4 +1,4 @@
-# channel-circle — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **Auth walkthrough** — Circle content is licensed, so do it now:
    `{{@brain-cli-ops}} credentials set <domain> kind=dir login=browser host=<domain>`
@@ -15,7 +15,7 @@
    an `auth_expired` on it is fixed by one `credentials login <domain>`.
 2. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <space-root-url> slug=<community> description="<what this is>"
-   skill=channel-circle` — the skill's manifest supplies `every=once`,
+   skill={{@brain-unit}}` — the skill's manifest supplies `every=once`,
    `harvest.scope=section`, `harvest.access=licensed`,
    `harvest.assets=download` and a `dest` of `sources/courses/<slug>`.
    `reference` keeps no lesson video and yields no transcript (the venue's

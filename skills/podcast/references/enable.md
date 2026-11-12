@@ -1,9 +1,9 @@
-# podcast — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Run a first episode by hand and read it:
 
    ```sh
-   /podcast this week's lectures
+   /{{@brain-unit}} this week's lectures
    ```
 
    It writes the episode under `wiki/podcasts/` and says where it put it.
@@ -14,7 +14,7 @@
 2. Give the hosts voices. The episode asks for its audio with
    `narrate: {modes: podcast}`; the plugin's `narrate` engine renders it on a machine
    that has one, and the wiki's `[narrate.voices]` maps each host's name
-   (`Alex`, `Sam`, or the names your `podcast` overlay gives them) to a
+   (`Alex`, `Sam`, or the names your `{{@brain-unit}}` overlay gives them) to a
    voice. A name nobody mapped takes the next of `[narrate] default_voices`.
    `{{@brain-cli-ops}} doctor` says whether this machine can narrate.
 
@@ -22,7 +22,7 @@
    routine and covers what changed in `sources/` since the last episode:
 
    ```sh
-   {{@brain-cli-ops}} jobs add podcast routines=podcast every=7d description="the weekly podcast"
+   {{@brain-cli-ops}} jobs add podcast routines={{@brain-unit}} every=7d description="the weekly podcast"
    ```
 
    A scheduled run never asks questions and never makes the audio itself:

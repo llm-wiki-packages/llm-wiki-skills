@@ -1,12 +1,12 @@
-# channel-frameio — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-frameio ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One harvest ticket captures a whole share; one process ticket writes one leaf.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

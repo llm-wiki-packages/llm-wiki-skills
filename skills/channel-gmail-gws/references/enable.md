@@ -1,4 +1,4 @@
-# channel-gmail-gws — after enabling
+# {{@brain-unit}} — after enabling
 
 The pipeline (a read-only login per mailbox, per pulling machine) and the
 attended modes (the operator's own login, in their session) are set up
@@ -26,7 +26,7 @@ separately; either works without the other.
    as the slug — a wiki holds one job per target:
 
    ```sh
-   {{@brain-cli-ops}} jobs add acme-mail slug=acme-mail skill=channel-gmail-gws description="Acme mailbox" options.mailbox=me@acme.example
+   {{@brain-cli-ops}} jobs add acme-mail slug=acme-mail skill={{@brain-unit}} description="Acme mailbox" options.mailbox=me@acme.example
    ```
 
    `add` asks the rest (`lookback_days`, `cap`, `exclude_labels`,
@@ -49,7 +49,7 @@ separately; either works without the other.
    answer for every mailbox.
 
 4. **Review the sandbox and enable the skill**: `/{{@brain-plugin}}:enable
-   channel-gmail-gws` walks `{{@brain-cli-ops}} reference
+   {{@brain-unit}}` walks `{{@brain-cli-ops}} reference
    llm-wiki-packages/llm-wiki-skills:sandboxes/gmail-gws.md`.
    Enable it on every other machine that pulls, too — enablement never
    travels with a `git pull`.
@@ -60,7 +60,7 @@ separately; either works without the other.
    granted directory is unverified until this first run says so — report
    what it said.
 
-6. **Run `setup`** (`/channel-gmail-gws setup`) so the process step knows the
+6. **Run `setup`** (`/{{@brain-unit}} setup`) so the process step knows the
    operator's VIPs, noise and hard rules; without a profile it judges on the
    unit's defaults.
 
@@ -84,5 +84,5 @@ units = true
 the three hosts in the sandbox's prose. Log that login in once
 (`gws auth login -s gmail`, default directory `~/.config/gws`, or a
 `GOOGLE_WORKSPACE_CLI_CONFIG_DIR` of its own) and pass it as `--config-dir`.
-Smoke test, read-only: `/channel-gmail-gws triage --max 10`. Drafts test:
-`/channel-gmail-gws reply --max 3`, then look in Gmail's Drafts.
+Smoke test, read-only: `/{{@brain-unit}} triage --max 10`. Drafts test:
+`/{{@brain-unit}} reply --max 3`, then look in Gmail's Drafts.

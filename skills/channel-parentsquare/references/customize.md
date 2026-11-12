@@ -1,4 +1,4 @@
-# channel-parentsquare — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask which schools the account should pull (blank pulls every school it lists)
 and how many days of feed each pull reads (default 3); they are the watch's

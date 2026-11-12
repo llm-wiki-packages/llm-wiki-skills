@@ -1,4 +1,4 @@
-# channel-gmail-gws — the gws calls
+# {{@brain-unit}} — the gws calls
 
 Every Gmail call this unit makes, as the scripts make them. A session never
 types one: the scripts are the interface, so a call here is for reading a

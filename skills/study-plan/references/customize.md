@@ -1,7 +1,7 @@
-# study-plan — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 How far ahead a plan looks, how big it is and how it is laid out belong to
-the wiki, not to this unit's body. Prefer the wiki's `study-plan` overlay;
+the wiki, not to this unit's body. Prefer the wiki's `{{@brain-unit}}` overlay;
 what counts as weak is the `quiz` overlay's, which the quiz reads too.
 Editing `SKILL.md` makes the unit `customized`, and `skills install` then
 refuses to refresh it.
@@ -17,6 +17,6 @@ Ask, with an operator at the keyboard:
 Then offer to save the answers:
 
 ```sh
-{{@brain-cli-ops}} policy get study-plan     # read FIRST
-{{@brain-cli-ops}} policy set study-plan     # on the operator's yes, prose on stdin
+{{@brain-cli-ops}} policy get {{@brain-unit}}     # read FIRST
+{{@brain-cli-ops}} policy set {{@brain-unit}}     # on the operator's yes, prose on stdin
 ```

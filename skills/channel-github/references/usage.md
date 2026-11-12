@@ -1,17 +1,17 @@
-# channel-github — usage
+# {{@brain-unit}} — usage
 
 ## Invocation
 
-- By a session: `/channel-github setup`, `/channel-github rank <question>`,
-  `/channel-github pending`, `/channel-github retag`. `setup` and `retag`
+- By a session: `/{{@brain-unit}} setup`, `/{{@brain-unit}} rank <question>`,
+  `/{{@brain-unit}} pending`, `/{{@brain-unit}} retag`. `setup` and `retag`
   write only on the operator's yes; `rank` and `pending` write nothing.
-- By ticket: a harvest job's `process` step is `/channel-github ticket=<id>`;
+- By ticket: a harvest job's `process` step is `/{{@brain-unit}} ticket=<id>`;
   its `harvest` and a routines job's `routine` are scripts the runner starts,
   never typed.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-github/scripts/<script> …`
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`
 at the wiki root. `<capture_dir>` is the ticket's own, wiki-relative,
 verbatim.
 
@@ -44,5 +44,5 @@ Safe unattended.
   re-capture rules (SKILL.md, harvest).
 - `requires.credentials.routes.github` is `optional`: the `github` route raises
   the rate limit; unmapped, harvest runs keyless.
-- The `channel-github` overlay: categories, README mode, junk rules.
+- The `{{@brain-unit}}` overlay: categories, README mode, junk rules.
 - `references/lists.json`: the lists, the weights, where repo pages are read.

@@ -1,4 +1,4 @@
-# channel-gmail — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask the lookback window for the FIRST pull (default 7d) and any
 mechanical filters — Gmail labels and senders to exclude beyond the

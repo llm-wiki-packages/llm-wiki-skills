@@ -1,4 +1,4 @@
-# channel-gmail-gws — safety: what this skill will not do, and why
+# {{@brain-unit}} — safety: what this skill will not do, and why
 
 | Rule | Why |
 | :--- | :--- |

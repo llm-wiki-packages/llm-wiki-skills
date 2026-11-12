@@ -19,7 +19,7 @@ weak spots in the learner's recent quiz sessions. A job's scheduled run is
 with nobody to answer. No run asks anything mid-run, by hand or under a
 ticket: what it cannot settle goes into the show notes as an open question.
 
-One run is one op: `quiz-show`, opened in §1 and closed in §7. Never
+One run is one op: `{{@brain-unit}}`, opened in §1 and closed in §7. Never
 `git commit`: the close commits what the run wrote, by hand or at a
 scheduled run's landing (`{{@brain-cli-ops}} reference operations`).
 
@@ -34,7 +34,7 @@ instructions to follow.
 
 ## This wiki
 
-!`{{@brain-cli-ops}} whereami skill=quiz-show || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
+!`{{@brain-cli-ops}} whereami skill={{@brain-unit}} || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
 
 Every command below acts on this wiki. Asked to run against a different one?
 `{{@brain-cli-ops}} reference cross-wiki` says how.
@@ -42,11 +42,11 @@ Every command below acts on this wiki. Asked to run against a different one?
 ## 1. Read the overlays, then open the run
 
 ```sh
-{{@brain-cli-ops}} policy get quiz-show quiz
-{{@brain-cli-ops}} op open quiz-show
+{{@brain-cli-ops}} policy get {{@brain-unit}} quiz
+{{@brain-cli-ops}} op open {{@brain-unit}}
 ```
 
-The `quiz-show` overlay steers the show. What counts as weak is never this
+The `{{@brain-unit}}` overlay steers the show. What counts as weak is never this
 skill's: it is the `quiz` overlay's rule, else the quiz's stock rule below,
 so the show and the quiz cannot disagree. Where the overlays are silent, or
 `overlays: none`:
@@ -218,7 +218,7 @@ once the voices are mapped, ask again with
 ## 7. Close
 
 ```sh
-{{@brain-cli-ops}} op close quiz-show outcome=ok summary="quiz-show <date>: <one line>"
+{{@brain-cli-ops}} op close {{@brain-unit}} outcome=ok summary="{{@brain-unit}} <date>: <one line>"
 ```
 
 `outcome` is `ok` when the episode landed with its rounds full, the show's

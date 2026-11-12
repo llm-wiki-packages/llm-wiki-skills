@@ -1,11 +1,11 @@
-# channel-blackboard — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Make the credential, naming the institution's Blackboard host:
    `{{@brain-cli-ops}} credentials set blackboard kind=dir login=browser host=<host>`.
    A second institution is a second credential under its own name.
 2. Sign in, attended: `{{@brain-cli-ops}} credentials login blackboard`. The
    credential store never syncs, so every machine that harvests signs in once.
-3. Check it: `/channel-blackboard courses` lists the memberships.
+3. Check it: `/{{@brain-unit}} courses` lists the memberships.
 4. **Choose the layout, once for the wiki.** Ask the person, offering the
    recommendation first:
    - layout: a folder per module, files named in course order
@@ -32,11 +32,11 @@
    once written: a change applies to jobs added after it, and to a job edited
    (`{{@brain-cli-ops}} jobs edit <slug> options.layout=modules`) before its
    first pull. What each word does:
-   `{{@brain-cli-ops}} reference channel-blackboard/references/layout.md`.
+   `{{@brain-cli-ops}} reference {{@brain-unit}}/references/layout.md`.
 5. Follow a course, one job each. The target is the course's url as the
    browser shows it, and its host is the site the job reaches:
    `{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline'
-   slug=<course> skill=channel-blackboard description="<course name>"
+   slug=<course> skill={{@brain-unit}} description="<course name>"
    options.timezone=<IANA zone>`. The manifest supplies `every=1d`, a
    `dest` of `sources/courses/<slug>` and an `extract` section
    (`when: if-no-captions`). Without `options.timezone` a due date reads in

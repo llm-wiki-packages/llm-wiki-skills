@@ -1,4 +1,4 @@
-# channel-youtube — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask whether videos should be downloaded (`harvest.assets=download`) or kept as
 cloud references (`harvest.assets=reference` — captions/transcript + a

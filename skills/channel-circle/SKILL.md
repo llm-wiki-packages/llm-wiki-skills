@@ -7,7 +7,7 @@ argument-hint: "ticket=<id>"
 # Channel: Circle
 
 You harvest Circle.so-hosted communities for this wiki and render their
-lessons into pages. You are invoked `/channel-circle ticket=<id>`, in every
+lessons into pages. You are invoked `/{{@brain-unit}} ticket=<id>`, in every
 mode, and the ticket carries the job's resolved config — `harvest.*`,
 `min_date`, `known[]` — so honor it and never re-ask. The worker loop and the
 report every worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`.
@@ -28,7 +28,7 @@ sections below are those steps. Either step opens with the policy read — the
 stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-circle
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -51,8 +51,8 @@ never write outside `_raw/<slug>/`.
    plan:
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/capture_lesson.py . --out <capture_dir> --ticket <id>
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py plan <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_lesson.py . --out <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py plan <capture_dir> --ticket <id>
 ```
 
    `plan.json` holds the `deadline` and the ordered `leaves[]` — `order`,
@@ -67,11 +67,11 @@ never write outside `_raw/<slug>/`.
    between requests to the one host, never parallel within the domain:
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> --ticket <id> [--headed] [--timeout-ms 45000]
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py detect <capture_dir> --leaf <n>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_lesson.py . --plan <capture_dir>/plan.json --leaf <n> --ticket <id> [--headed] [--timeout-ms 45000]
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py detect <capture_dir> --leaf <n>
 {{@brain-cli-ops}} run scripts/assets.py download <leaf.dir>/assets.json --dest _raw/<slug>/assets
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py record <capture_dir> --leaf <n>
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py record <capture_dir> --leaf <n>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py report <capture_dir> --ticket <id>
 ```
 
    The capture dumps `page.html` (rendered DOM — the lesson body AND
@@ -102,7 +102,7 @@ never write outside `_raw/<slug>/`.
 3. Report last, with everything you know:
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> [--missing-leaf <n> <denied|timeout|auth|error>]... [--missing-host <host> <denied|timeout|auth|error>]... [--auth-expired] [--gone] [--reason <text>]
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py report <capture_dir> --ticket <id> [--missing-leaf <n> <denied|timeout|auth|error>]... [--missing-host <host> <denied|timeout|auth|error>]... [--auth-expired] [--gone] [--reason <text>]
 ```
 
    A lesson you could not reach is `--missing-leaf <n> <why>`; a media host the
@@ -125,7 +125,7 @@ nothing written.
    several, take the lesson's own):
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/to_markdown.py <capture_dir>/page.html --out <capture_dir>/page.md
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/to_markdown.py <capture_dir>/page.html --out <capture_dir>/page.md
 {{@brain-cli-ops}} run scripts/format_transcript.py <capture_dir>/captions/<srclang>.vtt --out <capture_dir>/transcript.md
 ```
 
@@ -147,7 +147,7 @@ nothing written.
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page create title='<title>' dest=<dest> resource='<item>' type=lesson ops.extracted=true --stdin
 cat <capture_dir>/page.md | {{@brain-cli-ops}} page edit '<the row's path>' resource='<item>' type=lesson ops.extracted=true --stdin
 echo '["<the path the verb answered>"]' > <capture_dir>/written.json
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/section_plan.py report <capture_dir> --ticket <id> --stage process --written-from written.json
 ```
 
    Every venue value on those lines — `<title>`, `<item>` — is copied VERBATIM
@@ -302,7 +302,7 @@ children AND the 5xx count hits 0. Probe with the bundled script
 (diagnostic only — not part of the worker loop):
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/outage_probe.py . --ticket <id> [--settle-ms 8000]
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/outage_probe.py . --ticket <id> [--settle-ms 8000]
 ```
 
 It probes the ticket's own `target`, through `tickets open`. Always exits 0 and prints a JSON verdict;

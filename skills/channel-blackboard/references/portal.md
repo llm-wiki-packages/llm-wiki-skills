@@ -1,4 +1,4 @@
-# channel-blackboard — a portal job
+# {{@brain-unit}} — a portal job
 
 ## What a portal job is
 
@@ -9,7 +9,7 @@ job per course. Its target is the site's courses page,
 decides which courses are due, and pulls them under one harvest ticket.
 
 ```sh
-{{@brain-cli-ops}} jobs add https://<host>/ultra/course skill=channel-blackboard dest=sources/courses/<school> every=1d harvest.budget=6h
+{{@brain-cli-ops}} jobs add https://<host>/ultra/course skill={{@brain-unit}} dest=sources/courses/<school> every=1d harvest.budget=6h
 ```
 
 Set `harvest.budget` high enough for a first pull of every course: the first

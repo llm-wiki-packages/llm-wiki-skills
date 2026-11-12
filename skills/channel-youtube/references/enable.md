@@ -1,8 +1,8 @@
-# channel-youtube — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <video-url> slug=<video-name>
-   description="<what this is>" skill=channel-youtube` — the skill's manifest
+   description="<what this is>" skill={{@brain-unit}}` — the skill's manifest
    supplies the rest (`every=once`, `harvest.scope=page`,
    `harvest.assets=reference`, and a `dest` of `sources/youtube/<slug>`), so
    add `harvest.assets=download` only if the operator chose downloads. Single
@@ -35,6 +35,6 @@
    (Google's model watches it; needs a key) or
    `enrich.skill=channel-youtube-watch-local` (frames and captions read on this
    machine). Each unit's own `references/enable.md` is the setup; keep
-   `skill=channel-youtube` on the job, and never put an enrich unit there.
+   `skill={{@brain-unit}}` on the job, and never put an enrich unit there.
    Enrich is a stage of the rail, not an extra: a job that names one waits on
    it, and a capture whose enrich keeps failing stays out of process.

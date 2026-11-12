@@ -1,9 +1,9 @@
-# quiz-show — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Run a first show by hand and read it:
 
    ```sh
-   /quiz-show
+   /{{@brain-unit}}
    ```
 
    It writes the episode under `wiki/podcasts/` and says where it put it.
@@ -15,7 +15,7 @@
 2. Give the hosts voices. The episode asks for its audio with
    `narrate: {modes: podcast}`; the plugin's `narrate` engine renders it on a machine
    that has one, and the wiki's `[narrate.voices]` maps each host's name
-   (`Alex`, `Sam`, or the names your `quiz-show` overlay gives them) to a
+   (`Alex`, `Sam`, or the names your `{{@brain-unit}}` overlay gives them) to a
    voice. A name nobody mapped takes the next of `[narrate] default_voices`.
    `{{@brain-cli-ops}} doctor` says whether this machine can narrate.
 
@@ -23,7 +23,7 @@
    routine, on the weak spots of the newest quiz sessions:
 
    ```sh
-   {{@brain-cli-ops}} jobs add quiz-show routines=quiz-show every=1d description="the daily audio quiz"
+   {{@brain-cli-ops}} jobs add quiz-show routines={{@brain-unit}} every=1d description="the daily audio quiz"
    ```
 
    A scheduled run never asks questions and never makes the audio itself:

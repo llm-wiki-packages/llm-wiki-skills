@@ -15,7 +15,7 @@
   ],
   "name": "channel-hubspot-video",
   "requires": {
-    "ops": ">=0.17.0"
+    "ops": ">=0.18.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:hubspot-cms",
   "stages": {
@@ -24,7 +24,7 @@
   },
   "usage": "/channel-hubspot-video ticket=<id>",
   "v": 1,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "watch": {
     "defaults": {
       "every": "once",

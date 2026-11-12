@@ -13,7 +13,7 @@
   ],
   "name": "web-page",
   "requires": {
-    "ops": ">=0.17.0"
+    "ops": ">=0.18.0"
   },
   "sandbox_ref": "llm-wiki-packages/llm-wiki-skills:web-page",
   "stages": {
@@ -23,5 +23,5 @@
   },
   "usage": "llm-wiki-ops run ops/skills/web-page/scripts/fetch.py ticket=<id>",
   "v": 1,
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

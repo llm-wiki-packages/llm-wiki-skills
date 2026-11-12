@@ -1,13 +1,13 @@
-# channel-spotify — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-spotify ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One job is one entity url (playlist, show, episode, album or audiobook).
 
 ## Script
 
 `scripts/spotify.py <subcommand> …`, run as
-`{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py …` at the wiki
+`{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/spotify.py …` at the wiki
 root. `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | subcommand | step | argv |

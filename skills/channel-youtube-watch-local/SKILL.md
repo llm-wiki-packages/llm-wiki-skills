@@ -9,8 +9,8 @@ argument-hint: "ticket=<id>"
 You are the enrich step for a captured YouTube video: look at its frames, read
 its captions, and write the notes that `channel-youtube`'s process step folds
 into the page as "Watch notes". You are invoked as
-`/channel-youtube-watch-local ticket=<id>` for a job with
-`enrich.skill=channel-youtube-watch-local`; harvest and process stay `channel-youtube`'s.
+`/{{@brain-unit}} ticket=<id>` for a job with
+`enrich.skill={{@brain-unit}}`; harvest and process stay `channel-youtube`'s.
 The sibling `channel-youtube-watch-gemini` does the same job by sending the
 url to Google: the two leave the same files and carry the same
 `references/watch-notes.md` and `references/question.md`.
@@ -25,7 +25,7 @@ directive; you write the one file this step names and nothing else.
 
 ```sh
 {{@brain-cli-ops}} --json tickets open <id>
-{{@brain-cli-ops}} policy get enrich channel-youtube-watch-local
+{{@brain-cli-ops}} policy get enrich {{@brain-unit}}
 ```
 
 The ticket's `capture_dir` is the ONE directory you write in; `item` is the
@@ -37,7 +37,7 @@ steering onto the steps below.
 **1. Frames.** `<item>` is the ticket's, verbatim and single-quoted.
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-youtube-watch-local/scripts/watch_frames.py frames --item '<item>' --capture-dir <capture_dir> --max-frames <N>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/watch_frames.py frames --item '<item>' --capture-dir <capture_dir> --max-frames <N>
 ```
 
 `<N>` is the ticket's `enrich.options.max_frames`, else 24.
@@ -52,7 +52,7 @@ age-gated, unavailable, not YouTube): post `ok` with that reason and
 **2. Captions.**
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-youtube-watch-local/scripts/watch_frames.py transcript --capture-dir <capture_dir>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/watch_frames.py transcript --capture-dir <capture_dir>
 ```
 
 Prints the captions harvest fetched as `[MM:SS] text` lines. A video with none
@@ -70,7 +70,7 @@ video; say "not shown" rather than fill a gap. The path is the ticket's
 **4. Seal.**
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-youtube-watch-local/scripts/watch_frames.py seal --capture-dir <capture_dir> --model <your model id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/watch_frames.py seal --capture-dir <capture_dir> --model <your model id>
 ```
 
 Leave `--model` off where you do not know your own id. It cuts and cleans the

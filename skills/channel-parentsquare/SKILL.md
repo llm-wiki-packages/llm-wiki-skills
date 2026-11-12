@@ -8,8 +8,8 @@ argument-hint: "ticket=<id>"
 
 You pull ONE ParentSquare account's school feeds per invocation, and you write
 ONE day's ledger from what a pull left. A job carrying `skill:
-channel-parentsquare` puts this unit on the route, and its ticket invokes it
-as `/channel-parentsquare ticket=<id>`. The worker loop and the report every
+{{@brain-unit}}` puts this unit on the route, and its ticket invokes it
+as `/{{@brain-unit}} ticket=<id>`. The worker loop and the report every
 worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`; the route and its
 trust boundary: `reference channel-ledger`.
 
@@ -33,7 +33,7 @@ sections below are those steps. Either step opens with the policy read —
 the stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-parentsquare
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -78,8 +78,8 @@ script a file, never an argument. One file per post or notice,
 then:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/keys.py notice <capture_dir>/draft.json
-{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/keys.py stamp <capture_dir>/draft.json --day-dir <capture_dir>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/keys.py notice <capture_dir>/draft.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/keys.py stamp <capture_dir>/draft.json --day-dir <capture_dir>
 ```
 
 For a notice, run `notice` first and add what it prints to the draft as `id`. `stamp` prints
@@ -144,7 +144,7 @@ wiki. No quoted text, no imperative lifted from a post, no markup, no link.
 **Write the ledger, last.**
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/ledger.py <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/ledger.py <capture_dir> --ticket <id>
 ```
 
 It regenerates the day's page whole, found by `ops.resource_id: parentsquare:day:<day>`

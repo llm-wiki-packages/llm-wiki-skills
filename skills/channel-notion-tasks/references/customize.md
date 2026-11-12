@@ -1,4 +1,4 @@
-# channel-notion-tasks — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask which Notion databases hold the operator's tasks and record their
 database ids in the installed SKILL.md's `### harvest` "Mechanical filters":
@@ -35,5 +35,5 @@ declares `requires.credentials.routes.notion` `"required"`. The template's
 probe, `ntn whoami`, runs after the yes at `skills enable` and spends the
 wiki's vault entry `notion` through the mapped route, so on each machine name
 the vault, store the token and map the route BEFORE `/{{@brain-plugin}}:enable` (steps 2 and 3 of `{{@brain-cli-ops}} reference
-channel-notion-tasks/enable`). No route in a harness profile: the route is
+{{@brain-unit}}/enable`). No route in a harness profile: the route is
 the stage's.

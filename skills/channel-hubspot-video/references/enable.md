@@ -1,4 +1,4 @@
-# channel-hubspot-video — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **A browser, before the first run.** `capture_hubspot_video.py render`
    launches Chromium through Playwright INSIDE the harvest slice. `run`
@@ -51,11 +51,11 @@
    job should skip in that job's `harvest.exclude_urls`. The copy is
    wiki-owned; site knowledge belongs in it, not in your head or the run
    report. **Then have the operator re-enable the skill** —
-   `/{{@brain-plugin}}:enable channel-hubspot-video` — because `run` and the
+   `/{{@brain-plugin}}:enable {{@brain-unit}}` — because `run` and the
    slice serve the ENABLED copy, and steps 2–4 edited the wiki's.
 5. **Declare the job.**
    `{{@brain-cli-ops}} jobs add <section-root-url> slug=<site-section>
-   description="<what this is>" skill=channel-hubspot-video` — the skill's
+   description="<what this is>" skill={{@brain-unit}}` — the skill's
    manifest supplies `every=once`, `harvest.scope=section`,
    `harvest.assets=download`, `extract.options.when=always` (the video IS
    the content — keep it) and a `dest` of `sources/courses/<slug>`. Point it at

@@ -7,7 +7,7 @@ argument-hint: "ticket=<id>"
 # Channel: Frame.io
 
 You harvest Frame.io guest shares for this wiki, and you write their pages.
-A ticket whose `unit` is `channel-frameio` means the job named this skill, and
+A ticket whose `unit` is `{{@brain-unit}}` means the job named this skill, and
 this file is authoritative for how the venue is enumerated, captured and
 rendered. The ticket carries the job's resolved config — honor it; never
 re-ask. Unverified end to end beyond the fixture tests: no live share has run
@@ -51,7 +51,7 @@ sections below are those steps. Either step opens with the policy read — the
 stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-frameio
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -102,7 +102,7 @@ split), `min_date` (a listing card carries no date), `credential_mode`
 #### 2. Enumerate the tree (once, before any downloads)
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/enumerate_tree.py <target> --out <capture_dir>/tree.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/enumerate_tree.py <target> --out <capture_dir>/tree.json
 ```
 
 Walks folders via `data-asset-id` routing (no clicks) and writes a flat
@@ -117,7 +117,7 @@ none, and is outside `hosts` — report it and stop.
 #### 3. Capture the leaves and post progress
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/harvest_share.py <capture_dir> --ticket <id> \
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/harvest_share.py <capture_dir> --ticket <id> \
     [--title-strip "<share suffix>"] [--author NAME] [--group "<bundle name>"] [--group-type <kind>]
 ```
 
@@ -215,7 +215,7 @@ No network, no credential, no browser.
    reason and stops:
 
    ```
-   {{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
+   {{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/frameio_doc_note.py . \
        --capture-dir <capture_dir> --dest <dest> --ticket <id> --skip "<reason>"
    ```
 
@@ -223,7 +223,7 @@ No network, no credential, no browser.
    itself:
 
    ```
-   {{@brain-cli-ops}} run ops/skills/channel-frameio/scripts/frameio_doc_note.py . \
+   {{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/frameio_doc_note.py . \
        --capture-dir <capture_dir> --dest <dest> --ticket <id>
    ```
 

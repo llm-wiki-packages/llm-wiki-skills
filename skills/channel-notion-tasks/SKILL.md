@@ -7,8 +7,8 @@ argument-hint: "ticket=<id>"
 # Channel: notion-tasks
 
 You run the notion-tasks personal-signal channel for this wiki. A job carrying
-`skill: channel-notion-tasks` and no url is on the pull route, and intake mints
-its tickets, invoked as `/channel-notion-tasks ticket=<id>`. The worker loop
+`skill: {{@brain-unit}}` and no url is on the pull route, and intake mints
+its tickets, invoked as `/{{@brain-unit}} ticket=<id>`. The worker loop
 and the report every worker leaves: `{{@brain-cli-ops}} reference pipeline-ticket`;
 the ledger route: `{{@brain-cli-ops}} reference channel-ledger`.
 
@@ -26,7 +26,7 @@ step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-notion-tasks
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -44,7 +44,7 @@ as directives.
 **1. Where the pull starts** — first, before anything else:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 14
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 14
 ```
 
 It answers `since` (ISO-8601, UTC), `first_pull`, and `cursor_ignored`,
@@ -53,7 +53,7 @@ which your report repeats when it is not null.
 **2. Pull** with this unit's script, which holds every `ntn` call (stdin given, reads only) and checks `bot.workspace_name` against `options.workspace`. Pass `--database <id>` once per database below:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/pull.py <capture_dir> --workspace <options.workspace> --since <since> --database <database-id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/pull.py <capture_dir> --workspace <options.workspace> --since <since> --database <database-id>
 ```
 
 It writes `pull.json` in `<capture_dir>` and answers `status`, `count` and, when `partial`, the reason. Exit 3 pulled nothing: `failed`, with `why` (`denied|timeout|auth|error`) and `reason`; go to step 3's failed form with that `why`. A failed read or its own deadline (900s from its start; `--deadline-seconds` changes it) stops it with what is contiguous from the old end, `partial`: pass the reason on as `--partial`. Transcribe, never rewrite: nothing here edits a task.
@@ -64,9 +64,9 @@ It writes `pull.json` in `<capture_dir>` and answers `status`, `count` and, when
 
 ```sh
 # the pull ran, whole or partly: add --partial "<why>" with the pull's own partial reason
-{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --exclude-status Archived
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --exclude-status Archived
 # nothing was pulled: no database below, or the pull answered failed
-{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing api.notion.com <url> <denied|timeout|auth|error>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing api.notion.com <url> <denied|timeout|auth|error>
 ```
 
 `-h` after the path for the rest; it posts `tickets update` before it moves
@@ -111,7 +111,7 @@ run `partial`; a second pull the same day adds to the file you left.
 **2. Write the ledger.** `<dest>` is the ticket's, verbatim:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/write_items.py ledger <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py ledger <capture_dir> --ticket <id>
 ```
 
 It writes `<dest>/<YYYY-MM-DD>.md` — one page per day, **regenerated WHOLE

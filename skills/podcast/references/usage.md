@@ -1,6 +1,6 @@
-# podcast — usage
+# {{@brain-unit}} — usage
 
-A session skill with no scripts. Invoked `/podcast [focus]`.
+A session skill with no scripts. Invoked `/{{@brain-unit}} [focus]`.
 
 A routine entry's `args` become the words before `ticket=<id> stage=routine`
 (SKILL.md, scope). No word of an arg may be `--` or `--help` or begin
@@ -18,7 +18,7 @@ Nothing is asked mid-run, by hand or not.
 
 ## Knobs
 
-- The `podcast` overlay: the show's name, its hosts, length, tone and shape,
+- The `{{@brain-unit}}` overlay: the show's name, its hosts, length, tone and shape,
   and how many pages one episode takes (SKILL.md § 1).
 - The wiki's `[narrate.voices]`: which voice speaks each host's name. That
   table is the `narrate` engine's, not this unit's.

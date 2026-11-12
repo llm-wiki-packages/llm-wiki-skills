@@ -1,4 +1,4 @@
-# channel-youtube-watch-local — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask whether the default question fits this wiki. `references/question.md` is
 the prompt every video gets; a wiki that wants something else says so with

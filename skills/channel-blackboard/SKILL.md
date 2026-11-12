@@ -20,12 +20,12 @@ Arguments: `$ARGUMENTS`.
 
 ## This wiki
 
-!`{{@brain-cli-ops}} whereami skill=channel-blackboard || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
+!`{{@brain-cli-ops}} whereami skill={{@brain-unit}} || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
 
 Every command below runs at the wiki root. `bb` is
-`{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.py`, and
-`bbnotes` is `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bbnotes.py`.
-Their argv: `{{@brain-cli-ops}} reference channel-blackboard/references/usage.md`.
+`{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/bb.py`, and
+`bbnotes` is `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/bbnotes.py`.
+Their argv: `{{@brain-cli-ops}} reference {{@brain-unit}}/references/usage.md`.
 
 ## 1. Sign in (once per machine, operator present)
 
@@ -58,7 +58,7 @@ session expired and no silent SSO renewal worked: run step 1 again.
 One job per course; the target is the course's url as the browser shows it.
 
 ```sh
-{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill=channel-blackboard description="<course name>" options.timezone=<IANA zone> options.current=<true|false>
+{{@brain-cli-ops}} jobs add 'https://<host>/ultra/courses/<id>/outline' slug=<course> skill={{@brain-unit}} description="<course name>" options.timezone=<IANA zone> options.current=<true|false>
 {{@brain-cli-ops}} credentials bind job <course> dir=blackboard
 ```
 
@@ -69,7 +69,7 @@ each board's page carries every classmate's name and post into `sources/`,
 which is committed and pushed to the wiki's remote;
 `options.discussions=skip` fetches no board at all. The steps after
 `jobs add`, and what each run leaves:
-`{{@brain-cli-ops}} reference channel-blackboard/references/enable.md`.
+`{{@brain-cli-ops}} reference {{@brain-unit}}/references/enable.md`.
 
 `options.current` (`true`, `false`, `yes`, `no`; default `true`): is this a
 course you're taking now? The first pull writes it, with the course's code,
@@ -80,7 +80,7 @@ and is made once, ever. Pages go in a folder per module, named in course
 order (`04 Unit IV/02 Unit IV Journal.md`, `options.layout=modules`), and
 `00 Course overview.md` links them all in that order; the options, fields
 and weekly releases:
-`{{@brain-cli-ops}} reference channel-blackboard/references/layout.md`.
+`{{@brain-cli-ops}} reference {{@brain-unit}}/references/layout.md`.
 
 Every pull posts only the items that are new or changed since the last; a
 page a person moved or holds is left alone, and one that is not the item's
@@ -95,7 +95,7 @@ these steps. `{{@brain-cli-ops}} tickets run <id> spawn=self` runs one.
 ### harvest
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/harvest.py ticket=<id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/harvest.py ticket=<id>
 ```
 
 Runs `bb.py harvest` on the granted `credential_dir` into
@@ -107,7 +107,7 @@ failed, which the next pull fetches.
 ### process
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/process.py ticket=<id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/process.py ticket=<id>
 ```
 
 Renders the one capture (`bbnotes.render`) and writes its page(s) with an

@@ -1,4 +1,4 @@
-# channel-youtube-watch-local — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **The binaries**: `yt-dlp`, `ffmpeg` and `ffprobe` are checked by `skills
    enable`; `brew install yt-dlp ffmpeg` installs them on a Mac.
@@ -12,18 +12,18 @@
    as the enrich skill. An enrich unit is never a job's `skill=`:
 
    ```sh
-   {{@brain-cli-ops}} jobs add <video-url> slug=<video-name> description="<what this is>" skill=channel-youtube enrich.skill=channel-youtube-watch-local
+   {{@brain-cli-ops}} jobs add <video-url> slug=<video-name> description="<what this is>" skill=channel-youtube enrich.skill={{@brain-unit}}
    ```
 
    An existing `channel-youtube` job gets it with `{{@brain-cli-ops}} jobs
-   edit <slug> enrich.skill=channel-youtube-watch-local`. `enrich.options.question=` and
+   edit <slug> enrich.skill={{@brain-unit}}`. `enrich.options.question=` and
    `enrich.options.max_frames=` steer it. Install `channel-youtube` as well: it
    writes the page, and without it there is nothing to carry the notes.
 4. **Both engines on one job** is not a thing: a job has one enrich unit.
    To compare the two, add the same video as two jobs under two slugs.
 
 5. Enable the skill on every OTHER machine that enriches
-   (`/{{@brain-plugin}}:enable channel-youtube-watch-local`) — installed is
+   (`/{{@brain-plugin}}:enable {{@brain-unit}}`) — installed is
    not loaded, and enablement never travels with a `git pull`.
 
 Unverified: the frame fetch has not run against live YouTube from this unit,

@@ -1,4 +1,4 @@
-# study-plan — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Put the syllabus in the wiki, if it is not there yet: a `playbook` page,
    by convention under `sources/playbooks/`, in whatever shape the learner
@@ -11,7 +11,7 @@
 2. Run a first plan by hand and read it:
 
    ```sh
-   /study-plan
+   /{{@brain-unit}}
    ```
 
    It writes the guide titled `Study plan` and says where it put it.
@@ -26,7 +26,7 @@
    A wiki seeded from another preset has no such job. Declare one:
 
    ```sh
-   {{@brain-cli-ops}} jobs add study-plan routines=study-plan every=1d description="the study plan"
+   {{@brain-cli-ops}} jobs add study-plan routines={{@brain-unit}} every=1d description="the study plan"
    ```
 
    A scheduled run never asks questions: what it cannot settle goes into the

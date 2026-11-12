@@ -1,12 +1,12 @@
-# channel-parentsquare — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-parentsquare ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One invocation serves one account and one day directory.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-parentsquare/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`.
 `keys.py` takes a draft, a JSON file the session wrote with its file-writing tool: served text never rides a command line.
 The harvest reads through the `parentsquare` MCP server the sandbox declares; `ledger.py` writes the day's page with the front door's verbs.
 
