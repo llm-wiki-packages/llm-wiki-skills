@@ -203,7 +203,11 @@ def machine_harness(home: Path) -> Path:
     (AGENT_DIR / "bin" / "parentsquare-mcp").chmod(0o755)
     profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
     profile.parent.mkdir(parents=True, exist_ok=True)
-    profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
+    # It lists every claude model the seeded model table's tiers name, so any
+    # tier a stage asks for routes here; a custom profile names no `harness.model`,
+    # so the fake agent's argv carries none.
+    models = {model: {} for model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5")}
+    profile.write_text(json.dumps({"v": 2, "harness": {"command": str(agent), "args": ["{prompt}"], "models": models}}), encoding="utf-8")
     # The exit pass commits as the host's git identity; a scratch HOME has none.
     (home / ".gitconfig").write_text("[user]\n\tname = harness\n\temail = harness@example.invalid\n", encoding="utf-8")
     # uv offline, from the cache the CI warm step fills: a slice has no route
