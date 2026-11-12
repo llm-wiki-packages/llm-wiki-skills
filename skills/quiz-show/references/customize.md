@@ -1,7 +1,7 @@
-# quiz-show — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 The show's hosts, rounds, length and tone belong to the wiki, not to this
-unit's body. Prefer the wiki's `quiz-show` overlay; what counts as weak is
+unit's body. Prefer the wiki's `{{@brain-unit}}` overlay; what counts as weak is
 the `quiz` overlay's, which the quiz reads too. Editing `SKILL.md` makes the
 unit `customized`, and `skills install` then refuses to refresh it. This
 unit is meant as a starting point: copy it under a new name for another
@@ -20,6 +20,6 @@ Ask, with an operator at the keyboard:
 Then offer to save the answers:
 
 ```sh
-{{@brain-cli-ops}} policy get quiz-show     # read FIRST
-{{@brain-cli-ops}} policy set quiz-show     # on the operator's yes, prose on stdin
+{{@brain-cli-ops}} policy get {{@brain-unit}}     # read FIRST
+{{@brain-cli-ops}} policy set {{@brain-unit}}     # on the operator's yes, prose on stdin
 ```

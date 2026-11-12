@@ -56,8 +56,8 @@ concern, then log the edit with the `schema` prefix.
 | Operator says | Edit |
 | :--- | :--- |
 | "make it burgundy / different fonts / bigger cards" | `wiki/reports/_template.html` tokens — alternate accent ramps are documented in its header |
-| "drop the calendar", "add a section for X" | the wiki's `morning-brief` overlay, which carries the section plan |
-| "recommendations should be bolder / more coaching" | the wiki's `morning-brief` overlay, emphasis and tone |
+| "drop the calendar", "add a section for X" | the wiki's `{{@brain-unit}}` overlay, which carries the section plan |
+| "recommendations should be bolder / more coaching" | the wiki's `{{@brain-unit}}` overlay, emphasis and tone |
 | "redesign the whole thing" | `wiki/reports/_template.html` — run the interview below, keeping the three rules |
 | "why did today's report say X" | neither — that is the day's markdown and HTML; answer from them |
 
@@ -70,7 +70,7 @@ The one interactive mode. Run it when the wiki has no
 `wiki/reports/_template.html`, or whenever the operator asks for a redesign.
 With the operator present:
 
-1. **Open the run under `grill`, never `morning-brief`** — a `morning-brief`
+1. **Open the run under `grill`, never `{{@brain-unit}}`** — a `{{@brain-unit}}`
    close here would advance the window cursor past days no report covered —
    then **inventory what is actually connected**. The menu of possible
    sections is this, never the sample:
@@ -94,8 +94,8 @@ With the operator present:
    explicit yes and never otherwise:
 
    ```sh
-   {{@brain-cli-ops}} policy get morning-brief
-   {{@brain-cli-ops}} policy set morning-brief     # the prose arrives on stdin
+   {{@brain-cli-ops}} policy get {{@brain-unit}}
+   {{@brain-cli-ops}} policy set {{@brain-unit}}     # the prose arrives on stdin
    ```
 
    One call carrying the complete folded text: which signals feed which
@@ -121,7 +121,7 @@ With the operator present:
    it stays uncommitted. Never `git commit`.
 
    ```sh
-   {{@brain-cli-ops}} op close grill outcome=ok summary="morning-brief setup: brief (re)designed"
+   {{@brain-cli-ops}} op close grill outcome=ok summary="{{@brain-unit}} setup: brief (re)designed"
    ```
 
 A scheduled run never asks questions. It authors the best page it can from

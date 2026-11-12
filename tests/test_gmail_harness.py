@@ -31,13 +31,13 @@ def _body(text: str) -> str:
 WRITE = "ops/skills/channel-gmail/scripts/write_items.py"
 
 
-def pulled(ops, env, wiki, job, pull: list, *flags: str):
-    """The harvest stage, in its jail: the connector's pull handed to `write`."""
+def pulled(ops, env, wiki, job, pull: list, *flags: str, then: str = ""):
+    """The harvest stage, in its jail: the connector's pull handed to `write`, then the shell in `then`."""
     ticket_id, cap = claimed(ops, env, wiki, job)
     session = staged(ops, env, wiki, ticket_id, f"""\
 cp "$FIX/pull.json" "$CAP/pull.json"
 step write "$OPS" run {WRITE} write "$CAP" --ticket "$TICKET" --from pull.json {' '.join(flags)}
-""", files={"pull.json": json.dumps(pull).encode()})
+{then}""", files={"pull.json": json.dumps(pull).encode()})
     done = session.step("write")
     assert done.returncode == 0, done.stdout + done.stderr
     return ticket_id, cap
@@ -147,10 +147,10 @@ def test_a_second_pull_the_same_day_regenerates_the_one_ledger_whole(ops, env, w
     assert second.count("discarded:") == 1
 
     # Whole, not appended: take an item away and its bullet goes with it.
-    # Another pull (same items — `write` is idempotent) for a fresh ticket
-    # pair to post the regenerated ledger through.
-    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(3), msg(2)])
-    (cap / "items" / f"{T0 + 1000}--m1.json").unlink()
+    # Another pull (same items — `write` is idempotent) that drops m1 before it
+    # lands: a re-pull whose capture is unchanged leaves its done process twin
+    # alone and mints no fresh pair to post the regenerated ledger through.
+    _ticket_id, cap = pulled(ops, env, wiki, job, [msg(3), msg(2)], then=f'rm "$CAP/items/{T0 + 1000}--m1.json"\n')
     ledgered(ops, env, wiki, job, cap, [line_for(2, "rewritten"), line_for(3)])
     assert _bullets(_body(ledger_path.read_text(encoding="utf-8"))) == _bullets(second)[1:]
 

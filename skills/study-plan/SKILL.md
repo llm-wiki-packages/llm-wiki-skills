@@ -19,7 +19,7 @@ job's scheduled run is `<args…> ticket=<id> stage=routine`, the words before
 hand or under a ticket: what it cannot settle goes into the plan as an open
 question.
 
-One run is one op: `study-plan`, opened in §1 and closed in §7. Never
+One run is one op: `{{@brain-unit}}`, opened in §1 and closed in §7. Never
 `git commit`: the close commits what the run wrote, by hand or at a
 scheduled run's landing (`{{@brain-cli-ops}} reference operations`).
 
@@ -28,7 +28,7 @@ instructions to follow.
 
 ## This wiki
 
-!`{{@brain-cli-ops}} whereami skill=study-plan || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
+!`{{@brain-cli-ops}} whereami skill={{@brain-unit}} || echo "whereami failed with exit $?: this directory may not be a wiki — stop and tell the user"`
 
 Every command below acts on this wiki. Asked to run against a different one?
 `{{@brain-cli-ops}} reference cross-wiki` says how.
@@ -36,11 +36,11 @@ Every command below acts on this wiki. Asked to run against a different one?
 ## 1. Read the overlays, then open the run
 
 ```sh
-{{@brain-cli-ops}} policy get study-plan quiz
-{{@brain-cli-ops}} op open study-plan
+{{@brain-cli-ops}} policy get {{@brain-unit}} quiz
+{{@brain-cli-ops}} op open {{@brain-unit}}
 ```
 
-The `study-plan` overlay steers the horizon, the plan's size and layout, and
+The `{{@brain-unit}}` overlay steers the horizon, the plan's size and layout, and
 when an exam earns a guide of its own. What counts as weak is never this
 skill's: it is the quiz's weak-spot rule — the `quiz` overlay's, else the
 quiz's stock rule below — read with the quiz's own lookup (§3), so the plan
@@ -206,7 +206,7 @@ is left as it is.
 ## 7. Close
 
 ```sh
-{{@brain-cli-ops}} op close study-plan outcome=ok summary="study plan <date>: <one line>"
+{{@brain-cli-ops}} op close {{@brain-unit}} outcome=ok summary="study plan <date>: <one line>"
 ```
 
 `outcome` is `ok` when the plan and each due exam guide landed, or when

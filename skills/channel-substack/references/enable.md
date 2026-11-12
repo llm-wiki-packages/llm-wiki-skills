@@ -1,4 +1,4 @@
-# channel-substack — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **Licensed newsletters need the job bound to a stored session.** The
    manifest declares `requires.credentials.file: "optional"`: a free job needs no
@@ -11,7 +11,7 @@
    as unmapped with a `bind skill` line; leave that line unrun.
 2. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <archive-url> slug=<newsletter>
-   description="<what this is>" skill=channel-substack
+   description="<what this is>" skill={{@brain-unit}}
    [harvest.max_age=3m] [harvest.access=free|licensed]` — the skill's manifest
    supplies `every=1d`, `harvest.scope=domain` and a `dest` of
    `sources/newsletters/<slug>`. **Scope MUST stay `domain`**: an archive is

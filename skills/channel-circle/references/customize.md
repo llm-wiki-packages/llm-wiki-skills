@@ -1,4 +1,4 @@
-# channel-circle — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Circle communities run on `*.circle.so` **or their own custom domain**, but
 a custom-domain community still renders Circle's own uniform chrome — so

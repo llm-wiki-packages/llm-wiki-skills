@@ -1,7 +1,7 @@
-# channel-blackboard — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-blackboard <command>` in a session at the wiki root. The
-script runs as `{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bb.py <command> …`;
+Invoked `/{{@brain-unit}} <command>` in a session at the wiki root. The
+script runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/bb.py <command> …`;
 `-h` after any command prints its own help.
 
 ## Commands
@@ -42,7 +42,7 @@ credential.
 
 ## `bbnotes.py`
 
-`{{@brain-cli-ops}} run ops/skills/channel-blackboard/scripts/bbnotes.py <command> …`.
+`{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/bbnotes.py <command> …`.
 No network and no credential: it reads a harvest directory.
 
 | command | argv | what |
@@ -76,4 +76,4 @@ parts are their own resources, `<item>#part-<n>`. Dates read in `--tz`.
 
 `render` links a page by its place, else its title; `process.py` passes each
 page's path instead. Where a page goes and its fields:
-`{{@brain-cli-ops}} reference channel-blackboard/references/layout.md`.
+`{{@brain-cli-ops}} reference {{@brain-unit}}/references/layout.md`.

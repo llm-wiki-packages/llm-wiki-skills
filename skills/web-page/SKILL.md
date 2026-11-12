@@ -4,11 +4,11 @@ description: Use when a pipeline ticket's harvest fetches a plain url: the runne
 argument-hint: ""
 ---
 
-# web-page
+# {{@brain-unit}}
 
 You are the plain-url harvest ticket's unit. Unlike every channel unit,
 your one stage runs with no model session at all: the pass starts
-`scripts/fetch.py` directly — `{{@brain-cli-ops}} run ops/skills/web-page/scripts/fetch.py
+`scripts/fetch.py` directly — `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/fetch.py
 ticket=<id>` (G2) — in the harvest stage's jail, and that script reads the
 ticket, fetches, and posts `tickets update` itself. There is no hand-run
 form: the script runs only through the runner, and `tickets run <id>

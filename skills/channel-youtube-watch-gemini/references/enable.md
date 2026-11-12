@@ -1,4 +1,4 @@
-# channel-youtube-watch-gemini — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **The key.** Create one at https://aistudio.google.com/apikey. On each
    machine that enriches, name the wiki's vault, `<key>` being this wiki's
@@ -18,7 +18,7 @@
    Then, once the skill is enabled, map the route:
 
    ```sh
-   {{@brain-cli-ops}} credentials bind skill channel-youtube-watch-gemini gemini=gemini
+   {{@brain-cli-ops}} credentials bind skill {{@brain-unit}} gemini=gemini
    ```
 
    `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps nothing:
@@ -40,11 +40,11 @@
    as the enrich skill. An enrich unit is never a job's `skill=`:
 
    ```sh
-   {{@brain-cli-ops}} jobs add <video-url> slug=<video-name> description="<what this is>" skill=channel-youtube enrich.skill=channel-youtube-watch-gemini
+   {{@brain-cli-ops}} jobs add <video-url> slug=<video-name> description="<what this is>" skill=channel-youtube enrich.skill={{@brain-unit}}
    ```
 
    An existing `channel-youtube` job gets it with `{{@brain-cli-ops}} jobs
-   edit <slug> enrich.skill=channel-youtube-watch-gemini`. The job's
+   edit <slug> enrich.skill={{@brain-unit}}`. The job's
    `enrich.options.question=` and `enrich.options.model=` steer it. Install
    `channel-youtube` as well: it writes the page, and without it there is
    nothing to carry the notes.
@@ -65,7 +65,7 @@
    It prints `{"status": "ok", ...}` and leaves `watch.md` under `enrich/`.
 
 6. Enable the skill on every OTHER machine that enriches
-   (`/{{@brain-plugin}}:enable channel-youtube-watch-gemini`) — installed is
+   (`/{{@brain-plugin}}:enable {{@brain-unit}}`) — installed is
    not loaded, and enablement never travels with a `git pull`.
 
 Unverified: the jailed run, where the proxy spends the key through the

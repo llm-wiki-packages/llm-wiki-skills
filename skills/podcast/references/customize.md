@@ -1,7 +1,7 @@
-# podcast — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 The show's hosts, length, tone and shape belong to the wiki, not to this
-unit's body. Prefer the wiki's `podcast` overlay. Editing `SKILL.md` makes
+unit's body. Prefer the wiki's `{{@brain-unit}}` overlay. Editing `SKILL.md` makes
 the unit `customized`, and `skills install` then refuses to refresh it.
 This unit is meant as a starting point: copy it under a new name for a
 second show with a different format.
@@ -21,6 +21,6 @@ Ask, with an operator at the keyboard:
 Then offer to save the answers:
 
 ```sh
-{{@brain-cli-ops}} policy get podcast     # read FIRST
-{{@brain-cli-ops}} policy set podcast     # on the operator's yes, prose on stdin
+{{@brain-cli-ops}} policy get {{@brain-unit}}     # read FIRST
+{{@brain-cli-ops}} policy set {{@brain-unit}}     # on the operator's yes, prose on stdin
 ```

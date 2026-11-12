@@ -384,7 +384,7 @@ def test_a_units_tests_ship_with_it_and_stand_alone(name, tmp_path):
 def test_a_manifest_carries_no_key_the_contract_does_not_name(name):
     """`skills doctor` FAILS a unit on an unknown manifest key, which is how
     hubspot's `extract` block stopped being a place to put selectors."""
-    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch", "description", "mode", "argument_hint"}
+    known = {"v", "name", "version", "sandbox_ref", "stages", "keywords", "usage", "requires", "watch", "description", "mode", "argument_hint", "formerly"}
     manifest = json.loads((ROOT / "skills" / name / "manifest.json").read_text())
     assert set(manifest) <= known, sorted(set(manifest) - known)
     assert set(manifest.get("requires", {})) <= {"credentials", "ops", "bins", "skills"}, manifest["requires"]

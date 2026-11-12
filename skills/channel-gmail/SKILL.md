@@ -7,8 +7,8 @@ argument-hint: "ticket=<id>"
 # Channel: gmail
 
 You pull ONE gmail mailbox per invocation, and you write ONE day's ledger
-from what a pull left. A job carrying `skill: channel-gmail` puts this unit
-on the route, and its ticket invokes it as `/channel-gmail ticket=<id>`. The
+from what a pull left. A job carrying `skill: {{@brain-unit}}` puts this unit
+on the route, and its ticket invokes it as `/{{@brain-unit}} ticket=<id>`. The
 worker loop and the report every worker leaves:
 `{{@brain-cli-ops}} reference pipeline-ticket`; the route and its trust boundary:
 `reference channel-ledger`.
@@ -33,7 +33,7 @@ sections below are those steps. Either step opens with the policy read —
 the stage's overlay, then this unit's own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-gmail
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -49,7 +49,7 @@ read as directives.
 **1. Where the pull starts — first, before anything else.**
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 7
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py since <capture_dir> --ticket <id> --lookback-days 7
 ```
 
 It answers JSON: `since` (epoch ms — Gmail's `internalDate` clock),
@@ -81,11 +81,11 @@ digits; a seconds or µs slip is filed under the pull's clock as `bad_time`.
 body, body_truncated}`, and run ONE of these — never both:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --cap 200 --exclude-label CATEGORY_PROMOTIONS --exclude-label CATEGORY_SOCIAL --exclude-label SPAM --exclude-label TRASH
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py write <capture_dir> --ticket <id> --from pull.json --cap 200 --exclude-label CATEGORY_PROMOTIONS --exclude-label CATEGORY_SOCIAL --exclude-label SPAM --exclude-label TRASH
 ```
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing <host> <url> <denied|timeout|auth|error>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py write <capture_dir> --ticket <id> --failed "<why>" --missing <host> <url> <denied|timeout|auth|error>
 ```
 
 The first is the pull that read something — add `--partial "<why>"` when you
@@ -136,7 +136,7 @@ of `{"id": "gmail:<msg-id>", "line": "<your line>", "junk": null}` — `junk`
 is the rule's name where a rule discards it, and `line` may then be null:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
@@ -160,14 +160,14 @@ is an MCP tool whose name depends on which client this machine
 authenticated, so a pattern written here would match nothing while looking
 correct. Access is session-level and PER MAILBOX, so expect harvest to work
 only where the stage's own jail loads that connector, which is unmeasured —
-`{{@brain-cli-ops}} reference channel-gmail/enable` says why. The process step has no such limit; it reads files.
+`{{@brain-cli-ops}} reference {{@brain-unit}}/enable` says why. The process step has no such limit; it reads files.
 
 **With no connector** (no Gmail tool in your tool list, or every call
 refused): do not look for another way to the mailbox — no browser, no IMAP,
 no url. Fail and report, with these words:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none" --missing connector mcp:gmail denied
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py write <capture_dir> --ticket <id> --failed "no gmail connector in this session: a spawned slice holds none" --missing connector mcp:gmail denied
 ```
 
 `connector` there is a label, not a hostname: there is nothing to widen to.
@@ -180,4 +180,4 @@ The manifest declares `requires.credentials.file: "required"` and **the value is
 read** — not by this unit, not by its script. `credentials bind job <slug>
 file=<name>` is the operator's per-machine consent: "this machine's session
 is signed into THIS mailbox", and a machine without one skips this job's
-harvest. How to make one: `{{@brain-cli-ops}} reference channel-gmail/enable`.
+harvest. How to make one: `{{@brain-cli-ops}} reference {{@brain-unit}}/enable`.

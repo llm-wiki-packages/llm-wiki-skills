@@ -48,16 +48,19 @@ TEMPLATES = ROOT / "sandboxes"
 
 # The `{{@brain-…}}` tokens `skills enable` and `reference` fill in a unit's
 # `*.md` (the `unit-manifest` contract's Tokens section). The CLI names are
-# permanent; `brain` is the plugin namespace.
+# permanent; `brain` is the plugin namespace. `UNIT_KEY` fills the name of the
+# unit the doc is in, its directory's, and refuses in a doc that is in none.
 TOKENS = {"brain-plugin": "brain", "brain-cli": "llm-wiki-cli", "brain-cli-ops": "llm-wiki-ops", "brain-cli-search": "llm-wiki-search"}
+UNIT_KEY = "brain-unit"
 _TOKEN_OPEN = re.compile(r"\{\{@(@?)brain-")
 _TOKEN_KEY = re.compile(r"(brain-[a-z-]*)\}\}")
 
 
-def render(text: str, *, where: str = "<text>") -> str:
-    """`text` as an enabled copy reads it. `{{@@brain-` is a literal
+def render(text: str, *, where: str = "<text>", unit: str | None = None) -> str:
+    """`text` as an enabled copy of `unit` reads it. `{{@@brain-` is a literal
     `{{@brain-`; any other `{{@…}}` passes through; a bad token inside the
     namespace raises, naming `where` and the line."""
+    keys = {**TOKENS, UNIT_KEY: unit} if unit else TOKENS
     out, at = [], 0
     for m in _TOKEN_OPEN.finditer(text):
         out.append(text[at : m.start()])
@@ -66,11 +69,11 @@ def render(text: str, *, where: str = "<text>") -> str:
             at = m.end()
             continue
         key = _TOKEN_KEY.match(text, m.start() + 3)
-        if not key or key.group(1) not in TOKENS:
+        if not key or key.group(1) not in keys:
             line = text.count("\n", 0, m.start()) + 1
             seen = text[m.start() :].split("\n", 1)[0][:40]
-            raise ValueError(f"{where}:{line}: {seen!r} is not a token; the keys are " + ", ".join(f"{{{{@{k}}}}}" for k in TOKENS))
-        out.append(TOKENS[key.group(1)])
+            raise ValueError(f"{where}:{line}: {seen!r} is not a token; the keys are " + ", ".join(f"{{{{@{k}}}}}" for k in keys))
+        out.append(keys[key.group(1)])
         at = key.end()
     out.append(text[at:])
     return "".join(out)
@@ -78,7 +81,13 @@ def render(text: str, *, where: str = "<text>") -> str:
 
 def doc(path: Path) -> str:
     """A shipped `*.md`, rendered as the wiki reads it."""
-    return render(path.read_text(encoding="utf-8"), where=str(path.relative_to(ROOT)))
+    return render(path.read_text(encoding="utf-8"), where=str(path.relative_to(ROOT)), unit=unit_of(path))
+
+
+def unit_of(path: Path) -> str | None:
+    """The unit a shipped file is in, its directory's name; None outside `skills/`."""
+    parts = path.resolve().relative_to(ROOT).parts
+    return parts[1] if len(parts) > 2 and parts[0] == "skills" else None
 
 
 def unit_manifest(name: str) -> dict:
@@ -194,7 +203,11 @@ def machine_harness(home: Path) -> Path:
     (AGENT_DIR / "bin" / "parentsquare-mcp").chmod(0o755)
     profile = home / ".config" / "llm-wiki" / "harnesses" / "claude.jsonc"
     profile.parent.mkdir(parents=True, exist_ok=True)
-    profile.write_text(json.dumps({"v": 1, "harness": {"command": [str(agent), "{prompt}"]}}), encoding="utf-8")
+    # It lists every claude model the seeded model table's tiers name, so any
+    # tier a stage asks for routes here; a custom profile names no `harness.model`,
+    # so the fake agent's argv carries none.
+    models = {model: {} for model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5")}
+    profile.write_text(json.dumps({"v": 2, "harness": {"command": str(agent), "args": ["{prompt}"], "models": models}}), encoding="utf-8")
     # The exit pass commits as the host's git identity; a scratch HOME has none.
     (home / ".gitconfig").write_text("[user]\n\tname = harness\n\temail = harness@example.invalid\n", encoding="utf-8")
     # uv offline, from the cache the CI warm step fills: a slice has no route

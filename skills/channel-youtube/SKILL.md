@@ -7,8 +7,8 @@ argument-hint: "ticket=<id>"
 # Channel: YouTube
 
 You harvest YouTube videos for this wiki and write their pages. You are invoked
-as `/channel-youtube ticket=<id>` for a ticket whose job names `skill:
-channel-youtube`, and this file is authoritative for how the venue is captured
+as `/{{@brain-unit}} ticket=<id>` for a ticket whose job names `skill:
+{{@brain-unit}}`, and this file is authoritative for how the venue is captured
 and how its pages read. The ticket carries the job's resolved settings — honor
 them; never re-ask.
 
@@ -33,14 +33,14 @@ A session's step opens with the policy read — the stage's overlay, then this u
 own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-youtube
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
 
 A script stage, with no model session and no policy read: the runner starts
 it in the stage's jail as
-`{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/capture_video.py ticket=<id>`,
+`{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_video.py ticket=<id>`,
 and `scripts/capture_video.py` is the whole worker. It reads the ticket (`item`, `capture_dir`,
 `known[]`, `refresh`), clears what an earlier run left in the capture
 directory (`enrich/` too: it was made from the old bytes), runs both `yt-dlp` commands (Capture, below) with the item as one
@@ -84,7 +84,7 @@ naming the rule.
 **3. Build the page.**
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/youtube_note.py . --capture-dir <capture_dir> --dest <dest> --ticket <id>
 ```
 
 It writes the body as `page.md` beside the bytes, then the page under `dest`:
@@ -95,7 +95,7 @@ One JSON line out — `written`, `page`, `has_transcript`, `chapters`,
 `held[]` names, was left alone
 (`written` empty: post `ok` with `reason=left_alone`). A non-zero exit means
 NOTHING landed: post `failed` with its last stderr line. The page's shape is
-`{{@brain-cli-ops}} reference channel-youtube/note-shape`, enrich's Watch notes too.
+`{{@brain-cli-ops}} reference {{@brain-unit}}/note-shape`, enrich's Watch notes too.
 
 **4. Post progress — last.**
 
@@ -176,7 +176,7 @@ the outcome, and exit; adopting it and stamping the job are the host's.
   need none; private, age-restricted and members-only ones need a signed-in
   session.
 - `requires.credentials.dir` is `"optional"`. Bound to a `dir` credential with
-  `login: browser` (`{{@brain-cli-ops}} reference channel-youtube/enable`), the ticket carries
+  `login: browser` (`{{@brain-cli-ops}} reference {{@brain-unit}}/enable`), the ticket carries
   `credential_dir`; the harvest script writes the credential's saved browser
   state (`credentials browser-state get`) as a Netscape `cookies.txt` in that
   directory, passes `--cookies` to both yt-dlp calls, then saves the cookies

@@ -37,7 +37,7 @@ Either step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-spotify
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 Both steps take `--capture-dir <capture_dir>` — the ticket's value,
@@ -48,7 +48,7 @@ you pass — and `--ticket <id>`, opened for the rest of their inputs.
 ### harvest
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py capture --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/spotify.py capture --capture-dir <capture_dir> --ticket <id>
 ```
 
 Reads the entity URL, `slug`, `min_date` and `harvest.assets` off the ticket,
@@ -83,7 +83,7 @@ Assets next, **before** the report — a slice that ends has no second chance:
 `extract` policy expected text.
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id>
 ```
 
 `captured[]` is the capture dir; `missing[]` is every failed asset plus every
@@ -100,7 +100,7 @@ script could not see with `--missing <url>=<why>`.
 No network, no credential — everything this step needs is under `capture_dir`.
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/spotify.py process --capture-dir <capture_dir> --ticket <id>
 ```
 
 It renders `meta.json` into the page
@@ -121,7 +121,7 @@ here to act on.
 
 ```
 echo '<the `written` list process printed>' > <capture_dir>/written.json
-{{@brain-cli-ops}} run ops/skills/channel-spotify/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id> --written-from written.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/spotify.py report --capture-dir <capture_dir> --ticket <id> --written-from written.json
 ```
 
 `--written-from` names a file of wiki-relative page paths — write the
@@ -176,7 +176,7 @@ gets no `published` key at all.
   harvest sandbox's `spotify` route: in the jail `SPOTIFY_TOKEN_AUTH` holds a
   phantom, `capture` sends it on the one token request, and the proxy puts the
   wiki's own grant there. You call no `credentials` verb and read no login.
-  The operator stores the grant and maps the route to it once per machine (`{{@brain-cli-ops}} reference channel-spotify/enable`).
+  The operator stores the grant and maps the route to it once per machine (`{{@brain-cli-ops}} reference {{@brain-unit}}/enable`).
 - With the route mapped to a wrong grant, the token request fails and the
   capture says so: nothing falls back to another account.
 - **Keyless degradation**: with no route (the jail omits one this machine

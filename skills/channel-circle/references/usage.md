@@ -1,12 +1,12 @@
-# channel-circle — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-circle ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One harvest ticket walks a whole section; one process ticket writes one lesson.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-circle/scripts/<script> …`
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`
 at the wiki root. `<capture_dir>` is the ticket's own, wiki-relative,
 verbatim; a lesson is named by `--leaf <n>`, its `order` in `plan.json`, never
 by url.

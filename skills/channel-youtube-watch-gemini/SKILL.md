@@ -9,14 +9,14 @@ argument-hint: ""
 You are the enrich step for a captured YouTube video: Google's Gemini watches
 it and the notes land beside the capture, where `channel-youtube`'s process
 step folds them into the page as "Watch notes". A job selects you with
-`enrich.skill=channel-youtube-watch-gemini`; harvest and process stay
+`enrich.skill={{@brain-unit}}`; harvest and process stay
 `channel-youtube`'s. The sibling `channel-youtube-watch-local` does the same
 job by sampling frames on this machine: the two leave the same files and
 carry the same `references/watch-notes.md` and `references/question.md`.
 
 Like `web-page`, your one stage runs with no model session: the pass starts
 `scripts/watch_gemini.py` directly — `{{@brain-cli-ops}} run
-ops/skills/channel-youtube-watch-gemini/scripts/watch_gemini.py ticket=<id>` —
+ops/skills/{{@brain-unit}}/scripts/watch_gemini.py ticket=<id>` —
 in the enrich stage's jail, and that script reads the ticket, asks Gemini,
 writes the files and posts `tickets update` itself. There is no hand-run
 form: the script runs only through the runner, and `tickets run <id>

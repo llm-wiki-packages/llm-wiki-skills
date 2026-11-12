@@ -1,10 +1,10 @@
-# channel-github — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Most of what a wiki customizes is not in this unit's prose. Three surfaces,
 each the wiki's:
 
-1. **The overlay** — `{{@brain-cli-ops}} policy get channel-github`, written on
-   the operator's yes with `policy set channel-github` (`setup` §3):
+1. **The overlay** — `{{@brain-cli-ops}} policy get {{@brain-unit}}`, written on
+   the operator's yes with `policy set {{@brain-unit}}` (`setup` §3):
    - **Categories** — the taxonomy, one bullet each: the tag, when it
      applies, the GitHub topics that map onto it.
    - **README mode** — `full` (default; best recall), `excerpt` (first ~150

@@ -1,4 +1,4 @@
-# channel-blackboard — course layout, fields and weekly releases
+# {{@brain-unit}} — course layout, fields and weekly releases
 
 How a followed course's pages are laid out under the job's `dest`, which
 frontmatter each carries, how the course index reads, and what a pull does

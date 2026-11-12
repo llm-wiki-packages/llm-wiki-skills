@@ -1,4 +1,4 @@
-# channel-gmail-gws — the profile interview (`setup`)
+# {{@brain-unit}} — the profile interview (`setup`)
 
 The profile is this unit's policy overlay: the operator's own rules, which
 the process step junks and categorizes by and every attended mode classifies
@@ -8,7 +8,7 @@ without their yes. With nobody to answer, `setup` writes nothing and says so.
 ## 1. Read what is there
 
 ```sh
-{{@brain-cli-ops}} policy get channel-gmail-gws
+{{@brain-cli-ops}} policy get {{@brain-unit}}
 ```
 
 Read the wiki's `AGENTS.md` and `wiki/profile/` too: people the wiki
@@ -22,7 +22,7 @@ means "no opinion".
 
 ## 3. Save — the whole text, on the operator's yes
 
-`{{@brain-cli-ops}} policy set channel-gmail-gws`, the full overlay on stdin (the
+`{{@brain-cli-ops}} policy set {{@brain-unit}}`, the full overlay on stdin (the
 old text plus the changes; a set replaces). The shape, freeform markdown and
 never a schema:
 
@@ -67,7 +67,7 @@ never a schema:
 ```
 
 A wiki playbook goes in the same overlay as `## Playbook: <name>`, in the
-shape of `{{@brain-cli-ops}} reference channel-gmail-gws/playbook-template`.
+shape of `{{@brain-cli-ops}} reference {{@brain-unit}}/playbook-template`.
 
 ## 4. After a run, suggest
 

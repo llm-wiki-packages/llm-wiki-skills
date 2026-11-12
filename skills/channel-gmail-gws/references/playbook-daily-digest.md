@@ -29,7 +29,7 @@ categories:
   - name: newsletters
     match: from:$newsletters OR list-unsubscribe present
     action: report
-    note: titles only; "→ /channel-gmail-gws digest --playbook newsletter-digest" hint
+    note: titles only; "→ /{{@brain-unit}} digest --playbook newsletter-digest" hint
   - name: default
     action: report
 writes: []

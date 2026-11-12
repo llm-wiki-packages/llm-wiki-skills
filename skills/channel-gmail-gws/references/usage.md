@@ -1,17 +1,17 @@
-# channel-gmail-gws — usage
+# {{@brain-unit}} — usage
 
-The pipeline: `/channel-gmail-gws ticket=<id>`, started by the runner, never
+The pipeline: `/{{@brain-unit}} ticket=<id>`, started by the runner, never
 typed. The harvest is a script stage; the process step is a session that
 follows the `stage` `tickets open <id>` answers. One invocation serves one
 mailbox (`options.mailbox`) and one day directory.
 
-The attended modes: `/channel-gmail-gws <mode> [flags]`, typed by the
+The attended modes: `/{{@brain-unit}} <mode> [flags]`, typed by the
 operator — `triage`, `digest`, `reply`, `followup`, `clean`, `setup`. Never
 unattended: `reply`, `followup` and `clean --apply` write to the mailbox.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

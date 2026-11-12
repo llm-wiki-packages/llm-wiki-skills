@@ -1,9 +1,9 @@
-# web-page — usage
+# {{@brain-unit}} — usage
 
 A script unit: its one stage runs no model session. The runner starts
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/web-page/scripts/fetch.py ticket=<id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/fetch.py ticket=<id>
 ```
 
 There is no hand-run form (SKILL.md, intro).

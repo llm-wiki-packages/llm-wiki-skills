@@ -1,4 +1,4 @@
-# channel-spotify — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 ## Sandbox
 
@@ -16,5 +16,5 @@ Widening is a committed edit to the unit's `sandbox.jsonc` followed by
 host.
 
 The `spotify` route is on the template's harvest stage; nothing maps it
-until the operator does (`{{@brain-cli-ops}} reference channel-spotify/enable`),
+until the operator does (`{{@brain-cli-ops}} reference {{@brain-unit}}/enable`),
 and unmapped, every capture is keyless.

@@ -9,7 +9,7 @@ SKILL = Path(__file__).resolve().parents[1]
 # An enabled copy's `*.md` is the source with its `{{@brain-…}}` tokens filled
 # in (the `unit-manifest` contract's Tokens section); these tests read the
 # source as that copy does.
-_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search"}
+_TOKENS = {"{{@brain-plugin}}": "brain", "{{@brain-cli}}": "llm-wiki-cli", "{{@brain-cli-ops}}": "llm-wiki-ops", "{{@brain-cli-search}}": "llm-wiki-search", "{{@brain-unit}}": "morning-brief"}
 
 
 def _doc(path: Path) -> str:

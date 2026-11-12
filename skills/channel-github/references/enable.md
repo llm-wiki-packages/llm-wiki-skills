@@ -1,7 +1,7 @@
-# channel-github — after enabling
+# {{@brain-unit}} — after enabling
 
-1. **Run setup first**: `/channel-github setup`. It proposes the category
-   taxonomy the process step tags with and writes it to the `channel-github`
+1. **Run setup first**: `/{{@brain-unit}} setup`. It proposes the category
+   taxonomy the process step tags with and writes it to the `{{@brain-unit}}`
    overlay. Pages written before a taxonomy exists fall back to GitHub
    topics, and the `retag` mode fixes them later.
 
@@ -27,7 +27,7 @@
    Then, once the skill is enabled, map the route:
 
    ```sh
-   {{@brain-cli-ops}} credentials bind skill channel-github github=github
+   {{@brain-cli-ops}} credentials bind skill {{@brain-unit}} github=github
    ```
 
    `skills enable`, which `/{{@brain-plugin}}:enable` runs, maps nothing:
@@ -43,8 +43,8 @@
    harvest job; do not override it:
 
    ```sh
-   {{@brain-cli-ops}} jobs add github-stars slug=github-stars skill=channel-github description="My GitHub stars" options.select=stars:<your-login>
-   {{@brain-cli-ops}} jobs add github-watch slug=github-watch skill=channel-github description="Orgs and repos I follow" options.select=org:<org>,repo:<owner>/<name>
+   {{@brain-cli-ops}} jobs add github-stars slug=github-stars skill={{@brain-unit}} description="My GitHub stars" options.select=stars:<your-login>
+   {{@brain-cli-ops}} jobs add github-watch slug=github-watch skill={{@brain-unit}} description="Orgs and repos I follow" options.select=org:<org>,repo:<owner>/<name>
    ```
 
    One job per purpose keeps `gh_via` meaningful: stars are what the
@@ -58,17 +58,17 @@
    the manifest's `sources/github`:
 
    ```sh
-   {{@brain-cli-ops}} jobs add github-lists routines=channel-github dest=research/github/github-lists every=1d description="GitHub list pages"
+   {{@brain-cli-ops}} jobs add github-lists routines={{@brain-unit}} dest=research/github/github-lists every=1d description="GitHub list pages"
    ```
 
-5. **Clipped repos the watches do not cover.** `/channel-github pending`
+5. **Clipped repos the watches do not cover.** `/{{@brain-unit}} pending`
    lists clips with no GitHub facts and the `repo:` selectors that fill
    them in. Put those on a job of their own:
 
    ```sh
-   {{@brain-cli-ops}} jobs add github-clips slug=github-clips skill=channel-github description="Clipped repos" options.select=<the selectors pending printed>
+   {{@brain-cli-ops}} jobs add github-clips slug=github-clips skill={{@brain-unit}} description="Clipped repos" options.select=<the selectors pending printed>
    ```
 
 6. Enable the skill on every OTHER machine that harvests
-   (`/{{@brain-plugin}}:enable channel-github`) — installed is not loaded, and
+   (`/{{@brain-plugin}}:enable {{@brain-unit}}`) — installed is not loaded, and
    enablement never travels with a `git pull`.

@@ -1,12 +1,12 @@
-# channel-notion-tasks — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-notion-tasks ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One invocation serves one workspace (`options.workspace`) and one day directory.
 
 ## Scripts
 
-Both run as `{{@brain-cli-ops}} run ops/skills/channel-notion-tasks/scripts/<script> …`.
+Both run as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | script | step | argv |

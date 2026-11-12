@@ -1,8 +1,8 @@
-# channel-gmail — after enabling
+# {{@brain-unit}} — after enabling
 
 1. One watch per mailbox. Ask a slug and a description for each, then:
    `{{@brain-cli-ops}} jobs add <slug> slug=<slug>
-   description="<whose mailbox>" skill=channel-gmail
+   description="<whose mailbox>" skill={{@brain-unit}}
    options.mailbox=<who>@example.com [every=1d]` — the target is a bare
    channel NAME, never a url, and a wiki holds ONE job per target: a second
    mailbox declared as `gmail` again is refused ("already pulls gmail"), so
@@ -32,7 +32,7 @@
    (`{{@brain-cli-ops}} jobs remove <slug>`), move its pages with git
    (`git mv <old dest> research/channels/<slug>`, then commit), and add it
    back with the same target, slug and options:
-   `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill=channel-gmail
+   `{{@brain-cli-ops}} jobs add <its target> slug=<slug> skill={{@brain-unit}}
    dest=research/channels/<slug> …`. Moving the pages first matters: a
    job whose pages all sit outside its `dest` is skipped until re-pointed.
 2. **Bind the job on each pulling machine**, per watch — this is a SWITCH,
@@ -59,7 +59,7 @@
    job, look at what it now pulls and `bind` again. Do NOT bind on a machine whose
    session is not signed into that mailbox.
 3. Enable the skill on every OTHER machine that pulls
-   (`/{{@brain-plugin}}:enable channel-gmail`, which reviews the unit's sandbox
+   (`/{{@brain-plugin}}:enable {{@brain-unit}}`, which reviews the unit's sandbox
    there too) — installed is not loaded, and enablement never
    travels with a `git pull`.
 4. **Where this skill's HARVEST is expected to work: only where the

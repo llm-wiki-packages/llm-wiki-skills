@@ -7,7 +7,7 @@ argument-hint: "ticket=<id>"
 # Channel: Substack
 
 You harvest Substack newsletters for this wiki and build their pages. A ticket
-whose `unit` is `channel-substack` means the job named this skill, and this
+whose `unit` is `{{@brain-unit}}` means the job named this skill, and this
 file is authoritative for how the venue is enumerated, captured and read. The
 ticket carries the job's resolved config — honor it; never re-ask. The worker
 loop and the report every worker leaves: `{{@brain-cli-ops}} reference
@@ -27,7 +27,7 @@ Either step opens with the policy read — the stage's overlay, then this unit's
 own, folded onto the step:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-substack
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 ### harvest
@@ -42,7 +42,7 @@ refresh's `resource`; no flag stands in for them. You never touch a queue.
 #### 1. Plan the leaves
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/enumerate_archive.py --capture-dir <capture_dir> --ticket <id> [--max-leaves <n>]
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/enumerate_archive.py --capture-dir <capture_dir> --ticket <id> [--max-leaves <n>]
 ```
 
 One ticket captures the whole archive: nothing filters after you, so the
@@ -71,7 +71,7 @@ the job's `_raw/<slug>/`. Use the `dir` the plan gives; never compose one.
 #### 2. Capture each post, newest first
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/capture_posts.py --capture-dir <capture_dir> --fetch
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_posts.py --capture-dir <capture_dir> --fetch
 ```
 
 (no `--ticket` here: this step only reads `leaves.json`, on disk from step 1)
@@ -103,8 +103,8 @@ leaf, and `--only <post-url>` re-captures one leaf.
 #### 3. Post progress, last, then exit
 
 ```
-{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/capture_posts.py --capture-dir <capture_dir> --report --ticket <id>
-{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/capture_posts.py --capture-dir <capture_dir> --report --ticket <id> --missing <url>=auth
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_posts.py --capture-dir <capture_dir> --report --ticket <id>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/capture_posts.py --capture-dir <capture_dir> --report --ticket <id> --missing <url>=auth
 ```
 
 `tickets update` is built from what is on disk: `captured[]` is every planned
@@ -141,7 +141,7 @@ content root and pipe it in as the page's body, then mark it done:
 
 ```
 {{@brain-cli-ops}} --json page list 'filter=under:<dest>' 'resource=<item>'
-{{@brain-cli-ops}} run ops/skills/channel-substack/scripts/to_markdown.py <capture_dir>/page.html \
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/to_markdown.py <capture_dir>/page.html \
     --out - --selector .available-content --base-url '<item>' \
   | {{@brain-cli-ops}} page create 'title=<capture.json title>' 'dest=<dest>' 'resource=<item>' 'type=article' \
     'published=<leaf.json published>' 'audience=<leaf.json audience>' --stdin

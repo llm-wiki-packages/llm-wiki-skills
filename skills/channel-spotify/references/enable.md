@@ -1,4 +1,4 @@
-# channel-spotify — after enabling
+# {{@brain-unit}} — after enabling
 
 1. **API access** — needed for guaranteed-complete item lists (public
    catalog only; no user login exists in this skill). It is the harvest
@@ -16,7 +16,7 @@
    ```sh
    printf '{"value": "%s", "host": "accounts.spotify.com"}\n' "$(tr -d '\n' | base64 | tr -d '\n')"
    {{@brain-cli-ops}} credentials set spotify
-   {{@brain-cli-ops}} credentials bind skill channel-spotify spotify=spotify
+   {{@brain-cli-ops}} credentials bind skill {{@brain-unit}} spotify=spotify
    ```
 
    The first line reads `<client_id>:<client_secret>` typed at the terminal
@@ -39,14 +39,14 @@
    unit searches the catalog.
 3. **Declare the job**: one per entity URL.
    `{{@brain-cli-ops}} jobs add <entity-url> slug=<content-name>
-   description="<what this is>" skill=channel-spotify
+   description="<what this is>" skill={{@brain-unit}}
    meta.group="<name>" meta.group_type=playlist|series` — a playlist or show
    is a bundle. open.spotify.com is a generic share host carrying no source
    identity, so name the slug after the content. The skill's manifest supplies
    `every=once`, `harvest.scope=page` (the capture enumerates the entity's
    items itself — there is no link crawling), `harvest.assets=download` and a
    `dest` of `sources/podcasts/<slug>`; pass `dest=` to land it elsewhere.
-   One `skill=channel-spotify` covers both stages: this skill renders its own
+   One `skill={{@brain-unit}}` covers both stages: this skill renders its own
    venue's page into `dest`.
    **A show or playlist the operator wants RE-pulled for new episodes needs
    two more keys**: `every=<period> harvest.refresh=<period>`. The container

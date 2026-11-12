@@ -1,6 +1,6 @@
-# quiz-show — usage
+# {{@brain-unit}} — usage
 
-A session skill with no scripts. Invoked `/quiz-show [focus]`.
+A session skill with no scripts. Invoked `/{{@brain-unit}} [focus]`.
 
 A routine entry's `args` become the words before `ticket=<id> stage=routine`
 (SKILL.md, scope). No word of an arg may be `--` or `--help` or begin
@@ -17,7 +17,7 @@ Nothing is asked mid-run, by hand or not.
 
 ## Knobs
 
-- The `quiz-show` overlay: the show's name, its hosts, the rounds and the
+- The `{{@brain-unit}}` overlay: the show's name, its hosts, the rounds and the
   length (SKILL.md § 1).
 - What is weak is the quiz's: the `quiz` overlay's weak-spot rule, read by
   the same call, else the quiz's stock rule (SKILL.md § 2).

@@ -1,4 +1,4 @@
-# channel-frameio — after enabling
+# {{@brain-unit}} — after enabling
 
 1. Check Playwright's Chromium build is installed on the harvesting machine
    (`uvx playwright install chromium`, outside any jail: the slice reads it
@@ -8,7 +8,7 @@
 2. No auth walkthrough: guest share links authorize themselves.
 3. Declare the job, naming the skill: `{{@brain-cli-ops}} jobs add
    <share-url> slug=<content-name>
-   description="<what this is>" skill=channel-frameio
+   description="<what this is>" skill={{@brain-unit}}
    dest=sources/scrapes/<content-name>` — the skill's manifest supplies
    `every=once`, `harvest.scope=domain` and `harvest.assets=download`.
    `reference` keeps no video and yields no transcript (the venue's only

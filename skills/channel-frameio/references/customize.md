@@ -1,4 +1,4 @@
-# channel-frameio — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Ask which share link(s) this wiki watches and record them in the
 installed SKILL.md under a "Watched shares" heading. Ask for a slug and a

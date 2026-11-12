@@ -13,7 +13,7 @@ categories:
   - name: needs-reply
     match: (from:$vips OR from:$family OR from a person, not a system) AND (a question, a request, or thread:unanswered addressed to me)
     action: report
-    note: who, what they want, by when; add "→ /channel-gmail-gws reply" hint
+    note: who, what they want, by when; add "→ /{{@brain-unit}} reply" hint
   - name: action-required
     match: subject~(deadline|due|rsvp|sign|approve|confirm|expires|action required|payment) OR from a service asking for a decision
     action: report

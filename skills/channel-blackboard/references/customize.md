@@ -1,4 +1,4 @@
-# channel-blackboard — customizing this skill
+# {{@brain-unit}} — customizing this skill
 
 Most institutions serve Blackboard on their own domain
 (`learn.example.edu`), not `*.blackboard.com`. Record the institution's host

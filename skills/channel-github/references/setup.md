@@ -1,4 +1,4 @@
-# channel-github — setup
+# {{@brain-unit}} — setup
 
 The interview that makes GitHub repos land organized. Run with the operator
 at the keyboard; every write below is on their yes. Re-run any step later —
@@ -9,8 +9,8 @@ each reads what is there first.
 This section answers which tags, areas and repo categories the wiki already uses.
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-github/scripts/catalog.py census
-{{@brain-cli-ops}} policy get channel-github
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/catalog.py census
+{{@brain-cli-ops}} policy get {{@brain-unit}}
 ```
 
 `census` answers the tags, areas and `wiki/areas/` hubs in use across
@@ -51,9 +51,9 @@ operator says yes.
 
 ## 3. Save it — the overlay the process step reads
 
-This section answers what the `channel-github` overlay holds and how it is written.
+This section answers what the `{{@brain-unit}}` overlay holds and how it is written.
 
-`{{@brain-cli-ops}} policy set channel-github`, the whole text on stdin, freeform
+`{{@brain-cli-ops}} policy set {{@brain-unit}}`, the whole text on stdin, freeform
 bullets, never a schema (read it first, and keep what it already says):
 
 ```markdown
@@ -83,7 +83,7 @@ This section answers which list pages the routine writes and how they rank.
 Show `references/lists.json` (the wiki's copy) and the result:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-github/scripts/catalog.py preview
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/catalog.py preview
 ```
 
 Ask:
@@ -111,7 +111,7 @@ next harvest merges into it:
 
 - **Web Clipper** (the browser extension): Settings → Templates → Import,
   and pick this unit's `references/clipper-github-repo.json` (`{{@brain-cli-ops}}
-  reference channel-github/clipper-github-repo` names its location). Its
+  reference {{@brain-unit}}/clipper-github-repo` names its location). Its
   trigger selects it on any `github.com/<owner>/<repo>` page, its note
   location is `sources/github`, and its note name is `<owner>--<repo>` — the
   harvest's own title. Check the first clip: the stars and topics selectors
@@ -120,7 +120,7 @@ next harvest merges into it:
   `templates/GitHub Repo.md`.
 
 A clip carries `status: draft`; the commit sweep adopts it like any clip.
-`/channel-github pending` lists clips with no GitHub facts yet.
+`/{{@brain-unit}} pending` lists clips with no GitHub facts yet.
 
 ## 6. Steer curate and dream
 
@@ -134,7 +134,7 @@ first, then `policy set` the whole text):
 
 ```markdown
 - `sources/github/` repo pages (`type: repo`): accept unless junk by the
-  channel-github overlay's rules. A re-capture that changed only `gh_*`
+  {{@brain-unit}} overlay's rules. A re-capture that changed only `gh_*`
   facts, the facts line or the README is a re-accept, not a re-review.
   A repo page and a clip of the same repo are one page, never duplicates.
 ```
@@ -170,4 +170,4 @@ This section answers what else to keep as the wiki's defaults.
 
 Anything asked here and not yet saved — the operator's GitHub login, the
 cadence the lists regenerate at — offer `{{@brain-cli-ops}} policy set
-channel-github` (read first).
+{{@brain-unit}}` (read first).

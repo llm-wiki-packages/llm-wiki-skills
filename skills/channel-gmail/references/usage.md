@@ -1,12 +1,12 @@
-# channel-gmail — usage
+# {{@brain-unit}} — usage
 
-Invoked `/channel-gmail ticket=<id>`; the runner adds `stage=<harvest|process>` to the
+Invoked `/{{@brain-unit}} ticket=<id>`; the runner adds `stage=<harvest|process>` to the
 slice prompt, but the step followed is the `stage` that `tickets open <id>` answers.
 No other argument. One invocation serves one mailbox (`options.mailbox`) and one day directory.
 
 ## Script
 
-`scripts/write_items.py`, run as `{{@brain-cli-ops}} run ops/skills/channel-gmail/scripts/write_items.py <arm> <capture_dir> --ticket <id> …`.
+`scripts/write_items.py`, run as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py <arm> <capture_dir> --ticket <id> …`.
 `<capture_dir>` is the ticket's own, wiki-relative, verbatim.
 
 | arm | step | further argv |

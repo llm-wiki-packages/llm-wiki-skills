@@ -1,13 +1,13 @@
-# channel-youtube — usage
+# {{@brain-unit}} — usage
 
 Harvest is a script stage (`stages.harvest.script`): the runner starts
 `capture_video.py ticket=<id>` with no session and no slash invocation. Only
-process is invoked, as `/channel-youtube ticket=<id> stage=process`, and takes
+process is invoked, as `/{{@brain-unit}} ticket=<id> stage=process`, and takes
 no other argument. Single videos are the proven shape.
 
 ## Scripts
 
-Each runs as `{{@brain-cli-ops}} run ops/skills/channel-youtube/scripts/<script> …`.
+Each runs as `{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/<script> …`.
 
 | script | step | argv |
 | :--- | :--- | :--- |

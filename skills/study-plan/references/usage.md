@@ -1,6 +1,6 @@
-# study-plan — usage
+# {{@brain-unit}} — usage
 
-A session skill with no scripts. Invoked `/study-plan [focus]`.
+A session skill with no scripts. Invoked `/{{@brain-unit}} [focus]`.
 
 A routine entry's `args` become the words before `ticket=<id> stage=routine`
 (SKILL.md, scope). No word of an arg may be `--` or `--help` or begin
@@ -18,7 +18,7 @@ Nothing is asked mid-run, by hand or not.
 
 ## Knobs
 
-- The `study-plan` overlay: horizon, plan size and layout, when an exam
+- The `{{@brain-unit}}` overlay: horizon, plan size and layout, when an exam
   gets a guide of its own (SKILL.md § 1).
 - What is weak is the quiz's: the `quiz` overlay's weak-spot rule, read by
   the same call, else the quiz's stock rule, over the sessions the quiz's

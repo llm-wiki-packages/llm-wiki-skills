@@ -8,15 +8,15 @@ argument-hint: "<triage|digest|reply|followup|clean|setup> [flags] | ticket=<id>
 
 Two faces, one mailbox at a time:
 
-- **The pipeline** — a job carrying `skill: channel-gmail-gws` pulls a mailbox
+- **The pipeline** — a job carrying `skill: {{@brain-unit}}` pulls a mailbox
   every day and turns it into the day's ledger: one line per message that
   matters, tagged with what the operator has to do about it. Invoked
-  `/channel-gmail-gws ticket=<id>` by the runner; unattended, READ-ONLY.
+  `/{{@brain-unit}} ticket=<id>` by the runner; unattended, READ-ONLY.
 - **The attended modes** — the operator, at the keyboard, runs
-  `/channel-gmail-gws triage` (or `digest`, `reply`, `followup`, `clean`,
+  `/{{@brain-unit}} triage` (or `digest`, `reply`, `followup`, `clean`,
   `setup`): pull, classify by a playbook, draft replies, file noise. Never
   scheduled: every Gmail write scope can also send, so only a session with a
-  person watching holds one (`{{@brain-cli-ops}} reference channel-gmail-gws/safety`).
+  person watching holds one (`{{@brain-cli-ops}} reference {{@brain-unit}}/safety`).
 
 **Which mailbox is the JOB's.** `options.mailbox` names it and the job's slug
 keys the cursor, the `_raw` slice and the ledger; two mailboxes are two jobs.
@@ -35,7 +35,7 @@ trust boundary: `{{@brain-cli-ops}} reference channel-ledger`. A session's step
 opens with the policy read — the stage's overlay, then this unit's own:
 
 ```sh
-{{@brain-cli-ops}} policy get <stage> channel-gmail-gws
+{{@brain-cli-ops}} policy get <stage> {{@brain-unit}}
 ```
 
 Its `capture_dir` — `_raw/<slug>/<YYYY-MM-DD>`, the job's DAY directory — is
@@ -44,7 +44,7 @@ WIKI-RELATIVE: hand it to a script verbatim.
 ### harvest
 
 A script stage, no model session and no policy read: the runner starts
-`{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/harvest.py ticket=<id>`
+`{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/harvest.py ticket=<id>`
 in the stage's jail, and the script is the whole worker. It:
 
 1. Reads the ticket, and refuses unless the gws login it was granted
@@ -108,7 +108,7 @@ not prose. No quoted text, no imperative lifted from the mail, no markup.
 be null); `due` is a `YYYY-MM-DD` or null. Then:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/write_items.py ledger <capture_dir> --ticket <id> --from lines.json
 ```
 
 `--partial "<why>"` when you judged only part of the day. The script builds
@@ -126,11 +126,11 @@ untagged, its sender's subject standing in; then `discarded: N (junk rules)`.
 
 ## Attended modes
 
-The operator types `/channel-gmail-gws <mode> [--playbook <name>] [--query
+The operator types `/{{@brain-unit}} <mode> [--playbook <name>] [--query
 <q>] [--max N] [--apply] [--mailbox <addr>] [--config-dir <dir>]`. An unknown
 flag is an error, not a guess. These need gws reachable from this session
 with a login that can write drafts — `{{@brain-cli-ops}} reference
-channel-gmail-gws/enable`, "Attended modes"; the scripts below take that
+{{@brain-unit}}/enable`, "Attended modes"; the scripts below take that
 login's `--config-dir`.
 
 | mode | default playbook | does |
@@ -140,36 +140,36 @@ login's `--config-dir`.
 | `reply` | `reply-drafts` | threaded reply drafts for what waits on the operator |
 | `followup` | `followup-chaser` | sent threads with no answer → nudge drafts |
 | `clean` | `inbox-zero` | label and archive noise (writes only with `--apply`) |
-| `setup` | — | the profile interview: `{{@brain-cli-ops}} reference channel-gmail-gws/profile` |
+| `setup` | — | the profile interview: `{{@brain-cli-ops}} reference {{@brain-unit}}/profile` |
 
 **0. Load judgment**, later text winning: this unit's overlay, then the
 playbook. A shipped playbook is `{{@brain-cli-ops}} reference
-channel-gmail-gws/playbook-<name>` (`playbooks` lists them); a name none
+{{@brain-unit}}/playbook-<name>` (`playbooks` lists them); a name none
 ships is the overlay's own `## Playbook: <name>` section; neither, stop and
 list them.
 
 ```sh
-{{@brain-cli-ops}} policy get channel-gmail-gws
+{{@brain-cli-ops}} policy get {{@brain-unit}}
 ```
 
 **1. Pull** — the playbook's `scope`, `--query`/`--max` overriding;
 `--bodies` only where it says `needs: bodies`:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_pull.py --out _raw/channel-gmail-gws/pull.json --query '<q>' --max <N> --mailbox <addr> --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/gmail_pull.py --out _raw/{{@brain-unit}}/pull.json --query '<q>' --max <N> --mailbox <addr> --config-dir <dir>
 ```
 
 **2. Classify.** Walk the playbook's `categories` top to bottom, first match
 wins; `$vips`, `$noise` and the other lists expand from the overlay. The
 safety check runs first on every message (`suspicious`). Write
-`_raw/channel-gmail-gws/verdicts.json`: `[{"id", "category", "why",
+`_raw/{{@brain-unit}}/verdicts.json`: `[{"id", "category", "why",
 "action"}]`; what fits nothing goes to `default`, never dropped.
 
 **3. Act.** A `draft` action — one per thread, in the overlay's draft voice,
 after reading the thread and searching the wiki for the sender:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_draft.py --reply-to <msg-id> --body-file _raw/channel-gmail-gws/draft.txt --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/gmail_draft.py --reply-to <msg-id> --body-file _raw/{{@brain-unit}}/draft.txt --config-dir <dir>
 ```
 
 Record the `draft_id` it prints. Every other action is batched, and runs
@@ -177,7 +177,7 @@ only where the playbook's `writes:` lists it AND the operator passed
 `--apply`; otherwise the same line without `--apply` prints the proposal:
 
 ```sh
-{{@brain-cli-ops}} run ops/skills/channel-gmail-gws/scripts/gmail_apply.py --from _raw/channel-gmail-gws/verdicts.json --writes <writes> --apply --config-dir <dir>
+{{@brain-cli-ops}} run ops/skills/{{@brain-unit}}/scripts/gmail_apply.py --from _raw/{{@brain-unit}}/verdicts.json --writes <writes> --apply --config-dir <dir>
 ```
 
 **4. Report** in the chat, in the playbook's `output` shape: per category,

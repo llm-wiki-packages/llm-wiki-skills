@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from harness import ROOT, TOKENS, render
+from harness import ROOT, TOKENS, UNIT_KEY, render, unit_of
 
 TREES = ("skills", "sandboxes")
 SHIPPED = sorted(p for tree in TREES for p in (ROOT / tree).rglob("*") if p.is_file() and "__pycache__" not in p.parts)
@@ -37,7 +37,7 @@ def test_the_scan_reads_the_docs_and_finds_tokens():
 
 @pytest.mark.parametrize("path", DOCS, ids=_id)
 def test_every_token_in_a_doc_is_a_known_key(path):
-    render(path.read_text(encoding="utf-8"), where=_id(path))
+    render(path.read_text(encoding="utf-8"), where=_id(path), unit=unit_of(path))
 
 
 @pytest.mark.parametrize("path", DOCS, ids=_id)
@@ -75,6 +75,14 @@ def test_render_refuses_a_bad_token_by_line(text):
         render(text, where="doc.md")
 
 
+def test_the_unit_token_fills_only_in_a_unit():
+    assert render("run /{{@brain-unit}} now", unit="brief") == "run /brief now"
+    assert unit_of(ROOT / "skills" / "web-page" / "references" / "usage.md") == "web-page"
+    assert unit_of(ROOT / "sandboxes" / "web-page.md") is None
+    with pytest.raises(ValueError, match=r"^doc\.md:1: "):
+        render(f"{{{{@{UNIT_KEY}}}}}", where="doc.md")
+
+
 def test_the_literal_scan_finds_what_it_was_written_for():
     assert LITERAL.search("run `/llm-wiki:enable x`") and LITERAL.search("`llm-wiki-ops tickets open`")
     assert not LITERAL.search("/llm-wiki-server:reindex, llm-wiki-ops-v1, .llm-wiki.toml, llm-wiki-ops/v1/plugin")
@@ -100,7 +108,7 @@ def test_the_unit_fill_scan_finds_its_copies():
 
 @pytest.mark.parametrize("path", UNIT_FILLS, ids=_id)
 def test_a_units_own_fill_reads_a_doc_as_render_does(path, tmp_path):
-    text = "/{{@brain-plugin}}:x `{{@brain-cli-ops}} y` {{@brain-cli}} {{@brain-cli-search}}\n{{@@brain-cli-ops}} {{@index}}\n"
+    text = "/{{@brain-plugin}}:x `{{@brain-cli-ops}} y` {{@brain-cli}} {{@brain-cli-search}} /{{@brain-unit}}\n{{@@brain-cli-ops}} {{@index}}\n"
     sample = tmp_path / "doc.md"
     sample.write_text(text, encoding="utf-8")
-    assert _unit_fill(path)(sample) == render(text)
+    assert _unit_fill(path)(sample) == render(text, unit=path.parents[1].name)

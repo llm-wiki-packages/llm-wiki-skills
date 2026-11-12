@@ -23,5 +23,5 @@ categories:
 writes: [star]
 output: |
   ## <mailbox> — vip watch — <date>
-  one bullet per vip/family message, newest first, with "→ /channel-gmail-gws reply" hint where a reply is due
+  one bullet per vip/family message, newest first, with "→ /{{@brain-unit}} reply" hint where a reply is due
   final line: "<n> other unread, not shown"
